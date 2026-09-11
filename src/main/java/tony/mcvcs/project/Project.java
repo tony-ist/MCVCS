@@ -18,6 +18,11 @@ public record Project(String name, Region region, int version) {
 		return new Project(name, region, version + 1);
 	}
 
+	/** The same build at an earlier (or the same) version, e.g. to locate that version's schematic. */
+	public Project atVersion(int version) {
+		return new Project(name, region, version);
+	}
+
 	/** Schematic file name without extension: {@code name} for version 1, {@code name_v2}, {@code name_v3}, ... after. */
 	public String fileName() {
 		return version == 1 ? name : name + "_v" + version;

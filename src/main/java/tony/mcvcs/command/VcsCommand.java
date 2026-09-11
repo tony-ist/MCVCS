@@ -1,12 +1,16 @@
 package tony.mcvcs.command;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Optional;
 
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -17,6 +21,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.PermissionCheck;
 
 import tony.mcvcs.MCVCS;
+import tony.mcvcs.network.PreviewSender;
 import tony.mcvcs.project.Project;
 import tony.mcvcs.project.ProjectRegistry;
 import com.sk89q.worldedit.EditSession;
@@ -26,8 +31,10 @@ import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
+import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.extent.clipboard.io.BuiltInClipboardFormat;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
+import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardWriter;
 import com.sk89q.worldedit.fabric.FabricAdapter;
 import com.sk89q.worldedit.function.operation.ForwardExtentCopy;
@@ -44,6 +51,9 @@ import com.sk89q.worldedit.world.World;
  * player's selected project for this world.</li>
  * <li>{@code /vcs commit}: saves the selected project's region again as {@code <buildname>_v<N>}. The region is the
  * one captured by {@code /vcs create}; the player's current WorldEdit selection is ignored.</li>
+ * <li>{@code /vcs preview <version>}: sends that version's schematic to the player's client, which draws it in place
+ * of the real blocks inside the project's region. Nothing in the world changes. {@code /vcs preview off} shows the
+ * real blocks again.</li>
  * </ul>
  */
 public final class VcsCommand {
@@ -106,7 +116,12 @@ public final class VcsCommand {
 					.then(Commands.argument("buildname", StringArgumentType.word())
 						.executes(context -> create(context.getSource(), StringArgumentType.getString(context, "buildname")))))
 				.then(Commands.literal("commit")
-					.executes(context -> commit(context.getSource())))));
+					.executes(context -> commit(context.getSource())))
+				.then(Commands.literal("preview")
+					.then(Commands.literal("off")
+						.executes(context -> previewOff(context.getSource())))
+					.then(Commands.argument("version", IntegerArgumentType.integer(1))
+						.executes(context -> preview(context.getSource(), IntegerArgumentType.getInteger(context, "version")))))));
 	}
 
 	private static int create(CommandSourceStack source, String buildName) throws CommandSyntaxException {
@@ -155,6 +170,70 @@ public final class VcsCommand {
 			MCVCS.LOGGER.error("Failed to commit build '{}' v{} for {}", project.name(), project.version(), player.getGameProfile().name(), e);
 			source.sendFailure(Component.literal("Failed to save schematic: " + e.getMessage()));
 			return 0;
+		}
+	}
+
+	private static int preview(CommandSourceStack source, int version) throws CommandSyntaxException {
+		ServerPlayer player = source.getPlayerOrException();
+		Optional<Project> selected = ProjectRegistry.selected(player);
+		if (selected.isEmpty()) {
+			source.sendFailure(Component.literal("No build selected in this world; run /vcs create <buildname> first"));
+			return 0;
+		}
+		if (!PreviewSender.canSend(player)) {
+			source.sendFailure(Component.literal("Your client does not have MCVCS installed, so it cannot show previews"));
+			return 0;
+		}
+
+		Project latest = selected.get();
+		if (version > latest.version()) {
+			source.sendFailure(Component.literal("Build '" + latest.name() + "' only has versions 1 to " + latest.version()));
+			return 0;
+		}
+
+		Project project = latest.atVersion(version);
+		Player actor = FabricAdapter.get().fromNativePlayer(player);
+
+		try {
+			Clipboard clipboard = load(actor, project);
+			PreviewSender.send(player, project, clipboard);
+
+			source.sendSuccess(() -> Component.literal("Previewing build '" + project.name() + "' v" + project.version() + " (" + project.region().getVolume() + " blocks); run /vcs preview off to stop"), false);
+			return 1;
+		} catch (NoSuchFileException e) {
+			source.sendFailure(Component.literal("No schematic for build '" + project.name() + "' v" + project.version() + " at " + e.getFile()));
+			return 0;
+		} catch (WorldEditException | IOException | IllegalArgumentException e) {
+			MCVCS.LOGGER.error("Failed to preview build '{}' v{} for {}", project.name(), project.version(), player.getGameProfile().name(), e);
+			source.sendFailure(Component.literal("Failed to load schematic: " + e.getMessage()));
+			return 0;
+		}
+	}
+
+	private static int previewOff(CommandSourceStack source) throws CommandSyntaxException {
+		ServerPlayer player = source.getPlayerOrException();
+		if (!PreviewSender.canSend(player)) {
+			source.sendFailure(Component.literal("Your client does not have MCVCS installed, so it cannot show previews"));
+			return 0;
+		}
+
+		PreviewSender.clear(player);
+		source.sendSuccess(() -> Component.literal("Preview off"), false);
+		return 1;
+	}
+
+	/** Reads the schematic {@link #save} wrote for {@code project}. */
+	private static Clipboard load(Player actor, Project project) throws WorldEditException, IOException {
+		WorldEdit worldEdit = WorldEdit.getInstance();
+		Path dir = worldEdit.getWorkingDirectoryPath(worldEdit.getConfiguration().saveDir);
+		Path file = worldEdit.getSafeOpenFile(actor, dir.toFile(), project.fileName(), FORMAT.getPrimaryFileExtension()).toPath();
+		if (!Files.isRegularFile(file)) {
+			throw new NoSuchFileException(file.toString());
+		}
+
+		try (InputStream in = new BufferedInputStream(Files.newInputStream(file));
+			 ClipboardReader reader = FORMAT.getReader(in)) {
+			return reader.read();
 		}
 	}
 
