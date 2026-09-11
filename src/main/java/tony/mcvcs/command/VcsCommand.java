@@ -16,6 +16,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.PermissionCheck;
@@ -49,6 +50,8 @@ import com.sk89q.worldedit.world.World;
  * <li>{@code /vcs create <buildname>}: copies the player's current WorldEdit selection and saves it as a schematic
  * in WorldEdit's schematics directory, the same place {@code //schem save} writes to. The new project becomes the
  * player's selected project for this world.</li>
+ * <li>{@code /vcs select <buildname>}: makes a project created earlier this server run the player's selected project
+ * for this world, so its bounding box is shown and later commands act on it.</li>
  * <li>{@code /vcs commit}: saves the selected project's region again as {@code <buildname>_v<N>}. The region is the
  * one captured by {@code /vcs create}; the player's current WorldEdit selection is ignored.</li>
  * <li>{@code /vcs preview <version>}: sends that version's schematic to the player's client, which draws it in place
@@ -115,6 +118,10 @@ public final class VcsCommand {
 				.then(Commands.literal("create")
 					.then(Commands.argument("buildname", StringArgumentType.word())
 						.executes(context -> create(context.getSource(), StringArgumentType.getString(context, "buildname")))))
+				.then(Commands.literal("select")
+					.then(Commands.argument("buildname", StringArgumentType.word())
+						.suggests((context, builder) -> SharedSuggestionProvider.suggest(ProjectRegistry.names(context.getSource().getLevel().dimension()), builder))
+						.executes(context -> select(context.getSource(), StringArgumentType.getString(context, "buildname")))))
 				.then(Commands.literal("commit")
 					.executes(context -> commit(context.getSource())))
 				.then(Commands.literal("preview")
@@ -146,6 +153,19 @@ public final class VcsCommand {
 			source.sendFailure(Component.literal("Failed to save schematic: " + e.getMessage()));
 			return 0;
 		}
+	}
+
+	private static int select(CommandSourceStack source, String buildName) throws CommandSyntaxException {
+		ServerPlayer player = source.getPlayerOrException();
+		Optional<Project> project = ProjectRegistry.find(player.level().dimension(), buildName);
+		if (project.isEmpty()) {
+			source.sendFailure(Component.literal("No build named '" + buildName + "' in this world; create it with /vcs create " + buildName));
+			return 0;
+		}
+
+		ProjectRegistry.select(player, project.get());
+		source.sendSuccess(() -> Component.literal("Selected build '" + buildName + "' v" + project.get().version() + " (" + project.get().region().getVolume() + " blocks)"), false);
+		return 1;
 	}
 
 	private static int commit(CommandSourceStack source) throws CommandSyntaxException {
