@@ -28,6 +28,6 @@ public record SelectedProject(String name, int version, ResourceKey<Level> dimen
 
 	/** The client-facing view of {@code project}, which is selected in {@code dimension}. */
 	public static SelectedProject of(Project project, ResourceKey<Level> dimension) {
-		return new SelectedProject(project.name(), project.version(), dimension, ProjectBox.of(project.region()));
+		return new SelectedProject(project.name(), project.version(), dimension, project.box());
 	}
 }

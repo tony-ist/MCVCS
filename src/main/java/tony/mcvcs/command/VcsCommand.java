@@ -18,12 +18,14 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.PermissionCheck;
 
 import tony.mcvcs.MCVCS;
 import tony.mcvcs.network.PreviewSender;
 import tony.mcvcs.project.Project;
+import tony.mcvcs.project.ProjectBox;
 import tony.mcvcs.project.ProjectRegistry;
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.IncompleteRegionException;
@@ -47,17 +49,18 @@ import com.sk89q.worldedit.world.World;
 /**
  * {@code /vcs} command tree.
  * <ul>
- * <li>{@code /vcs create <buildname>}: copies the player's current WorldEdit selection and saves it as a schematic
- * in WorldEdit's schematics directory, the same place {@code //schem save} writes to. The new project becomes the
- * player's selected project for this world.</li>
- * <li>{@code /vcs select <buildname>}: makes a project created earlier this server run the player's selected project
- * for this world, so its bounding box is shown and later commands act on it.</li>
- * <li>{@code /vcs commit}: saves the selected project's region again as {@code <buildname>_v<N>}. The region is the
- * one captured by {@code /vcs create}; the player's current WorldEdit selection is ignored.</li>
+ * <li>{@code /vcs create <buildname>}: copies the bounding box of the player's current WorldEdit selection and saves
+ * it as a schematic in WorldEdit's schematics directory, the same place {@code //schem save} writes to. The new
+ * project becomes the player's selected project for this world.</li>
+ * <li>{@code /vcs select <buildname>}: makes an existing project in this world the player's selected project there,
+ * so its bounding box is shown and later commands act on it.</li>
+ * <li>{@code /vcs commit}: saves the selected project's box again as {@code <buildname>_v<N>}. The box is the one
+ * captured by {@code /vcs create}; the player's current WorldEdit selection is ignored.</li>
  * <li>{@code /vcs preview <version>}: sends that version's schematic to the player's client, which draws it in place
- * of the real blocks inside the project's region. Nothing in the world changes. {@code /vcs preview off} shows the
+ * of the real blocks inside the project's box. Nothing in the world changes. {@code /vcs preview off} shows the
  * real blocks again.</li>
  * </ul>
+ * Projects and selections are kept per world in {@link ProjectRegistry} and saved with it.
  */
 public final class VcsCommand {
 	/** Corner of the selection the schematic origin is anchored to. */
@@ -120,7 +123,7 @@ public final class VcsCommand {
 						.executes(context -> create(context.getSource(), StringArgumentType.getString(context, "buildname")))))
 				.then(Commands.literal("select")
 					.then(Commands.argument("buildname", StringArgumentType.word())
-						.suggests((context, builder) -> SharedSuggestionProvider.suggest(ProjectRegistry.names(context.getSource().getLevel().dimension()), builder))
+						.suggests((context, builder) -> SharedSuggestionProvider.suggest(ProjectRegistry.names(context.getSource().getLevel()), builder))
 						.executes(context -> select(context.getSource(), StringArgumentType.getString(context, "buildname")))))
 				.then(Commands.literal("commit")
 					.executes(context -> commit(context.getSource())))
@@ -138,12 +141,12 @@ public final class VcsCommand {
 		LocalSession session = worldEdit.getSessionManager().get(actor);
 
 		try {
-			// Clone so later //pos1, //pos2 or wand clicks cannot move the project's region under us.
-			Project project = new Project(buildName, session.getSelection(actor.getWorld()).clone(), 1);
-			Path file = save(actor, session, project);
+			// Only the bounding box is kept, so later //pos1, //pos2 or wand clicks cannot move the project's box under us.
+			Project project = new Project(buildName, ProjectBox.of(session.getSelection(actor.getWorld())), 1);
+			Path file = save(actor, session, project, player.level());
 			ProjectRegistry.select(player, project);
 
-			source.sendSuccess(() -> Component.literal("Created build '" + buildName + "' (" + project.region().getVolume() + " blocks) at " + file.getFileName()), false);
+			source.sendSuccess(() -> Component.literal("Created build '" + buildName + "' (" + project.box().volume() + " blocks) at " + file.getFileName()), false);
 			return 1;
 		} catch (IncompleteRegionException e) {
 			source.sendFailure(Component.literal("Make a WorldEdit selection first"));
@@ -157,14 +160,14 @@ public final class VcsCommand {
 
 	private static int select(CommandSourceStack source, String buildName) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
-		Optional<Project> project = ProjectRegistry.find(player.level().dimension(), buildName);
+		Optional<Project> project = ProjectRegistry.find(player.level(), buildName);
 		if (project.isEmpty()) {
 			source.sendFailure(Component.literal("No build named '" + buildName + "' in this world; create it with /vcs create " + buildName));
 			return 0;
 		}
 
 		ProjectRegistry.select(player, project.get());
-		source.sendSuccess(() -> Component.literal("Selected build '" + buildName + "' v" + project.get().version() + " (" + project.get().region().getVolume() + " blocks)"), false);
+		source.sendSuccess(() -> Component.literal("Selected build '" + buildName + "' v" + project.get().version() + " (" + project.get().box().volume() + " blocks)"), false);
 		return 1;
 	}
 
@@ -181,10 +184,10 @@ public final class VcsCommand {
 		LocalSession session = WorldEdit.getInstance().getSessionManager().get(actor);
 
 		try {
-			Path file = save(actor, session, project);
+			Path file = save(actor, session, project, player.level());
 			ProjectRegistry.select(player, project);
 
-			source.sendSuccess(() -> Component.literal("Committed build '" + project.name() + "' v" + project.version() + " (" + project.region().getVolume() + " blocks) at " + file.getFileName()), false);
+			source.sendSuccess(() -> Component.literal("Committed build '" + project.name() + "' v" + project.version() + " (" + project.box().volume() + " blocks) at " + file.getFileName()), false);
 			return 1;
 		} catch (WorldEditException | IOException e) {
 			MCVCS.LOGGER.error("Failed to commit build '{}' v{} for {}", project.name(), project.version(), player.getGameProfile().name(), e);
@@ -218,7 +221,7 @@ public final class VcsCommand {
 			Clipboard clipboard = load(actor, project);
 			PreviewSender.send(player, project, clipboard);
 
-			source.sendSuccess(() -> Component.literal("Previewing build '" + project.name() + "' v" + project.version() + " (" + project.region().getVolume() + " blocks); run /vcs preview off to stop"), false);
+			source.sendSuccess(() -> Component.literal("Previewing build '" + project.name() + "' v" + project.version() + " (" + project.box().volume() + " blocks); run /vcs preview off to stop"), false);
 			return 1;
 		} catch (NoSuchFileException e) {
 			source.sendFailure(Component.literal("No schematic for build '" + project.name() + "' v" + project.version() + " at " + e.getFile()));
@@ -257,9 +260,9 @@ public final class VcsCommand {
 		}
 	}
 
-	/** Copies the project's region into a clipboard anchored at the configured origin and writes it to disk. */
-	private static Path save(Player actor, LocalSession session, Project project) throws WorldEditException, IOException {
-		Region region = project.region();
+	/** Copies the project's box in {@code level} into a clipboard anchored at the configured origin and writes it to disk. */
+	private static Path save(Player actor, LocalSession session, Project project, ServerLevel level) throws WorldEditException, IOException {
+		Region region = project.region(level);
 		WorldEdit worldEdit = WorldEdit.getInstance();
 		World world = region.getWorld();
 
@@ -283,7 +286,7 @@ public final class VcsCommand {
 			writer.write(clipboard);
 		}
 
-		MCVCS.LOGGER.info("{} saved build '{}' v{} from {} at {}", actor.getName(), project.name(), project.version(), world == null ? "its region" : "its region in " + world.getName(), file);
+		MCVCS.LOGGER.info("{} saved build '{}' v{} from {} at {}", actor.getName(), project.name(), project.version(), world == null ? "its box" : "its box in " + world.getName(), file);
 		return file;
 	}
 }

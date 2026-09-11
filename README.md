@@ -15,7 +15,7 @@ Select a build with WorldEdit, turn it into a project, and commit snapshots of i
 
 | Command | What it does |
 | --- | --- |
-| `/vcs create <buildname>` | Turns your current WorldEdit selection into a project and saves it as version 1. The project becomes your selected project for this world. |
+| `/vcs create <buildname>` | Turns the bounding box of your current WorldEdit selection into a project and saves it as version 1. The project becomes your selected project for this world. |
 | `/vcs select <buildname>` | Selects an existing project so its bounding box is shown and later commands act on it. |
 | `/vcs commit` | Saves the selected project's region again as the next version. The region is the one captured by `create`; your current WorldEdit selection is ignored. |
 | `/vcs preview <version>` | Renders that version in place of the real blocks inside the project's region. Nothing in the world changes. |
@@ -25,7 +25,7 @@ Select a build with WorldEdit, turn it into a project, and commit snapshots of i
 
 - Schematics are written in Sponge v3 format to WorldEdit's schematics directory (the same place `//schem save` uses), named `<buildname>` for version 1 and `<buildname>_v<N>` afterwards.
 - Projects are tracked per world and per name. Selections are per player and per world, and the selected project's bounding box is synced to the client and drawn in the world.
-- The project registry lives in memory and is cleared when the server stops.
+- Projects and selections are saved with the world, in `data/mcvcs/projects.dat` under each dimension's save directory, so they are back after a restart. They are written whenever a project is created, committed or selected and whenever the world saves.
 
 ## Development
 
@@ -41,7 +41,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ## TODO
 
-- Load projects when game launches and save them on game exit (and on some other actions too to not lose progress)
 - Store schematics in a separate non-worldedit folder to separate them. Group them in folders by project names.
 - `/vcs deselect`
 - `/vcs checkout version` clears current selection and loads selected version instead. Think about what happens when build has observers or updating components.

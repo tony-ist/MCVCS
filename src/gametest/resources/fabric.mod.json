@@ -10,7 +10,8 @@
 			"tony.mcvcs.gametest.VcsCommitCommandGameTest",
 			"tony.mcvcs.gametest.VcsPreviewCommandGameTest",
 			"tony.mcvcs.gametest.VcsSelectionBoxGameTest",
-			"tony.mcvcs.gametest.VcsSelectCommandGameTest"
+			"tony.mcvcs.gametest.VcsSelectCommandGameTest",
+			"tony.mcvcs.gametest.VcsReloadGameTest"
 		]
 	},
 	"depends": {

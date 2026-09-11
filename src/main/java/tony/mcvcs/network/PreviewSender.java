@@ -48,7 +48,7 @@ public final class PreviewSender {
 	 * @throws IllegalArgumentException if the clipboard is not the size of the project's region
 	 */
 	public static void send(ServerPlayer player, Project project, Clipboard clipboard) {
-		ProjectBox box = ProjectBox.of(project.region());
+		ProjectBox box = project.box();
 		BlockVector3 dimensions = clipboard.getDimensions();
 		if (dimensions.x() != box.sizeX() || dimensions.y() != box.sizeY() || dimensions.z() != box.sizeZ()) {
 			throw new IllegalArgumentException("Schematic is " + dimensions + " but the build's region is "

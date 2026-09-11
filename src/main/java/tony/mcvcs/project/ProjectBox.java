@@ -3,6 +3,9 @@ package tony.mcvcs.project;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.codec.StreamCodec;
 
+import com.mojang.datafixers.util.Pair;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
 import com.sk89q.worldedit.fabric.FabricAdapter;
 import com.sk89q.worldedit.regions.Region;
 import io.netty.buffer.ByteBuf;
@@ -16,6 +19,17 @@ import io.netty.buffer.ByteBuf;
  * all three relative to {@link #min()}.
  */
 public record ProjectBox(BlockPos min, BlockPos max) {
+	/** Saved as {@code min} and {@code max} fields; a box whose corners are the wrong way round is a data error. */
+	public static final Codec<ProjectBox> CODEC = Codec.pair(
+		BlockPos.CODEC.fieldOf("min").codec(),
+		BlockPos.CODEC.fieldOf("max").codec()
+	).comapFlatMap(corners -> {
+		try {
+			return DataResult.success(new ProjectBox(corners.getFirst(), corners.getSecond()));
+		} catch (IllegalArgumentException e) {
+			return DataResult.error(e::getMessage);
+		}
+	}, box -> Pair.of(box.min(), box.max()));
 	public static final StreamCodec<ByteBuf, ProjectBox> STREAM_CODEC = StreamCodec.composite(
 		BlockPos.STREAM_CODEC, ProjectBox::min,
 		BlockPos.STREAM_CODEC, ProjectBox::max,
