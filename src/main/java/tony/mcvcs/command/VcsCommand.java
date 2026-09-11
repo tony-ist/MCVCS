@@ -1,0 +1,148 @@
+package tony.mcvcs.command;
+
+import java.io.BufferedOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.PermissionCheck;
+
+import tony.mcvcs.MCVCS;
+import com.sk89q.worldedit.EditSession;
+import com.sk89q.worldedit.IncompleteRegionException;
+import com.sk89q.worldedit.LocalSession;
+import com.sk89q.worldedit.WorldEdit;
+import com.sk89q.worldedit.WorldEditException;
+import com.sk89q.worldedit.entity.Player;
+import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
+import com.sk89q.worldedit.extent.clipboard.io.BuiltInClipboardFormat;
+import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
+import com.sk89q.worldedit.extent.clipboard.io.ClipboardWriter;
+import com.sk89q.worldedit.fabric.FabricAdapter;
+import com.sk89q.worldedit.function.operation.ForwardExtentCopy;
+import com.sk89q.worldedit.function.operation.Operations;
+import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.regions.Region;
+import com.sk89q.worldedit.world.World;
+
+/**
+ * {@code /vcs} command tree.
+ * <p>
+ * {@code /vcs create <buildname>}: copies the player's current WorldEdit selection and saves it as a schematic
+ * in WorldEdit's schematics directory, the same place {@code //schem save} writes to.
+ */
+public final class VcsCommand {
+	/** Corner of the selection the schematic origin is anchored to. */
+	public static final Corner ORIGIN_CORNER = Corner.TOP_NORTH_WEST;
+	/** Extra offset applied on top of {@link #ORIGIN_CORNER}. */
+	public static final BlockVector3 ORIGIN_OFFSET = BlockVector3.ZERO;
+	/** Schematic file format. */
+	public static final ClipboardFormat FORMAT = BuiltInClipboardFormat.SPONGE_V3_SCHEMATIC;
+	public static final boolean COPY_ENTITIES = false;
+	public static final boolean COPY_BIOMES = false;
+	/** Vanilla permission required to run the command (gamemasters = op level 2 / cheats). */
+	public static final PermissionCheck PERMISSION = Commands.LEVEL_GAMEMASTERS;
+
+	/** A corner of a cuboid; north is -Z, west is -X, bottom is -Y. */
+	public enum Corner {
+		BOTTOM_NORTH_WEST(false, false, false),
+		BOTTOM_NORTH_EAST(true, false, false),
+		BOTTOM_SOUTH_WEST(false, false, true),
+		BOTTOM_SOUTH_EAST(true, false, true),
+		TOP_NORTH_WEST(false, true, false),
+		TOP_NORTH_EAST(true, true, false),
+		TOP_SOUTH_WEST(false, true, true),
+		TOP_SOUTH_EAST(true, true, true);
+
+		private final boolean east;
+		private final boolean top;
+		private final boolean south;
+
+		Corner(boolean east, boolean top, boolean south) {
+			this.east = east;
+			this.top = top;
+			this.south = south;
+		}
+
+		public BlockVector3 of(Region region) {
+			BlockVector3 min = region.getMinimumPoint();
+			BlockVector3 max = region.getMaximumPoint();
+			return BlockVector3.at(
+				east ? max.x() : min.x(),
+				top ? max.y() : min.y(),
+				south ? max.z() : min.z()
+			);
+		}
+	}
+
+	private VcsCommand() {
+	}
+
+	public static void register() {
+		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
+			dispatcher.register(Commands.literal("vcs")
+				.requires(Commands.hasPermission(PERMISSION))
+				.then(Commands.literal("create")
+					.then(Commands.argument("buildname", StringArgumentType.word())
+						.executes(context -> create(context.getSource(), StringArgumentType.getString(context, "buildname")))))));
+	}
+
+	private static int create(CommandSourceStack source, String buildName) throws CommandSyntaxException {
+		ServerPlayer player = source.getPlayerOrException();
+		Player actor = FabricAdapter.get().fromNativePlayer(player);
+		WorldEdit worldEdit = WorldEdit.getInstance();
+		LocalSession session = worldEdit.getSessionManager().get(actor);
+
+		try {
+			Region region = session.getSelection(actor.getWorld());
+			Path file = save(actor, session, region, buildName);
+
+			source.sendSuccess(() -> Component.literal("Created build '" + buildName + "' (" + region.getVolume() + " blocks) at " + file.getFileName()), false);
+			return 1;
+		} catch (IncompleteRegionException e) {
+			source.sendFailure(Component.literal("Make a WorldEdit selection first"));
+			return 0;
+		} catch (WorldEditException | IOException e) {
+			MCVCS.LOGGER.error("Failed to create build '{}' from selection of {}", buildName, player.getGameProfile().name(), e);
+			source.sendFailure(Component.literal("Failed to save schematic: " + e.getMessage()));
+			return 0;
+		}
+	}
+
+	/** Copies {@code region} into a clipboard anchored at the configured origin and writes it to disk. */
+	private static Path save(Player actor, LocalSession session, Region region, String buildName) throws WorldEditException, IOException {
+		WorldEdit worldEdit = WorldEdit.getInstance();
+		World world = region.getWorld();
+
+		BlockArrayClipboard clipboard = new BlockArrayClipboard(region);
+		clipboard.setOrigin(ORIGIN_CORNER.of(region).add(ORIGIN_OFFSET));
+
+		try (EditSession editSession = session.createEditSession(actor)) {
+			ForwardExtentCopy copy = new ForwardExtentCopy(editSession, region, clipboard, region.getMinimumPoint());
+			copy.setCopyingEntities(COPY_ENTITIES);
+			copy.setCopyingBiomes(COPY_BIOMES);
+			Operations.complete(copy);
+		}
+
+		Path dir = worldEdit.getWorkingDirectoryPath(worldEdit.getConfiguration().saveDir);
+		// Validates the user-supplied name and prevents escaping the schematics directory.
+		Path file = worldEdit.getSafeSaveFile(actor, dir.toFile(), buildName, FORMAT.getPrimaryFileExtension()).toPath();
+		Files.createDirectories(file.getParent());
+
+		try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(file));
+			 ClipboardWriter writer = FORMAT.getWriter(out)) {
+			writer.write(clipboard);
+		}
+
+		MCVCS.LOGGER.info("{} created build '{}' from {} at {}", actor.getName(), buildName, world == null ? "selection" : "selection in " + world.getName(), file);
+		return file;
+	}
+}
