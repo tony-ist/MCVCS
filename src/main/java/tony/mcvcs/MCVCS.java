@@ -5,6 +5,7 @@ import net.fabricmc.api.ModInitializer;
 import net.minecraft.resources.Identifier;
 
 import tony.mcvcs.command.VcsCommand;
+import tony.mcvcs.project.ProjectRegistry;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +26,7 @@ public class MCVCS implements ModInitializer {
 
 		LOGGER.info("Hello Fabric world!");
 
+		ProjectRegistry.register();
 		VcsCommand.register();
 	}
 
