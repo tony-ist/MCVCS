@@ -42,8 +42,13 @@ import com.sk89q.worldedit.world.World;
 public final class VcsCommand {
 	/** Corner of the selection the schematic origin is anchored to. */
 	public static final Corner ORIGIN_CORNER = Corner.TOP_NORTH_WEST;
-	/** Extra offset applied on top of {@link #ORIGIN_CORNER}. */
-	public static final BlockVector3 ORIGIN_OFFSET = BlockVector3.ZERO;
+	/**
+	 * Extra offset applied on top of {@link #ORIGIN_CORNER}.
+	 * <p>
+	 * Pasting puts the origin at the player's feet, so anchoring straight to the top layer leaves the player standing
+	 * inside it. Lifting the origin one block above the selection drops the whole build one block below the player.
+	 */
+	public static final BlockVector3 ORIGIN_OFFSET = BlockVector3.at(0, 1, 0);
 	/** Schematic file format. */
 	public static final ClipboardFormat FORMAT = BuiltInClipboardFormat.SPONGE_V3_SCHEMATIC;
 	public static final boolean COPY_ENTITIES = false;

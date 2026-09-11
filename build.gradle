@@ -26,6 +26,17 @@ loom {
 	}
 }
 
+// Game tests: https://docs.fabricmc.net/develop/automatic-testing#setting-up-game-tests-with-fabric-loom
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = "mcvcs-test"
+		enableGameTests = false
+		enableClientGameTests = true
+		eula = true
+	}
+}
+
 dependencies {
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"

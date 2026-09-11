@@ -1,3 +1,3 @@
-- You are on Windows.
+- You are on Windows. Use only PowerShell. No Git Bash.
 - Use `gradlew.bat` to run gradle commands.
 - Use `runClientGameTest` from `gradlew.bat` to run game tests and make screenshots, look at the resulting screenshots to verify your changes.

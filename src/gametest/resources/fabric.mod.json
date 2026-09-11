@@ -1,0 +1,15 @@
+{
+	"schemaVersion": 1,
+	"id": "mcvcs-test",
+	"version": "1.0.0",
+	"name": "MCVCS tests",
+	"environment": "*",
+	"entrypoints": {
+		"fabric-client-gametest": [
+			"tony.mcvcs.gametest.VcsCreateCommandGameTest"
+		]
+	},
+	"depends": {
+		"mcvcs": "*"
+	}
+}
