@@ -2,7 +2,6 @@ package tony.mcvcs.network;
 
 import java.util.Optional;
 
-import net.fabricmc.fabric.api.entity.event.v1.ServerEntityLevelChangeEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -14,8 +13,8 @@ import tony.mcvcs.project.SelectedProject;
 /**
  * Keeps each client informed of the project its player has selected, so it can draw the project's bounding box.
  * <p>
- * Selection is per world, so the client is brought up to date when the player joins, whenever they change
- * dimension and whenever {@link ProjectRegistry#select} runs.
+ * The client is brought up to date when the player joins and whenever {@link ProjectRegistry#select} runs. The
+ * selection carries the world its box is in, so changing dimension needs no resend; the client draws it only there.
  */
 public final class SelectionSync {
 	private SelectionSync() {
@@ -25,16 +24,15 @@ public final class SelectionSync {
 	public static void register() {
 		PayloadTypeRegistry.clientboundPlay().register(SelectedProjectPayload.TYPE, SelectedProjectPayload.STREAM_CODEC);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> send(handler.player));
-		ServerEntityLevelChangeEvents.AFTER_PLAYER_CHANGE_LEVEL.register((player, origin, destination) -> send(player));
 	}
 
-	/** Tells {@code player}'s client which project is selected in the world they are in, if the client has this mod. */
+	/** Tells {@code player}'s client which project they have selected, if the client has this mod. */
 	public static void send(ServerPlayer player) {
 		if (!ServerPlayNetworking.canSend(player, SelectedProjectPayload.TYPE)) {
 			return;
 		}
 
-		Optional<SelectedProject> selected = ProjectRegistry.selected(player).map(project -> SelectedProject.of(project, player.level().dimension()));
+		Optional<SelectedProject> selected = ProjectRegistry.selected(player).map(SelectedProject::of);
 		ServerPlayNetworking.send(player, new SelectedProjectPayload(selected));
 	}
 }

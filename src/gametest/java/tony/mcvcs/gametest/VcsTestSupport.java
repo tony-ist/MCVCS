@@ -4,14 +4,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Stream;
 
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Screenshot;
 
-import tony.mcvcs.command.VcsCommand;
+import tony.mcvcs.project.ProjectStorage;
 import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
@@ -32,20 +34,40 @@ final class VcsTestSupport {
 	private VcsTestSupport() {
 	}
 
-	/** Where {@code /vcs} writes the schematic called {@code name}. */
-	static Path schematic(String name) {
-		WorldEdit worldEdit = WorldEdit.getInstance();
-		return worldEdit.getWorkingDirectoryPath(worldEdit.getConfiguration().saveDir)
-			.resolve(name + "." + VcsCommand.FORMAT.getPrimaryFileExtension());
+	/** Where {@code /vcs} writes version {@code version} of the build called {@code name}, spelled out rather than taken from the mod. */
+	@SuppressWarnings("SameParameterValue")
+	static Path schematic(String name, int version) {
+		return FabricLoader.getInstance().getGameDir().resolve("mcvcs").resolve(name).resolve("v" + version + ".schem");
 	}
 
-	/** Removes schematics left behind by earlier runs so a test cannot pass on stale output. */
-	static void deleteSchematics(String... names) {
+	/** Where {@code /vcs} writes the description of the build called {@code name}, spelled out rather than taken from the mod. */
+	static Path projectFile(String name) {
+		return FabricLoader.getInstance().getGameDir().resolve("mcvcs").resolve(name).resolve("project.json");
+	}
+
+	/**
+	 * Removes the given project folders and every player's selection left behind by earlier runs, so a test cannot
+	 * pass on stale output. Projects and selections are stored in the game directory, not with the world, so a
+	 * fresh world alone does not clear them; each test uses names of its own and worlds get fresh save folders, so
+	 * this mostly matters when a save folder name is reused between runs.
+	 */
+	static void resetProjects(String... names) {
+		try {
+			Files.deleteIfExists(ProjectStorage.selectionsFile());
+		} catch (IOException e) {
+			throw new AssertionError("Failed to delete stale selections", e);
+		}
 		for (String name : names) {
-			try {
-				Files.deleteIfExists(schematic(name));
+			Path directory = ProjectStorage.directory(name);
+			if (!Files.exists(directory)) {
+				continue;
+			}
+			try (Stream<Path> files = Files.walk(directory)) {
+				for (Path file : files.sorted(Comparator.reverseOrder()).toList()) {
+					Files.delete(file);
+				}
 			} catch (IOException e) {
-				throw new AssertionError("Failed to delete stale schematic " + name, e);
+				throw new AssertionError("Failed to delete stale project folder " + directory, e);
 			}
 		}
 	}
@@ -55,7 +77,7 @@ final class VcsTestSupport {
 			throw new AssertionError("Expected schematic at " + file);
 		}
 
-		try (InputStream in = Files.newInputStream(file); ClipboardReader reader = VcsCommand.FORMAT.getReader(in)) {
+		try (InputStream in = Files.newInputStream(file); ClipboardReader reader = ProjectStorage.FORMAT.getReader(in)) {
 			return reader.read();
 		} catch (IOException e) {
 			throw new AssertionError("Failed to read schematic " + file, e);

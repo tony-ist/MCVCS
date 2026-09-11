@@ -1,6 +1,6 @@
 package tony.mcvcs.gametest;
 
-import static tony.mcvcs.gametest.VcsTestSupport.deleteSchematics;
+import static tony.mcvcs.gametest.VcsTestSupport.resetProjects;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
@@ -27,15 +27,13 @@ import net.minecraft.world.level.block.Blocks;
 public class VcsSelectCommandGameTest implements FabricClientGameTest {
 	private static final String FIRST = "gametest-select-first";
 	private static final String SECOND = "gametest-select-second";
-	private static final String FIRST_V2 = FIRST + "_v2";
-	private static final String SECOND_V2 = SECOND + "_v2";
 
 	@Override
 	public void runTest(ClientGameTestContext context) {
+		// Before the world exists: the player is told their selection on join, so it must be gone by then.
+		resetProjects(FIRST, SECOND);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
-			// WorldEdit only knows its schematics directory once a server platform is up.
-			deleteSchematics(FIRST, SECOND, FIRST_V2, SECOND_V2);
 
 			// Two 3x2x2 stone boxes: the first in front of and to the right of the player, the second to the left.
 			BlockPos firstMin = playerPos(singleplayer).offset(2, 0, 2);
@@ -50,10 +48,10 @@ public class VcsSelectCommandGameTest implements FabricClientGameTest {
 
 			select(singleplayer, firstMin, firstMax);
 			runCommand(context, "vcs create " + FIRST);
-			read(schematic(FIRST));
+			read(schematic(FIRST, 1));
 			select(singleplayer, secondMin, secondMax);
 			runCommand(context, "vcs create " + SECOND);
-			read(schematic(SECOND));
+			read(schematic(SECOND, 1));
 			// Creating selects, so the second build is the one shown now.
 			assertSelected(waitForSelection(context, SECOND), SECOND, 1, secondBox);
 
@@ -70,9 +68,9 @@ public class VcsSelectCommandGameTest implements FabricClientGameTest {
 
 			// Commit follows the selection: the first build gets a v2, the second does not.
 			runCommand(context, "vcs commit");
-			read(schematic(FIRST_V2));
-			if (Files.exists(schematic(SECOND_V2))) {
-				throw new AssertionError("Commit after /vcs select must not write " + schematic(SECOND_V2));
+			read(schematic(FIRST, 2));
+			if (Files.exists(schematic(SECOND, 2))) {
+				throw new AssertionError("Commit after /vcs select must not write " + schematic(SECOND, 2));
 			}
 			assertSelected(waitForSelection(context, FIRST, 2), FIRST, 2, firstBox);
 

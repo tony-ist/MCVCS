@@ -1,6 +1,6 @@
 package tony.mcvcs.gametest;
 
-import static tony.mcvcs.gametest.VcsTestSupport.deleteSchematics;
+import static tony.mcvcs.gametest.VcsTestSupport.resetProjects;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
@@ -26,14 +26,13 @@ import net.minecraft.world.level.block.Blocks;
 @SuppressWarnings("UnstableApiUsage")
 public class VcsPreviewCommandGameTest implements FabricClientGameTest {
 	private static final String BUILD_NAME = "gametest-preview";
-	private static final String V2 = BUILD_NAME + "_v2";
 
 	@Override
 	public void runTest(ClientGameTestContext context) {
+		// Before the world exists: the player is told their selection on join, so it must be gone by then.
+		resetProjects(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
-			// WorldEdit only knows its schematics directory once a server platform is up.
-			deleteSchematics(BUILD_NAME, V2);
 
 			// v1: a 3x2x2 stone box in front of and to the right of the player, with a gold block in the top north-west
 			// corner and the top north-east corner left empty; both corners face the player.
@@ -47,13 +46,13 @@ public class VcsPreviewCommandGameTest implements FabricClientGameTest {
 			setBlock(singleplayer, hole, Blocks.AIR.defaultBlockState());
 			select(singleplayer, min, max);
 			runCommand(context, "vcs create " + BUILD_NAME);
-			read(schematic(BUILD_NAME));
+			read(schematic(BUILD_NAME, 1));
 
 			// v2: the whole box rebuilt out of diamond, hole included, so a preview of v1 differs from the world both
 			// where it has a block and where it has none.
 			fillBox(singleplayer, min, max, Blocks.DIAMOND_BLOCK.defaultBlockState(), gold, Blocks.DIAMOND_BLOCK.defaultBlockState());
 			runCommand(context, "vcs commit");
-			read(schematic(V2));
+			read(schematic(BUILD_NAME, 2));
 
 			// Nothing to preview beyond the latest version.
 			runCommand(context, "vcs preview 3");

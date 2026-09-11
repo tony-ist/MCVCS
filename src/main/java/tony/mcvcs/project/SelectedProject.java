@@ -26,8 +26,8 @@ public record SelectedProject(String name, int version, ResourceKey<Level> dimen
 		SelectedProject::new
 	);
 
-	/** The client-facing view of {@code project}, which is selected in {@code dimension}. */
-	public static SelectedProject of(Project project, ResourceKey<Level> dimension) {
-		return new SelectedProject(project.name(), project.version(), dimension, project.box());
+	/** The client-facing view of {@code project}. */
+	public static SelectedProject of(Project project) {
+		return new SelectedProject(project.name(), project.version(), project.dimension(), project.box());
 	}
 }

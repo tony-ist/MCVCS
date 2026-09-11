@@ -11,7 +11,7 @@ import tony.mcvcs.project.SelectedProject;
 import io.netty.buffer.ByteBuf;
 
 /**
- * Server to client: the project the player has selected in the world they are in, or empty when there is none.
+ * Server to client: the project the player has selected, or empty when there is none.
  * Replaces whatever the client knew before.
  */
 public record SelectedProjectPayload(Optional<SelectedProject> selected) implements CustomPacketPayload {

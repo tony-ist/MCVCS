@@ -7,7 +7,7 @@ Select a build with WorldEdit, turn it into a project, and commit snapshots of i
 ## Requirements
 
 - Minecraft 26.1.2 with Fabric Loader and Fabric API
-- WorldEdit (used for selections and schematic storage)
+- WorldEdit (used for selections and for reading and writing schematics)
 - Operator level 2 (cheats) to run the commands
 - Previews need the mod installed on the client too; everything else works server-side only
 
@@ -23,9 +23,21 @@ Select a build with WorldEdit, turn it into a project, and commit snapshots of i
 
 ## How it works
 
-- Schematics are written in Sponge v3 format to WorldEdit's schematics directory (the same place `//schem save` uses), named `<buildname>` for version 1 and `<buildname>_v<N>` afterwards.
-- Projects are tracked per world and per name. Selections are per player and per world, and the selected project's bounding box is synced to the client and drawn in the world.
-- Projects and selections are saved with the world, in `data/mcvcs/projects.dat` under each dimension's save directory, so they are back after a restart. They are written whenever a project is created, committed or selected and whenever the world saves.
+- Schematics are written in Sponge v3 format to the mod's own `mcvcs/` folder in the game directory (next to `config/`, `saves/` and so on), separate from WorldEdit's `//schem` files. Each project has a folder named after it holding one file per version: `mcvcs/<buildname>/v1.schem`, `mcvcs/<buildname>/v2.schem`, ...
+- Build names become folder names, so they may only contain letters, digits, `_`, `+`, `-` and dots between those characters.
+- Each project's folder also holds `project.json` describing it: its name, the world it belongs to (the save folder's name, e.g. `New World`, or `level-name` on a server), the dimension its box is in, the box itself and the latest version. It is rewritten on every create and commit, and the folder is the only place the project exists: nothing is stored in the world save, and deleting a project's folder removes it.
+- The `mcvcs/` folder is shared by every world opened from the same game directory, so commands only see projects whose `world` matches the one being played, and a build name can only be used by one world at a time. Renaming a save folder orphans its projects until `world` in their `project.json` is updated to match.
+- Selections are per world and per player, stored in `mcvcs/selections.json` keyed by world then player UUID, so they are back after a restart. The selected project's bounding box is synced to the client and drawn in its dimension.
+
+```
+mcvcs/
+  selections.json
+  <buildname>/
+    project.json
+    v1.schem
+    v2.schem
+    ...
+```
 
 ## Development
 
@@ -41,7 +53,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ## TODO
 
-- Store schematics in a separate non-worldedit folder to separate them. Group them in folders by project names.
 - `/vcs deselect`
 - `/vcs checkout version` clears current selection and loads selected version instead. Think about what happens when build has observers or updating components.
 - Diff tool that shows which block changed between current version of the build and selected version from VCS.

@@ -55,7 +55,7 @@ public final class PreviewSender {
 				+ BlockVector3.at(box.sizeX(), box.sizeY(), box.sizeZ()));
 		}
 
-		ServerPlayNetworking.send(player, new PreviewBeginPayload(project.name(), project.version(), player.level().dimension(), box));
+		ServerPlayNetworking.send(player, new PreviewBeginPayload(project.name(), project.version(), project.dimension(), box));
 
 		FabricAdapter adapter = FabricAdapter.get();
 		BlockVector3 clipboardMin = clipboard.getMinimumPoint();

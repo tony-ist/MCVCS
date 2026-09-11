@@ -3,7 +3,7 @@ package tony.mcvcs.gametest;
 import static tony.mcvcs.gametest.VcsTestSupport.assertBlock;
 import static tony.mcvcs.gametest.VcsTestSupport.assertOrigin;
 import static tony.mcvcs.gametest.VcsTestSupport.assertSize;
-import static tony.mcvcs.gametest.VcsTestSupport.deleteSchematics;
+import static tony.mcvcs.gametest.VcsTestSupport.resetProjects;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
 import static tony.mcvcs.gametest.VcsTestSupport.read;
@@ -11,10 +11,14 @@ import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.select;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
+import tony.mcvcs.project.ProjectStorage;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.fabric.FabricAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -31,10 +35,10 @@ public class VcsCreateCommandGameTest implements FabricClientGameTest {
 		FabricAdapter adapter = FabricAdapter.get();
 
 		// /vcs requires op, which in singleplayer means cheats must be on.
+		// Before the world exists: the player is told their selection on join, so it must be gone by then.
+		resetProjects(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
-			// WorldEdit only knows its schematics directory once a server platform is up.
-			deleteSchematics(BUILD_NAME);
 
 			// A 3x2x2 box in front of the player: stone everywhere except one gold block at the corner the origin is anchored to.
 			BlockPos playerPos = playerPos(singleplayer);
@@ -48,9 +52,17 @@ public class VcsCreateCommandGameTest implements FabricClientGameTest {
 
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), gold, Blocks.GOLD_BLOCK.defaultBlockState());
 			select(singleplayer, min, max);
+
+			// The name is a folder name, so one that points outside the projects folder is refused before anything is written.
+			runCommand(context, "vcs create ..");
+			Path escaped = ProjectStorage.root().resolve("..").resolve("v1.schem").normalize();
+			if (Files.exists(escaped)) {
+				throw new AssertionError("Create with name '..' must not write " + escaped);
+			}
+
 			runCommand(context, "vcs create " + BUILD_NAME);
 
-			Clipboard clipboard = read(schematic(BUILD_NAME));
+			Clipboard clipboard = read(schematic(BUILD_NAME, 1));
 			assertOrigin(clipboard, expectedOrigin);
 
 			// A paste at position `to` puts a clipboard block at `to + (block - origin)`, so check where the build's top

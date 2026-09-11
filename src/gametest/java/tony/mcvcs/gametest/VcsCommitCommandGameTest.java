@@ -3,7 +3,7 @@ package tony.mcvcs.gametest;
 import static tony.mcvcs.gametest.VcsTestSupport.assertBlock;
 import static tony.mcvcs.gametest.VcsTestSupport.assertOrigin;
 import static tony.mcvcs.gametest.VcsTestSupport.assertSize;
-import static tony.mcvcs.gametest.VcsTestSupport.deleteSchematics;
+import static tony.mcvcs.gametest.VcsTestSupport.resetProjects;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
 import static tony.mcvcs.gametest.VcsTestSupport.read;
@@ -28,17 +28,15 @@ import net.minecraft.world.level.block.Blocks;
 @SuppressWarnings("UnstableApiUsage")
 public class VcsCommitCommandGameTest implements FabricClientGameTest {
 	private static final String BUILD_NAME = "gametest-commit";
-	private static final String V2 = BUILD_NAME + "_v2";
-	private static final String V3 = BUILD_NAME + "_v3";
 
 	@Override
 	public void runTest(ClientGameTestContext context) {
 		FabricAdapter adapter = FabricAdapter.get();
 
+		// Before the world exists: the player is told their selection on join, so it must be gone by then.
+		resetProjects(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
-			// WorldEdit only knows its schematics directory once a server platform is up.
-			deleteSchematics(BUILD_NAME, V2, V3);
 
 			// Same 3x2x2 box as the create test: stone with a gold block at the top north-west corner.
 			BlockPos min = playerPos(singleplayer).offset(2, 0, 2);
@@ -53,12 +51,12 @@ public class VcsCommitCommandGameTest implements FabricClientGameTest {
 
 			// Nothing to commit before a build has been created.
 			runCommand(context, "vcs commit");
-			if (Files.exists(schematic(V2))) {
-				throw new AssertionError("Commit without a selected build must not write " + schematic(V2));
+			if (Files.exists(schematic(BUILD_NAME, 2))) {
+				throw new AssertionError("Commit without a selected build must not write " + schematic(BUILD_NAME, 2));
 			}
 
 			runCommand(context, "vcs create " + BUILD_NAME);
-			read(schematic(BUILD_NAME));
+			read(schematic(BUILD_NAME, 1));
 
 			// Move the WorldEdit selection well away from the box and edit the box itself. Commit must follow the
 			// region captured at create time, so it sees the edit and ignores the new selection.
@@ -66,7 +64,7 @@ public class VcsCommitCommandGameTest implements FabricClientGameTest {
 			setBlock(singleplayer, adapter.toBlockPos(opposite), Blocks.DIAMOND_BLOCK.defaultBlockState());
 
 			runCommand(context, "vcs commit");
-			Clipboard v2 = read(schematic(V2));
+			Clipboard v2 = read(schematic(BUILD_NAME, 2));
 			assertOrigin(v2, expectedOrigin);
 			assertSize(v2, BlockVector3.at(3, 2, 2));
 			assertBlock(v2, originCorner, BlockTypes.GOLD_BLOCK);
@@ -74,7 +72,7 @@ public class VcsCommitCommandGameTest implements FabricClientGameTest {
 
 			// Each further commit bumps the version.
 			runCommand(context, "vcs commit");
-			Clipboard v3 = read(schematic(V3));
+			Clipboard v3 = read(schematic(BUILD_NAME, 3));
 			assertOrigin(v3, expectedOrigin);
 			assertBlock(v3, opposite, BlockTypes.DIAMOND_BLOCK);
 

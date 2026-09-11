@@ -1,20 +1,23 @@
 package tony.mcvcs.project;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
-import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
+import tony.mcvcs.MCVCS;
 import tony.mcvcs.network.SelectionSync;
 
 /**
- * Tracks every {@link Project}, per world and name, and which one each player has selected in each world.
- * {@code /vcs create} and {@code /vcs commit} record the project they wrote and select it, {@code /vcs select}
- * picks an existing one, and {@code /vcs commit} and {@code /vcs preview} operate on the selected one.
+ * Looks up {@link Project}s by name and tracks which one each player has selected. {@code /vcs create} and
+ * {@code /vcs commit} select the project they wrote, {@code /vcs select} picks an existing one, and
+ * {@code /vcs commit} and {@code /vcs preview} operate on the selected one.
  * <p>
  * A selection is a reference by name, so a commit by one player is seen by everyone who has that project selected.
- * Projects and selections are saved with the world, see {@link ProjectData}, so they survive server restarts and
+ * Projects and selections live in the {@link ProjectStorage} folder, not in any world save, but each records the
+ * world it belongs to and everything here is scoped to the world the server runs, see {@link Project#worldOf}. They
  * are there whether or not the player's client has this mod. Only the server thread touches this.
  */
 public final class ProjectRegistry {
@@ -22,30 +25,60 @@ public final class ProjectRegistry {
 	}
 
 	/**
-	 * Records {@code project} as the current state of the build with its name in the world {@code player} is in,
-	 * makes it the player's selected project there, writes both to disk and tells their client about it.
+	 * Makes {@code project}, which must already be saved and belong to the player's world, {@code player}'s selected
+	 * project there and tells their client.
 	 */
-	public static void select(ServerPlayer player, Project project) {
-		ServerLevel level = player.level();
-		ProjectData data = ProjectData.get(level);
-		data.put(project);
-		data.select(player.getUUID(), project.name());
-		level.getDataStorage().scheduleSave();
+	public static void select(ServerPlayer player, Project project) throws IOException {
+		MinecraftServer server = player.level().getServer();
+		if (!project.isIn(server)) {
+			throw new IllegalArgumentException("Build '" + project.name() + "' belongs to world '" + project.world() + "', not '" + Project.worldOf(server) + "'");
+		}
+		ProjectStorage.saveSelection(project.world(), player.getUUID(), project.name());
 		SelectionSync.send(player);
 	}
 
-	/** The project {@code player} has selected in the world they are currently in, if any. */
+	/**
+	 * The project {@code player} has selected in the world they are playing, if any; a selection whose project
+	 * folder is gone or now belongs to another world counts as none.
+	 */
 	public static Optional<Project> selected(ServerPlayer player) {
-		return ProjectData.get(player.level()).selected(player.getUUID());
+		String world = Project.worldOf(player.level().getServer());
+		try {
+			Optional<String> name = ProjectStorage.selection(world, player.getUUID());
+			return name.isPresent() ? ProjectStorage.find(world, name.get()) : Optional.empty();
+		} catch (IOException e) {
+			MCVCS.LOGGER.error("Failed to read the selected project of {}", player.getGameProfile().name(), e);
+			return Optional.empty();
+		}
 	}
 
-	/** The project called {@code name} in {@code level}, if one exists. */
-	public static Optional<Project> find(ServerLevel level, String name) {
-		return ProjectData.get(level).find(name);
+	/** The project called {@code name} in the world {@code server} runs, if one exists. */
+	public static Optional<Project> find(MinecraftServer server, String name) {
+		try {
+			return ProjectStorage.find(Project.worldOf(server), name);
+		} catch (IOException e) {
+			MCVCS.LOGGER.error("Failed to read project '{}'", name, e);
+			return Optional.empty();
+		}
 	}
 
-	/** Names of all projects in {@code level}, sorted. */
-	public static List<String> names(ServerLevel level) {
-		return ProjectData.get(level).names();
+	/** The project called {@code name} in whichever world it belongs to, if one exists. */
+	public static Optional<Project> findInAnyWorld(String name) {
+		try {
+			return ProjectStorage.findInAnyWorld(name);
+		} catch (IOException e) {
+			MCVCS.LOGGER.error("Failed to read project '{}'", name, e);
+			return Optional.empty();
+		}
+	}
+
+	/** Names of all projects in the world {@code server} runs, sorted. */
+	public static List<String> names(MinecraftServer server) {
+		try {
+			return ProjectStorage.names(Project.worldOf(server));
+		} catch (IOException e) {
+			MCVCS.LOGGER.error("Failed to list projects", e);
+			return List.of();
+		}
 	}
 }

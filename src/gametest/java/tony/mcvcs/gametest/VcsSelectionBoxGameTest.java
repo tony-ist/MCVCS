@@ -1,6 +1,6 @@
 package tony.mcvcs.gametest;
 
-import static tony.mcvcs.gametest.VcsTestSupport.deleteSchematics;
+import static tony.mcvcs.gametest.VcsTestSupport.resetProjects;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
@@ -25,16 +25,15 @@ import net.minecraft.world.level.block.Blocks;
 @SuppressWarnings("UnstableApiUsage")
 public class VcsSelectionBoxGameTest implements FabricClientGameTest {
 	private static final String BUILD_NAME = "gametest-selection";
-	private static final String V2 = BUILD_NAME + "_v2";
 
 	@Override
 	public void runTest(ClientGameTestContext context) {
+		// Before the world exists: the player is told their selection on join, so it must be gone by then.
+		resetProjects(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
-			// WorldEdit only knows its schematics directory once a server platform is up.
-			deleteSchematics(BUILD_NAME, V2);
 
-			// Nothing is selected in a fresh world, so nothing is drawn.
+			// Nothing is selected yet, so nothing is drawn.
 			context.waitTicks(5);
 			if (context.computeOnClient(client -> SelectionBoxRenderer.selected()) != null) {
 				throw new AssertionError("Expected no selected project before /vcs create");
@@ -48,7 +47,7 @@ public class VcsSelectionBoxGameTest implements FabricClientGameTest {
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), min, Blocks.STONE.defaultBlockState());
 			select(singleplayer, min, max);
 			runCommand(context, "vcs create " + BUILD_NAME);
-			read(schematic(BUILD_NAME));
+			read(schematic(BUILD_NAME, 1));
 			assertSelected(waitForSelection(context, 1), BUILD_NAME, 1, box);
 
 			lookAt(context, min, max);
@@ -56,7 +55,7 @@ public class VcsSelectionBoxGameTest implements FabricClientGameTest {
 
 			// Committing keeps the box and bumps the version the client shows.
 			runCommand(context, "vcs commit");
-			read(schematic(V2));
+			read(schematic(BUILD_NAME, 2));
 			assertSelected(waitForSelection(context, 2), BUILD_NAME, 2, box);
 		}
 	}
