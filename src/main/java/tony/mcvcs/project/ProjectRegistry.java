@@ -10,6 +10,8 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 
+import tony.mcvcs.network.SelectionSync;
+
 /**
  * Tracks which {@link Project} each player has selected, per world. {@code /vcs create} selects the project it
  * creates and {@code /vcs commit} operates on the selected one.
@@ -32,9 +34,13 @@ public final class ProjectRegistry {
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> SELECTED.clear());
 	}
 
-	/** Makes {@code project} the selected project for {@code player} in the world they are currently in. */
+	/**
+	 * Makes {@code project} the selected project for {@code player} in the world they are currently in and tells
+	 * their client about it.
+	 */
 	public static void select(ServerPlayer player, Project project) {
 		SELECTED.put(Key.of(player), project);
+		SelectionSync.send(player);
 	}
 
 	/** The project {@code player} has selected in the world they are currently in, if any. */

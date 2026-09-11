@@ -9,12 +9,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.state.BlockState;
 
-import tony.mcvcs.preview.PreviewBox;
 import tony.mcvcs.project.Project;
+import tony.mcvcs.project.ProjectBox;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.fabric.FabricAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldedit.regions.Region;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 
@@ -41,13 +40,6 @@ public final class PreviewSender {
 		return ServerPlayNetworking.canSend(player, PreviewBeginPayload.TYPE);
 	}
 
-	/** The box {@code project}'s region covers in the world. */
-	public static PreviewBox box(Project project) {
-		Region region = project.region();
-		FabricAdapter adapter = FabricAdapter.get();
-		return new PreviewBox(adapter.toBlockPos(region.getMinimumPoint()), adapter.toBlockPos(region.getMaximumPoint()));
-	}
-
 	/**
 	 * Streams {@code clipboard}, the schematic saved for {@code project}, to {@code player} so the client shows it
 	 * inside the project's region. The clipboard's own coordinates are ignored: its blocks are laid over the project
@@ -56,7 +48,7 @@ public final class PreviewSender {
 	 * @throws IllegalArgumentException if the clipboard is not the size of the project's region
 	 */
 	public static void send(ServerPlayer player, Project project, Clipboard clipboard) {
-		PreviewBox box = box(project);
+		ProjectBox box = ProjectBox.of(project.region());
 		BlockVector3 dimensions = clipboard.getDimensions();
 		if (dimensions.x() != box.sizeX() || dimensions.y() != box.sizeY() || dimensions.z() != box.sizeZ()) {
 			throw new IllegalArgumentException("Schematic is " + dimensions + " but the build's region is "

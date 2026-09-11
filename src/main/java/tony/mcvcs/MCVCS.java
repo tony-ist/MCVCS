@@ -6,6 +6,7 @@ import net.minecraft.resources.Identifier;
 
 import tony.mcvcs.command.VcsCommand;
 import tony.mcvcs.network.PreviewSender;
+import tony.mcvcs.network.SelectionSync;
 import tony.mcvcs.project.ProjectRegistry;
 
 import org.slf4j.Logger;
@@ -29,6 +30,7 @@ public class MCVCS implements ModInitializer {
 
 		ProjectRegistry.register();
 		PreviewSender.register();
+		SelectionSync.register();
 		VcsCommand.register();
 	}
 

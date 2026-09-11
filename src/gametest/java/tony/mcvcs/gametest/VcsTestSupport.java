@@ -4,9 +4,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
 
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
+import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.Screenshot;
 
 import tony.mcvcs.command.VcsCommand;
 import com.sk89q.worldedit.LocalSession;
@@ -91,6 +94,50 @@ final class VcsTestSupport {
 
 	static void runCommand(ClientGameTestContext context, String command) {
 		context.runOnClient(client -> client.player.connection.sendCommand(command));
+		context.waitTicks(2);
+	}
+
+	/**
+	 * Saves what the last normally rendered frame looks like, to {@code build/run/clientGameTest/screenshots/<name>.png}.
+	 * <p>
+	 * Unlike {@link ClientGameTestContext#takeScreenshot(String)}, this does not render an extra frame. That extra
+	 * frame reuses the previous extraction but the per-frame gizmo collector has already been drained, so anything
+	 * drawn through {@link net.minecraft.gizmos.Gizmos}, such as the selection box, is missing from it.
+	 */
+	static Path screenshotLastFrame(ClientGameTestContext context, String name) {
+		Path file = FabricLoader.getInstance().getGameDir().resolve("screenshots").resolve(name + ".png");
+		CompletableFuture<Void> saved = context.computeOnClient(client -> {
+			CompletableFuture<Void> future = new CompletableFuture<>();
+			Screenshot.takeScreenshot(client.getMainRenderTarget(), image -> {
+				try (image) {
+					Files.createDirectories(file.getParent());
+					image.writeToFile(file);
+					future.complete(null);
+				} catch (IOException e) {
+					future.completeExceptionally(e);
+				}
+			});
+			return future;
+		});
+
+		while (!saved.isDone()) {
+			context.waitTick();
+		}
+		saved.join();
+		return file;
+	}
+
+	/** Turns the player toward the centre of the box so screenshots show it. */
+	static void lookAt(ClientGameTestContext context, BlockPos min, BlockPos max) {
+		context.runOnClient(client -> {
+			double x = (min.getX() + max.getX() + 1) / 2.0 - client.player.getX();
+			double y = (min.getY() + max.getY() + 1) / 2.0 - client.player.getEyeY();
+			double z = (min.getZ() + max.getZ() + 1) / 2.0 - client.player.getZ();
+			float yaw = (float) Math.toDegrees(Math.atan2(-x, z));
+			float pitch = (float) Math.toDegrees(-Math.atan2(y, Math.sqrt(x * x + z * z)));
+			client.player.setYRot(yaw);
+			client.player.setXRot(pitch);
+		});
 		context.waitTicks(2);
 	}
 

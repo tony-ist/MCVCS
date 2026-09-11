@@ -8,7 +8,8 @@
 		"fabric-client-gametest": [
 			"tony.mcvcs.gametest.VcsCreateCommandGameTest",
 			"tony.mcvcs.gametest.VcsCommitCommandGameTest",
-			"tony.mcvcs.gametest.VcsPreviewCommandGameTest"
+			"tony.mcvcs.gametest.VcsPreviewCommandGameTest",
+			"tony.mcvcs.gametest.VcsSelectionBoxGameTest"
 		]
 	},
 	"depends": {

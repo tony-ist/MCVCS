@@ -1,28 +1,37 @@
-package tony.mcvcs.preview;
+package tony.mcvcs.project;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.codec.StreamCodec;
 
+import com.sk89q.worldedit.fabric.FabricAdapter;
+import com.sk89q.worldedit.regions.Region;
 import io.netty.buffer.ByteBuf;
 
 /**
- * The inclusive block box a preview covers, plus the fixed order its blocks are streamed in.
+ * The inclusive block box a project's region covers, in a form the client understands, plus the fixed order its
+ * blocks are streamed in for previews.
  * <p>
  * Both sides of the connection derive the block order from the box alone, so the block payloads only carry block
  * states, never positions. The order is x-major, then y, then z: {@code index = ((x * sizeY) + y) * sizeZ + z} with
  * all three relative to {@link #min()}.
  */
-public record PreviewBox(BlockPos min, BlockPos max) {
-	public static final StreamCodec<ByteBuf, PreviewBox> STREAM_CODEC = StreamCodec.composite(
-		BlockPos.STREAM_CODEC, PreviewBox::min,
-		BlockPos.STREAM_CODEC, PreviewBox::max,
-		PreviewBox::new
+public record ProjectBox(BlockPos min, BlockPos max) {
+	public static final StreamCodec<ByteBuf, ProjectBox> STREAM_CODEC = StreamCodec.composite(
+		BlockPos.STREAM_CODEC, ProjectBox::min,
+		BlockPos.STREAM_CODEC, ProjectBox::max,
+		ProjectBox::new
 	);
 
-	public PreviewBox {
+	public ProjectBox {
 		if (min.getX() > max.getX() || min.getY() > max.getY() || min.getZ() > max.getZ()) {
 			throw new IllegalArgumentException("min " + min + " exceeds max " + max);
 		}
+	}
+
+	/** The bounding box of a WorldEdit region. */
+	public static ProjectBox of(Region region) {
+		FabricAdapter adapter = FabricAdapter.get();
+		return new ProjectBox(adapter.toBlockPos(region.getMinimumPoint()), adapter.toBlockPos(region.getMaximumPoint()));
 	}
 
 	public int sizeX() {

@@ -2,6 +2,7 @@ package tony.mcvcs.gametest;
 
 import static tony.mcvcs.gametest.VcsTestSupport.deleteSchematics;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
+import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
 import static tony.mcvcs.gametest.VcsTestSupport.read;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
@@ -15,7 +16,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 
 import tony.mcvcs.client.preview.ClientPreview;
 import tony.mcvcs.client.preview.PreviewManager;
-import tony.mcvcs.preview.PreviewBox;
+import tony.mcvcs.project.ProjectBox;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
@@ -40,7 +41,7 @@ public class VcsPreviewCommandGameTest implements FabricClientGameTest {
 			BlockPos max = min.offset(2, 1, 1);
 			BlockPos gold = new BlockPos(min.getX(), max.getY(), min.getZ());
 			BlockPos hole = new BlockPos(max.getX(), max.getY(), min.getZ());
-			PreviewBox box = new PreviewBox(min, max);
+			ProjectBox box = new ProjectBox(min, max);
 
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), gold, Blocks.GOLD_BLOCK.defaultBlockState());
 			setBlock(singleplayer, hole, Blocks.AIR.defaultBlockState());
@@ -87,20 +88,6 @@ public class VcsPreviewCommandGameTest implements FabricClientGameTest {
 		}
 	}
 
-	/** Turns the player toward the box so the screenshots show it. */
-	private static void lookAt(ClientGameTestContext context, BlockPos min, BlockPos max) {
-		context.runOnClient(client -> {
-			double x = (min.getX() + max.getX() + 1) / 2.0 - client.player.getX();
-			double y = (min.getY() + max.getY() + 1) / 2.0 - client.player.getEyeY();
-			double z = (min.getZ() + max.getZ() + 1) / 2.0 - client.player.getZ();
-			float yaw = (float) Math.toDegrees(Math.atan2(-x, z));
-			float pitch = (float) Math.toDegrees(-Math.atan2(y, Math.sqrt(x * x + z * z)));
-			client.player.setYRot(yaw);
-			client.player.setXRot(pitch);
-		});
-		context.waitTicks(2);
-	}
-
 	private static ClientPreview waitForPreview(ClientGameTestContext context, int version) {
 		context.waitFor(client -> {
 			ClientPreview preview = PreviewManager.active();
@@ -117,7 +104,7 @@ public class VcsPreviewCommandGameTest implements FabricClientGameTest {
 		}
 	}
 
-	private static void assertPreview(ClientPreview preview, String name, int version, ResourceKey<Level> dimension, PreviewBox box) {
+	private static void assertPreview(ClientPreview preview, String name, int version, ResourceKey<Level> dimension, ProjectBox box) {
 		if (!preview.name().equals(name) || preview.version() != version) {
 			throw new AssertionError("Expected preview of '" + name + "' v" + version + " but got '" + preview.name() + "' v" + preview.version());
 		}
