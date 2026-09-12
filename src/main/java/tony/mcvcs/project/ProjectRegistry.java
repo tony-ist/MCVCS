@@ -12,8 +12,9 @@ import tony.mcvcs.network.SelectionSync;
 
 /**
  * Looks up {@link Project}s by name and tracks which one each player has selected. {@code /vcs create} and
- * {@code /vcs commit} select the project they wrote, {@code /vcs select} picks an existing one, {@code /vcs deselect}
- * drops the selection, and {@code /vcs commit} and {@code /vcs preview} operate on the selected one.
+ * {@code /vcs commit} select the project they wrote, {@code /vcs select} picks an existing one, {@code /vcs projects}
+ * lists them all, {@code /vcs deselect} drops the selection, and {@code /vcs commit} and {@code /vcs preview}
+ * operate on the selected one.
  * <p>
  * A selection is a reference by name, so a commit by one player is seen by everyone who has that project selected.
  * Projects and selections live in the {@link ProjectStorage} folder, not in any world save, but each records the
@@ -78,13 +79,18 @@ public final class ProjectRegistry {
 		}
 	}
 
-	/** Names of all projects in the world {@code server} runs, sorted. */
-	public static List<String> names(MinecraftServer server) {
+	/** All projects in the world {@code server} runs, sorted by name. */
+	public static List<Project> all(MinecraftServer server) {
 		try {
-			return ProjectStorage.names(Project.worldOf(server));
+			return ProjectStorage.all(Project.worldOf(server));
 		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to list projects", e);
 			return List.of();
 		}
+	}
+
+	/** Names of all projects in the world {@code server} runs, sorted. */
+	public static List<String> names(MinecraftServer server) {
+		return all(server).stream().map(Project::name).toList();
 	}
 }

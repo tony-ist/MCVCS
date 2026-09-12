@@ -96,8 +96,8 @@ public final class ProjectStorage {
 		return root().resolve(SELECTIONS_FILE);
 	}
 
-	/** Names of every project belonging to {@code world} that has a folder with a {@link #PROJECT_FILE} in it, sorted. */
-	public static List<String> names(String world) throws IOException {
+	/** Every project belonging to {@code world} that has a folder with a {@link #PROJECT_FILE} in it, sorted by name. */
+	public static List<Project> all(String world) throws IOException {
 		if (!Files.isDirectory(root())) {
 			return List.of();
 		}
@@ -110,13 +110,19 @@ public final class ProjectStorage {
 				.sorted()
 				.toList();
 		}
-		List<String> inWorld = new ArrayList<>();
+		List<Project> inWorld = new ArrayList<>();
 		for (String name : names) {
-			if (readJson(projectFile(name), Project.CODEC).world().equals(world)) {
-				inWorld.add(name);
+			Project project = readJson(projectFile(name), Project.CODEC);
+			if (project.world().equals(world)) {
+				inWorld.add(project);
 			}
 		}
 		return List.copyOf(inWorld);
+	}
+
+	/** Names of every project belonging to {@code world} that has a folder with a {@link #PROJECT_FILE} in it, sorted. */
+	public static List<String> names(String world) throws IOException {
+		return all(world).stream().map(Project::name).toList();
 	}
 
 	/** The project called {@code name} in whichever world it belongs to, if it has a folder with a {@link #PROJECT_FILE} in it. */

@@ -3,21 +3,27 @@ package tony.mcvcs.command;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.ComponentUtils;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.PermissionCheck;
 
 import tony.mcvcs.MCVCS;
+import tony.mcvcs.network.ChatButtons;
 import tony.mcvcs.network.PreviewSender;
 import tony.mcvcs.project.Project;
 import tony.mcvcs.project.ProjectBox;
@@ -46,6 +52,8 @@ import com.sk89q.worldedit.world.World;
  * {@link ProjectStorage}. The new project becomes the player's selected project.</li>
  * <li>{@code /vcs select <buildname>}: makes an existing project the player's selected project, so its bounding
  * box is shown and later commands act on it.</li>
+ * <li>{@code /vcs projects}: lists every project in the world, each with a chat button that runs
+ * {@code /vcs select} for it, see {@link ChatButtons}; the selected one is marked instead.</li>
  * <li>{@code /vcs deselect}: leaves the player with no selected project, so no bounding box is shown and commands
  * that need a selection refuse until one is made again.</li>
  * <li>{@code /vcs commit}: saves the selected project's box again as its next version. The box is the one
@@ -71,6 +79,10 @@ public final class VcsCommand {
 	public static final boolean COPY_BIOMES = false;
 	/** Vanilla permission required to run the command (gamemasters = op level 2 / cheats). */
 	public static final PermissionCheck PERMISSION = Commands.LEVEL_GAMEMASTERS;
+	/** Label of the button {@code /vcs projects} puts after each project that is not selected. */
+	public static final String SELECT_BUTTON = "Select";
+	/** Marker {@code /vcs projects} puts after the selected project instead of a button. */
+	public static final String SELECTED_MARKER = "selected";
 
 	/** A corner of a cuboid; north is -Z, west is -X, bottom is -Y. */
 	public enum Corner {
@@ -118,6 +130,8 @@ public final class VcsCommand {
 					.then(Commands.argument("buildname", StringArgumentType.word())
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(ProjectRegistry.names(context.getSource().getServer()), builder))
 						.executes(context -> select(context.getSource(), StringArgumentType.getString(context, "buildname")))))
+				.then(Commands.literal("projects")
+					.executes(context -> projects(context.getSource())))
 				.then(Commands.literal("deselect")
 					.executes(context -> deselect(context.getSource())))
 				.then(Commands.literal("commit")
@@ -182,6 +196,37 @@ public final class VcsCommand {
 		}
 		source.sendSuccess(() -> Component.literal("Selected build '" + buildName + "' v" + project.get().version() + " (" + project.get().box().volume() + " blocks)"), false);
 		return 1;
+	}
+
+	private static int projects(CommandSourceStack source) throws CommandSyntaxException {
+		ServerPlayer player = source.getPlayerOrException();
+		List<Project> projects = ProjectRegistry.all(source.getServer());
+		if (projects.isEmpty()) {
+			source.sendFailure(Component.literal("No builds in this world; create one with /vcs create <buildname>"));
+			return 0;
+		}
+
+		String selected = ProjectRegistry.selected(player).map(Project::name).orElse(null);
+		source.sendSuccess(() -> Component.literal(projects.size() + (projects.size() == 1 ? " build" : " builds") + " in this world:"), false);
+		for (Project project : projects) {
+			source.sendSuccess(() -> projectLine(project, project.name().equals(selected)), false);
+		}
+		return projects.size();
+	}
+
+	/**
+	 * One line of {@code /vcs projects}: the build's name, version and size, followed by a clickable
+	 * {@code [Select]} that runs {@code /vcs select} for it, or a {@code [selected]} marker if it already is.
+	 */
+	private static MutableComponent projectLine(Project project, boolean selected) {
+		MutableComponent line = Component.literal("- " + project.name() + " v" + project.version() + " (" + project.box().volume() + " blocks) ");
+		if (selected) {
+			return line.append(ComponentUtils.wrapInSquareBrackets(Component.literal(SELECTED_MARKER)).withStyle(ChatFormatting.GRAY));
+		}
+		return line.append(ComponentUtils.wrapInSquareBrackets(Component.literal(SELECT_BUTTON))
+			.withStyle(style -> style.withColor(ChatFormatting.GREEN)
+				.withClickEvent(ChatButtons.select(project.name()))
+				.withHoverEvent(new HoverEvent.ShowText(Component.literal("Click to run /vcs select " + project.name())))));
 	}
 
 	private static int deselect(CommandSourceStack source) throws CommandSyntaxException {
