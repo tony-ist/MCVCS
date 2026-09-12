@@ -187,6 +187,23 @@ public final class ProjectStorage {
 		writeJson(selectionsFile(), SELECTIONS_CODEC, selections);
 	}
 
+	/** Forgets which project {@code player} has selected in {@code world}, leaving every other selection alone. */
+	public static void clearSelection(String world, UUID player) throws IOException {
+		Map<String, Map<UUID, String>> selections = new HashMap<>(selections());
+		Map<UUID, String> inWorld = new HashMap<>(selections.getOrDefault(world, Map.of()));
+		if (inWorld.remove(player) == null) {
+			return;
+		}
+		if (inWorld.isEmpty()) {
+			selections.remove(world);
+		} else {
+			selections.put(world, inWorld);
+		}
+
+		Files.createDirectories(root());
+		writeJson(selectionsFile(), SELECTIONS_CODEC, selections);
+	}
+
 	private static Map<String, Map<UUID, String>> selections() throws IOException {
 		Path file = selectionsFile();
 		return Files.isRegularFile(file) ? readJson(file, SELECTIONS_CODEC) : Map.of();

@@ -17,6 +17,7 @@ Select a build with WorldEdit, turn it into a project, and commit snapshots of i
 | --- | --- |
 | `/vcs create <buildname>` | Turns the bounding box of your current WorldEdit selection into a project and saves it as version 1. The project becomes your selected project for this world. |
 | `/vcs select <buildname>` | Selects an existing project so its bounding box is shown and later commands act on it. |
+| `/vcs deselect` | Clears your selected project: its bounding box disappears and commands that need a selection refuse until you select one again. |
 | `/vcs commit` | Saves the selected project's region again as the next version. The region is the one captured by `create`; your current WorldEdit selection is ignored. |
 | `/vcs preview <version>` | Renders that version in place of the real blocks inside the project's region. Nothing in the world changes. |
 | `/vcs preview off` | Shows the real blocks again. |
@@ -53,6 +54,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ## TODO
 
-- `/vcs deselect`
 - `/vcs checkout version` clears current selection and loads selected version instead. Think about what happens when build has observers or updating components.
 - Diff tool that shows which block changed between current version of the build and selected version from VCS.
+- Aliases for commands to type them faster

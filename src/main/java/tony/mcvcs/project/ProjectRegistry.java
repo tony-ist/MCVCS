@@ -12,8 +12,8 @@ import tony.mcvcs.network.SelectionSync;
 
 /**
  * Looks up {@link Project}s by name and tracks which one each player has selected. {@code /vcs create} and
- * {@code /vcs commit} select the project they wrote, {@code /vcs select} picks an existing one, and
- * {@code /vcs commit} and {@code /vcs preview} operate on the selected one.
+ * {@code /vcs commit} select the project they wrote, {@code /vcs select} picks an existing one, {@code /vcs deselect}
+ * drops the selection, and {@code /vcs commit} and {@code /vcs preview} operate on the selected one.
  * <p>
  * A selection is a reference by name, so a commit by one player is seen by everyone who has that project selected.
  * Projects and selections live in the {@link ProjectStorage} folder, not in any world save, but each records the
@@ -34,6 +34,12 @@ public final class ProjectRegistry {
 			throw new IllegalArgumentException("Build '" + project.name() + "' belongs to world '" + project.world() + "', not '" + Project.worldOf(server) + "'");
 		}
 		ProjectStorage.saveSelection(project.world(), player.getUUID(), project.name());
+		SelectionSync.send(player);
+	}
+
+	/** Leaves {@code player} with no selected project in the world they are playing and tells their client. */
+	public static void deselect(ServerPlayer player) throws IOException {
+		ProjectStorage.clearSelection(Project.worldOf(player.level().getServer()), player.getUUID());
 		SelectionSync.send(player);
 	}
 

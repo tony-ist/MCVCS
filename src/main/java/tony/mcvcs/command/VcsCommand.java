@@ -46,6 +46,8 @@ import com.sk89q.worldedit.world.World;
  * {@link ProjectStorage}. The new project becomes the player's selected project.</li>
  * <li>{@code /vcs select <buildname>}: makes an existing project the player's selected project, so its bounding
  * box is shown and later commands act on it.</li>
+ * <li>{@code /vcs deselect}: leaves the player with no selected project, so no bounding box is shown and commands
+ * that need a selection refuse until one is made again.</li>
  * <li>{@code /vcs commit}: saves the selected project's box again as its next version. The box is the one
  * captured by {@code /vcs create}; the player's current WorldEdit selection is ignored.</li>
  * <li>{@code /vcs preview <version>}: sends that version's schematic to the player's client, which draws it in place
@@ -116,6 +118,8 @@ public final class VcsCommand {
 					.then(Commands.argument("buildname", StringArgumentType.word())
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(ProjectRegistry.names(context.getSource().getServer()), builder))
 						.executes(context -> select(context.getSource(), StringArgumentType.getString(context, "buildname")))))
+				.then(Commands.literal("deselect")
+					.executes(context -> deselect(context.getSource())))
 				.then(Commands.literal("commit")
 					.executes(context -> commit(context.getSource())))
 				.then(Commands.literal("preview")
@@ -177,6 +181,26 @@ public final class VcsCommand {
 			return 0;
 		}
 		source.sendSuccess(() -> Component.literal("Selected build '" + buildName + "' v" + project.get().version() + " (" + project.get().box().volume() + " blocks)"), false);
+		return 1;
+	}
+
+	private static int deselect(CommandSourceStack source) throws CommandSyntaxException {
+		ServerPlayer player = source.getPlayerOrException();
+		Optional<Project> selected = ProjectRegistry.selected(player);
+		if (selected.isEmpty()) {
+			source.sendFailure(Component.literal("No build selected in this world"));
+			return 0;
+		}
+
+		String buildName = selected.get().name();
+		try {
+			ProjectRegistry.deselect(player);
+		} catch (IOException e) {
+			MCVCS.LOGGER.error("Failed to deselect build '{}' for {}", buildName, player.getGameProfile().name(), e);
+			source.sendFailure(Component.literal("Failed to save selection: " + e.getMessage()));
+			return 0;
+		}
+		source.sendSuccess(() -> Component.literal("Deselected build '" + buildName + "'"), false);
 		return 1;
 	}
 
