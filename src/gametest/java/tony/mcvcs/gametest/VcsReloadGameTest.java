@@ -27,11 +27,11 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.fabric.api.client.gametest.v1.world.TestWorldSave;
 
-import tony.mcvcs.client.selection.SelectionBoxRenderer;
+import tony.mcvcs.client.project.ClientProjects;
 import tony.mcvcs.project.Project;
 import tony.mcvcs.project.ProjectBox;
 import tony.mcvcs.project.ProjectRegistry;
-import tony.mcvcs.project.SelectedProject;
+import tony.mcvcs.project.ClientProject;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.fabric.FabricAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -150,15 +150,15 @@ public class VcsReloadGameTest implements FabricClientGameTest {
 		return new BlockPos(array.get(0).getAsInt(), array.get(1).getAsInt(), array.get(2).getAsInt());
 	}
 
-	private static SelectedProject waitForSelection(ClientGameTestContext context, String name, int version) {
+	private static ClientProject waitForSelection(ClientGameTestContext context, String name, int version) {
 		context.waitFor(client -> {
-			SelectedProject selected = SelectionBoxRenderer.selected();
+			ClientProject selected = ClientProjects.selected();
 			return selected != null && selected.name().equals(name) && selected.version() == version;
 		});
-		return context.computeOnClient(client -> SelectionBoxRenderer.selected());
+		return context.computeOnClient(client -> ClientProjects.selected());
 	}
 
-	private static void assertSelected(SelectedProject selected, String name, int version, ProjectBox box) {
+	private static void assertSelected(ClientProject selected, String name, int version, ProjectBox box) {
 		if (!selected.name().equals(name) || selected.version() != version) {
 			throw new AssertionError("Expected selection '" + name + "' v" + version + " but got '" + selected.name() + "' v" + selected.version());
 		}

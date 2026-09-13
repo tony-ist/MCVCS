@@ -8,7 +8,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
 import tony.mcvcs.MCVCS;
-import tony.mcvcs.network.SelectionSync;
+import tony.mcvcs.network.ProjectSync;
 
 /**
  * Looks up {@link Project}s by name and tracks which one each player has selected. {@code /vcs create} and
@@ -27,7 +27,7 @@ public final class ProjectRegistry {
 
 	/**
 	 * Makes {@code project}, which must already be saved and belong to the player's world, {@code player}'s selected
-	 * project there and tells their client.
+	 * project there and tells their client, see {@link ProjectSync}.
 	 */
 	public static void select(ServerPlayer player, Project project) throws IOException {
 		MinecraftServer server = player.level().getServer();
@@ -35,13 +35,13 @@ public final class ProjectRegistry {
 			throw new IllegalArgumentException("Build '" + project.name() + "' belongs to world '" + project.world() + "', not '" + Project.worldOf(server) + "'");
 		}
 		ProjectStorage.saveSelection(project.world(), player.getUUID(), project.name());
-		SelectionSync.send(player);
+		ProjectSync.send(player);
 	}
 
 	/** Leaves {@code player} with no selected project in the world they are playing and tells their client. */
 	public static void deselect(ServerPlayer player) throws IOException {
 		ProjectStorage.clearSelection(Project.worldOf(player.level().getServer()), player.getUUID());
-		SelectionSync.send(player);
+		ProjectSync.send(player);
 	}
 
 	/**

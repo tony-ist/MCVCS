@@ -1,18 +1,14 @@
 package tony.mcvcs.client.selection;
 
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLevelEvents;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.gizmos.GizmoStyle;
 import net.minecraft.gizmos.Gizmos;
 import net.minecraft.world.phys.AABB;
 
-import tony.mcvcs.network.SelectedProjectPayload;
+import tony.mcvcs.client.project.ClientProjects;
+import tony.mcvcs.project.ClientProject;
 import tony.mcvcs.project.ProjectBox;
-import tony.mcvcs.project.SelectedProject;
-import org.jspecify.annotations.Nullable;
 
 /**
  * Draws the bounding box of the player's selected project as a thin line outline.
@@ -22,31 +18,22 @@ import org.jspecify.annotations.Nullable;
  * gone when the player looks away or moves behind a wall.
  */
 public final class SelectionBoxRenderer {
-	/** Line color (ARGB) and width in pixels: a light cyan that stands out against both terrain and sky. */
-	private static final GizmoStyle STYLE = GizmoStyle.stroke(0xFF4FD8FF, 2.0f);
+	/** Line color (ARGB): a light cyan that stands out against both terrain and sky; the selected build's label shares it. */
+	public static final int COLOR = 0xFF4FD8FF;
+	/** {@link #COLOR} at a line width of 2 pixels. */
+	private static final GizmoStyle STYLE = GizmoStyle.stroke(COLOR, 2.0f);
 	/** Pushed slightly outside the blocks so the lines do not z-fight with faces on the box's surface. */
 	private static final double OUTSET = 0.01;
-
-	private static volatile @Nullable SelectedProject selected;
 
 	private SelectionBoxRenderer() {
 	}
 
 	public static void register() {
-		ClientPlayNetworking.registerGlobalReceiver(SelectedProjectPayload.TYPE, (payload, context) -> selected = payload.selected().orElse(null));
-		// The server resends the selection for the new world on every level change, so drop the old one meanwhile.
-		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> selected = null);
-		ClientLevelEvents.AFTER_CLIENT_LEVEL_CHANGE.register((client, level) -> selected = null);
 		LevelRenderEvents.END_EXTRACTION.register(SelectionBoxRenderer::emit);
 	}
 
-	/** The project whose box is drawn, if any. */
-	public static @Nullable SelectedProject selected() {
-		return selected;
-	}
-
 	private static void emit(LevelExtractionContext context) {
-		SelectedProject project = selected;
+		ClientProject project = ClientProjects.selected();
 		if (project == null || !project.dimension().equals(context.level().dimension())) {
 			return;
 		}

@@ -9,7 +9,7 @@ Select a build with WorldEdit, turn it into a project, and commit snapshots of i
 - Minecraft 26.1.2 with Fabric Loader and Fabric API
 - WorldEdit (used for selections and for reading and writing schematics)
 - Operator level 2 (cheats) to run the commands
-- Previews need the mod installed on the client too; everything else works server-side only
+- Previews, build labels and the selection box need the mod installed on the client too; everything else works server-side only
 
 ## Commands
 
@@ -29,7 +29,8 @@ Select a build with WorldEdit, turn it into a project, and commit snapshots of i
 - Build names become folder names, so they may only contain letters, digits, `_`, `+`, `-` and dots between those characters.
 - Each project's folder also holds `project.json` describing it: its name, the world it belongs to (the save folder's name, e.g. `New World`, or `level-name` on a server), the dimension its box is in, the box itself and the latest version. It is rewritten on every create and commit, and the folder is the only place the project exists: nothing is stored in the world save, and deleting a project's folder removes it.
 - The `mcvcs/` folder is shared by every world opened from the same game directory, so commands only see projects whose `world` matches the one being played, and a build name can only be used by one world at a time. Renaming a save folder orphans its projects until `world` in their `project.json` is updated to match.
-- Selections are per world and per player, stored in `mcvcs/selections.json` keyed by world then player UUID, so they are back after a restart. The selected project's bounding box is synced to the client and drawn in its dimension.
+- Selections are per world and per player, stored in `mcvcs/selections.json` keyed by world then player UUID, so they are back after a restart.
+- Every project in the world, and which one you have selected, is synced to your client on join and whenever any of it changes. Each project's name floats above its region while you are within 32 blocks of it, selected or not, and the selected project's bounding box is drawn in its dimension.
 
 ```
 mcvcs/
@@ -60,5 +61,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Rename project(s) to build(s) everywhere
 - Command to load version of the build as schematic to worldedit, so that user can //paste it 
 - `/vcs checkout version` clears current selection and loads selected version instead. Think about what happens when build has observers or updating components.
+- Test that server mod works separately from client mod, and you can connect to server without client mod.
 - Diff tool that shows which block changed between current version of the build and selected version from VCS.
 - Aliases for commands to type them faster

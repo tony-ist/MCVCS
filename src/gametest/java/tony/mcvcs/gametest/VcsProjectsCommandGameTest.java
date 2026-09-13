@@ -22,10 +22,10 @@ import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.common.ServerboundCustomClickActionPacket;
 
-import tony.mcvcs.client.selection.SelectionBoxRenderer;
+import tony.mcvcs.client.project.ClientProjects;
 import tony.mcvcs.command.VcsCommand;
 import tony.mcvcs.network.ChatButtons;
-import tony.mcvcs.project.SelectedProject;
+import tony.mcvcs.project.ClientProject;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
@@ -155,7 +155,7 @@ public class VcsProjectsCommandGameTest implements FabricClientGameTest {
 
 	private static void waitForSelection(ClientGameTestContext context, String name) {
 		context.waitFor(client -> {
-			SelectedProject selected = SelectionBoxRenderer.selected();
+			ClientProject selected = ClientProjects.selected();
 			return selected != null && selected.name().equals(name);
 		});
 	}

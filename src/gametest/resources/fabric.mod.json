@@ -10,6 +10,7 @@
 			"tony.mcvcs.gametest.VcsCommitCommandGameTest",
 			"tony.mcvcs.gametest.VcsPreviewCommandGameTest",
 			"tony.mcvcs.gametest.VcsSelectionBoxGameTest",
+			"tony.mcvcs.gametest.VcsBuildLabelGameTest",
 			"tony.mcvcs.gametest.VcsSelectCommandGameTest",
 			"tony.mcvcs.gametest.VcsProjectsCommandGameTest",
 			"tony.mcvcs.gametest.VcsDeselectCommandGameTest",

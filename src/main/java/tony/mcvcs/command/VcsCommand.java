@@ -26,6 +26,7 @@ import net.minecraft.server.permissions.PermissionCheck;
 import tony.mcvcs.MCVCS;
 import tony.mcvcs.network.ChatButtons;
 import tony.mcvcs.network.PreviewSender;
+import tony.mcvcs.network.ProjectSync;
 import tony.mcvcs.project.Project;
 import tony.mcvcs.project.ProjectBox;
 import tony.mcvcs.project.ProjectRegistry;
@@ -342,7 +343,8 @@ public final class VcsCommand {
 
 	/**
 	 * Copies the project's box in {@code level}, the world the project is in, into a clipboard anchored at the
-	 * configured origin and writes it and the project to {@link ProjectStorage}.
+	 * configured origin, writes it and the project to {@link ProjectStorage} and tells every client about the
+	 * new state of the build.
 	 */
 	private static Path save(Player actor, LocalSession session, Project project, ServerLevel level) throws WorldEditException, IOException {
 		Region region = project.region(level);
@@ -360,6 +362,8 @@ public final class VcsCommand {
 
 		Path file = ProjectStorage.save(project, clipboard);
 		MCVCS.LOGGER.info("{} saved build '{}' v{} from {} at {}", actor.getName(), project.name(), project.version(), world == null ? "its box" : "its box in " + world.getName(), file);
+		// Builds are shared, so every client's list just changed; the caller's own selection is sent once it is updated.
+		ProjectSync.broadcast(level.getServer());
 		return file;
 	}
 }

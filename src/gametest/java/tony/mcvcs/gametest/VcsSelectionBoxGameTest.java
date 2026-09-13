@@ -14,9 +14,9 @@ import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
-import tony.mcvcs.client.selection.SelectionBoxRenderer;
+import tony.mcvcs.client.project.ClientProjects;
 import tony.mcvcs.project.ProjectBox;
-import tony.mcvcs.project.SelectedProject;
+import tony.mcvcs.project.ClientProject;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -35,7 +35,7 @@ public class VcsSelectionBoxGameTest implements FabricClientGameTest {
 
 			// Nothing is selected yet, so nothing is drawn.
 			context.waitTicks(5);
-			if (context.computeOnClient(client -> SelectionBoxRenderer.selected()) != null) {
+			if (context.computeOnClient(client -> ClientProjects.selected()) != null) {
 				throw new AssertionError("Expected no selected project before /vcs create");
 			}
 
@@ -60,15 +60,15 @@ public class VcsSelectionBoxGameTest implements FabricClientGameTest {
 		}
 	}
 
-	private static SelectedProject waitForSelection(ClientGameTestContext context, int version) {
+	private static ClientProject waitForSelection(ClientGameTestContext context, int version) {
 		context.waitFor(client -> {
-			SelectedProject selected = SelectionBoxRenderer.selected();
+			ClientProject selected = ClientProjects.selected();
 			return selected != null && selected.version() == version;
 		});
-		return context.computeOnClient(client -> SelectionBoxRenderer.selected());
+		return context.computeOnClient(client -> ClientProjects.selected());
 	}
 
-	private static void assertSelected(SelectedProject selected, String name, int version, ProjectBox box) {
+	private static void assertSelected(ClientProject selected, String name, int version, ProjectBox box) {
 		if (!selected.name().equals(name) || selected.version() != version) {
 			throw new AssertionError("Expected selection '" + name + "' v" + version + " but got '" + selected.name() + "' v" + selected.version());
 		}

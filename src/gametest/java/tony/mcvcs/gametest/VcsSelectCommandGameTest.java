@@ -16,9 +16,9 @@ import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
-import tony.mcvcs.client.selection.SelectionBoxRenderer;
+import tony.mcvcs.client.project.ClientProjects;
 import tony.mcvcs.project.ProjectBox;
-import tony.mcvcs.project.SelectedProject;
+import tony.mcvcs.project.ClientProject;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
@@ -58,7 +58,7 @@ public class VcsSelectCommandGameTest implements FabricClientGameTest {
 			// A name that was never created leaves the selection alone.
 			runCommand(context, "vcs select gametest-select-missing");
 			context.waitTicks(5);
-			assertSelected(context.computeOnClient(client -> SelectionBoxRenderer.selected()), SECOND, 1, secondBox);
+			assertSelected(context.computeOnClient(client -> ClientProjects.selected()), SECOND, 1, secondBox);
 
 			runCommand(context, "vcs select " + FIRST);
 			assertSelected(waitForSelection(context, FIRST), FIRST, 1, firstBox);
@@ -80,19 +80,19 @@ public class VcsSelectCommandGameTest implements FabricClientGameTest {
 		}
 	}
 
-	private static SelectedProject waitForSelection(ClientGameTestContext context, String name) {
+	private static ClientProject waitForSelection(ClientGameTestContext context, String name) {
 		return waitForSelection(context, name, 1);
 	}
 
-	private static SelectedProject waitForSelection(ClientGameTestContext context, String name, int version) {
+	private static ClientProject waitForSelection(ClientGameTestContext context, String name, int version) {
 		context.waitFor(client -> {
-			SelectedProject selected = SelectionBoxRenderer.selected();
+			ClientProject selected = ClientProjects.selected();
 			return selected != null && selected.name().equals(name) && selected.version() == version;
 		});
-		return context.computeOnClient(client -> SelectionBoxRenderer.selected());
+		return context.computeOnClient(client -> ClientProjects.selected());
 	}
 
-	private static void assertSelected(SelectedProject selected, String name, int version, ProjectBox box) {
+	private static void assertSelected(ClientProject selected, String name, int version, ProjectBox box) {
 		if (selected == null) {
 			throw new AssertionError("Expected selection '" + name + "' v" + version + " but nothing is selected");
 		}

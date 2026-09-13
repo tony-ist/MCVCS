@@ -16,7 +16,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
-import tony.mcvcs.client.selection.SelectionBoxRenderer;
+import tony.mcvcs.client.project.ClientProjects;
 import tony.mcvcs.project.ProjectRegistry;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.world.block.BlockTypes;
@@ -45,7 +45,7 @@ public class VcsWorldScopeGameTest implements FabricClientGameTest {
 			select(first, min, max);
 			runCommand(context, "vcs create " + BUILD_NAME);
 			read(schematic(BUILD_NAME, 1));
-			context.waitFor(client -> SelectionBoxRenderer.selected() != null);
+			context.waitFor(client -> ClientProjects.selected() != null);
 		}
 
 		// A different world in the same game directory, so the same mcvcs/ folder.
@@ -59,13 +59,13 @@ public class VcsWorldScopeGameTest implements FabricClientGameTest {
 
 			// The first world's selection is not this world's, so nothing is drawn.
 			context.waitTicks(5);
-			if (context.computeOnClient(client -> SelectionBoxRenderer.selected()) != null) {
+			if (context.computeOnClient(client -> ClientProjects.selected()) != null) {
 				throw new AssertionError("Expected no selected project in a different world");
 			}
 
 			runCommand(context, "vcs select " + BUILD_NAME);
 			context.waitTicks(5);
-			if (context.computeOnClient(client -> SelectionBoxRenderer.selected()) != null) {
+			if (context.computeOnClient(client -> ClientProjects.selected()) != null) {
 				throw new AssertionError("Selecting another world's build must fail");
 			}
 
@@ -82,7 +82,7 @@ public class VcsWorldScopeGameTest implements FabricClientGameTest {
 			select(second, min, max);
 			runCommand(context, "vcs create " + BUILD_NAME);
 			context.waitTicks(5);
-			if (context.computeOnClient(client -> SelectionBoxRenderer.selected()) != null) {
+			if (context.computeOnClient(client -> ClientProjects.selected()) != null) {
 				throw new AssertionError("Creating a build with another world's name must fail");
 			}
 			// A successful create would have overwritten v1 with this world's diamond box.
