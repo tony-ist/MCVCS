@@ -5,6 +5,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -140,7 +141,19 @@ public final class VcsCommand {
 					.then(Commands.literal("off")
 						.executes(context -> previewOff(context.getSource())))
 					.then(Commands.argument("version", IntegerArgumentType.integer(1))
+						.suggests((context, builder) -> SharedSuggestionProvider.suggest(versions(context.getSource()), builder))
 						.executes(context -> preview(context.getSource(), IntegerArgumentType.getInteger(context, "version")))))));
+	}
+
+	/** Every version number of the build the source player has selected; nothing if there is no player or selection. */
+	private static List<String> versions(CommandSourceStack source) {
+		ServerPlayer player = source.getPlayer();
+		if (player == null) {
+			return List.of();
+		}
+		return ProjectRegistry.selected(player)
+			.map(project -> IntStream.rangeClosed(1, project.version()).mapToObj(Integer::toString).toList())
+			.orElse(List.of());
 	}
 
 	private static int create(CommandSourceStack source, String buildName) throws CommandSyntaxException {

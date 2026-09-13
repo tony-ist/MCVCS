@@ -9,6 +9,10 @@ import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.select;
 import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
+import static tony.mcvcs.gametest.VcsTestSupport.suggestions;
+
+import java.util.HashSet;
+import java.util.List;
 
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
@@ -54,6 +58,9 @@ public class VcsPreviewCommandGameTest implements FabricClientGameTest {
 			runCommand(context, "vcs commit");
 			read(schematic(BUILD_NAME, 2));
 
+			// Tab completion offers every version of the selected build alongside "off".
+			assertSuggestions(singleplayer, "vcs preview ", List.of("1", "2", "off"));
+
 			// Nothing to preview beyond the latest version.
 			runCommand(context, "vcs preview 3");
 			assertNoPreview(context);
@@ -93,6 +100,13 @@ public class VcsPreviewCommandGameTest implements FabricClientGameTest {
 			return preview != null && preview.version() == version;
 		});
 		return context.computeOnClient(client -> PreviewManager.active());
+	}
+
+	private static void assertSuggestions(TestSingleplayerContext singleplayer, String command, List<String> expected) {
+		List<String> actual = suggestions(singleplayer, command);
+		if (!new HashSet<>(actual).equals(new HashSet<>(expected))) {
+			throw new AssertionError("Expected /" + command + " to suggest " + expected + " but got " + actual);
+		}
 	}
 
 	private static void assertNoPreview(ClientGameTestContext context) {

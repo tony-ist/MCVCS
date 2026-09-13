@@ -5,13 +5,18 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
+import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.ParseResults;
+import com.mojang.brigadier.suggestion.Suggestion;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Screenshot;
+import net.minecraft.commands.CommandSourceStack;
 
 import tony.mcvcs.project.ProjectStorage;
 import com.sk89q.worldedit.LocalSession;
@@ -117,6 +122,16 @@ final class VcsTestSupport {
 	static void runCommand(ClientGameTestContext context, String command) {
 		context.runOnClient(client -> client.player.connection.sendCommand(command));
 		context.waitTicks(2);
+	}
+
+	/** What the server offers to complete {@code command} (without the leading slash) with, as the player would see. */
+	static List<String> suggestions(TestSingleplayerContext singleplayer, String command) {
+		return singleplayer.getServer().computeOnServer(server -> {
+			ServerPlayer player = server.getPlayerList().getPlayers().get(0);
+			CommandDispatcher<CommandSourceStack> dispatcher = server.getCommands().getDispatcher();
+			ParseResults<CommandSourceStack> parse = dispatcher.parse(command, player.createCommandSourceStack());
+			return dispatcher.getCompletionSuggestions(parse).join().getList().stream().map(Suggestion::getText).toList();
+		});
 	}
 
 	/**
