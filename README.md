@@ -9,7 +9,16 @@ Select a build with WorldEdit, turn it into a build, and commit snapshots of it 
 - Minecraft 26.1.2 with Fabric Loader and Fabric API
 - WorldEdit (used for selections and for reading and writing schematics)
 - Operator level 2 (cheats) to run the commands
-- Previews, build labels and the selection box need the mod installed on the client too; everything else works server-side only
+- The mod can run on the server alone; players without it on their client can still join and use every command. Only previews, build labels and the selection box are rendered client-side, so those need the mod installed on the client too (see below)
+
+## Server-side only or with the client
+
+The mod works in two setups:
+
+- **Server only.** Install it on the server (or in the host's single-player game). Players connect with a vanilla Fabric client and get the full command set: `create`, `select`, `builds`, `deselect`, `commit` and `load` all run on the server. Nothing is drawn in their world, though: no build labels and no selection box, and `/vcs preview` refuses with a message saying the client does not have MCVCS installed.
+- **Server and client.** Install it on both. On top of the commands, the client shows every build's name floating above its region, draws the selected build's bounding box, and can render `/vcs preview <version>` in place of the real blocks.
+
+There is no client-only mode: the builds live on the server, so the mod has to be there for anything to work.
 
 ## Commands
 
@@ -59,7 +68,7 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ## TODO
 
-- `/vcs checkout version` clears current selection and loads selected version instead. Think about what happens when build has observers or updating components.
-- Test that server mod works separately from client mod, and you can connect to server without client mod.
 - Diff tool that shows which block changed between current version of the build and selected version from VCS.
+- `/vcs checkout version` clears current selection and loads selected version instead. Think about what happens when build has observers or updating components.
 - Aliases for commands to type them faster
+- Change boundinx box color during preview and display version that is being previewed in the label
