@@ -1,6 +1,7 @@
 package tony.mcvcs.network;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.List;
 
 import net.minecraft.network.FriendlyByteBuf;
@@ -15,22 +16,27 @@ import tony.mcvcs.diff.BlockChange;
 /**
  * Server to client: one slice of the diff announced by the last {@link DiffBeginPayload}.
  * <p>
- * Each change is a block position, as its {@link BuildBox} index, plus the block on either side of the diff as
- * palette indices. Slices arrive in order and the diff is complete once as many changes as the begin payload
- * announced have arrived.
+ * Each change is a block position, as its {@link BuildBox} index, the block on either side of the diff as palette
+ * indices, and whether its block entity data differs. The data itself stays on the server; the client only needs
+ * to know that the block changed. Slices arrive in order and the diff is complete once as many changes as the
+ * begin payload announced have arrived.
  *
- * @param palette distinct block states used by this slice
- * @param indices box index of each changed block
- * @param from    palette index of each block's old state
- * @param to      palette index of each block's new state
+ * @param palette     distinct block states used by this slice
+ * @param indices     box index of each changed block
+ * @param from        palette index of each block's old state
+ * @param to          palette index of each block's new state
+ * @param dataChanged bit {@code i} is set if the block entity data of change {@code i} differs
  */
-public record DiffChangesPayload(List<BlockState> palette, int[] indices, int[] from, int[] to) implements CustomPacketPayload {
+public record DiffChangesPayload(List<BlockState> palette, int[] indices, int[] from, int[] to, BitSet dataChanged) implements CustomPacketPayload {
 	public static final Type<DiffChangesPayload> TYPE = new Type<>(MCVCS.id("diff_changes"));
 	public static final StreamCodec<FriendlyByteBuf, DiffChangesPayload> STREAM_CODEC = CustomPacketPayload.codec(DiffChangesPayload::write, DiffChangesPayload::read);
 
 	public DiffChangesPayload {
 		if (from.length != indices.length || to.length != indices.length) {
 			throw new IllegalArgumentException("Slice has " + indices.length + " positions but " + from.length + " old and " + to.length + " new states");
+		}
+		if (dataChanged.length() > indices.length) {
+			throw new IllegalArgumentException("Slice has " + indices.length + " positions but data flags up to " + dataChanged.length());
 		}
 	}
 
@@ -39,7 +45,8 @@ public record DiffChangesPayload(List<BlockState> palette, int[] indices, int[] 
 		int[] indices = buf.readVarIntArray();
 		int[] from = buf.readVarIntArray();
 		int[] to = buf.readVarIntArray();
-		return new DiffChangesPayload(palette, indices, from, to);
+		BitSet dataChanged = buf.readFixedBitSet(indices.length);
+		return new DiffChangesPayload(palette, indices, from, to, dataChanged);
 	}
 
 	private void write(FriendlyByteBuf buf) {
@@ -47,6 +54,7 @@ public record DiffChangesPayload(List<BlockState> palette, int[] indices, int[] 
 		buf.writeVarIntArray(indices);
 		buf.writeVarIntArray(from);
 		buf.writeVarIntArray(to);
+		buf.writeFixedBitSet(dataChanged, indices.length);
 	}
 
 	/** Number of changes in this slice. */
@@ -59,6 +67,7 @@ public record DiffChangesPayload(List<BlockState> palette, int[] indices, int[] 
 	 * the begin payload.
 	 *
 	 * @throws IndexOutOfBoundsException if a box or palette index is out of range, i.e. the slice is malformed
+	 * @throws IllegalArgumentException  if a change has the same state on both sides and no data change
 	 */
 	public List<BlockChange> changes(BuildBox box) {
 		int volume = Math.toIntExact(box.volume());
@@ -67,7 +76,7 @@ public record DiffChangesPayload(List<BlockState> palette, int[] indices, int[] 
 			if (indices[i] < 0 || indices[i] >= volume) {
 				throw new IndexOutOfBoundsException("Box index " + indices[i] + " is outside " + box);
 			}
-			changes.add(new BlockChange(box.pos(indices[i]), palette.get(from[i]), palette.get(to[i])));
+			changes.add(new BlockChange(box.pos(indices[i]), palette.get(from[i]), palette.get(to[i]), dataChanged.get(i)));
 		}
 		return changes;
 	}

@@ -1,5 +1,6 @@
 package tony.mcvcs.network;
 
+import java.util.BitSet;
 import java.util.List;
 
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
@@ -14,8 +15,8 @@ import tony.mcvcs.diff.BuildDiff;
 /** Server side of the diff protocol: turns a {@link BuildDiff} into a {@link DiffBeginPayload} and {@link DiffChangesPayload}s. */
 public final class DiffSender {
 	/**
-	 * Changes per {@link DiffChangesPayload}. A change is three var-ints of at most three bytes each, so a slice
-	 * stays well under the 1 MiB custom payload limit even with a palette as long as the slice.
+	 * Changes per {@link DiffChangesPayload}. A change is three var-ints of at most three bytes each plus a bit, so a
+	 * slice stays well under the 1 MiB custom payload limit even with a palette as long as the slice.
 	 */
 	public static final int CHANGES_PER_PACKET = 32768;
 
@@ -56,13 +57,15 @@ public final class DiffSender {
 			int[] indices = new int[count];
 			int[] from = new int[count];
 			int[] to = new int[count];
+			BitSet dataChanged = new BitSet(count);
 			for (int i = 0; i < count; i++) {
 				BlockChange change = changes.get(offset + i);
 				indices[i] = box.index(change.pos().getX(), change.pos().getY(), change.pos().getZ());
 				from[i] = palette.indexOf(change.from());
 				to[i] = palette.indexOf(change.to());
+				dataChanged.set(i, change.dataChanged());
 			}
-			ServerPlayNetworking.send(player, new DiffChangesPayload(palette.states(), indices, from, to));
+			ServerPlayNetworking.send(player, new DiffChangesPayload(palette.states(), indices, from, to, dataChanged));
 		}
 	}
 

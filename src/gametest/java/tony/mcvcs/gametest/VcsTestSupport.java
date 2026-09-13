@@ -31,6 +31,8 @@ import com.sk89q.worldedit.world.block.BlockType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Container;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 
 /** Shared setup and assertions for the {@code /vcs} game tests. */
@@ -106,6 +108,17 @@ final class VcsTestSupport {
 
 	static void setBlock(TestSingleplayerContext singleplayer, BlockPos pos, BlockState state) {
 		singleplayer.getServer().runOnServer(server -> server.overworld().setBlockAndUpdate(pos, state));
+	}
+
+	/** Puts {@code stack} into slot {@code slot} of the container block at {@code pos}, as a player would through its screen. */
+	static void putItem(TestSingleplayerContext singleplayer, BlockPos pos, int slot, ItemStack stack) {
+		singleplayer.getServer().runOnServer(server -> {
+			if (!(server.overworld().getBlockEntity(pos) instanceof Container container)) {
+				throw new AssertionError("Expected a container at " + pos + " but found " + server.overworld().getBlockState(pos));
+			}
+			container.setItem(slot, stack);
+			container.setChanged();
+		});
 	}
 
 	/** Selects the box for the player, as {@code //pos1} and {@code //pos2} would. */

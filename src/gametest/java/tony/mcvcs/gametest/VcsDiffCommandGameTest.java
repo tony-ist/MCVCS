@@ -3,6 +3,7 @@ package tony.mcvcs.gametest;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
+import static tony.mcvcs.gametest.VcsTestSupport.putItem;
 import static tony.mcvcs.gametest.VcsTestSupport.read;
 import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
@@ -28,14 +29,17 @@ import tony.mcvcs.diff.BlockChange;
 import tony.mcvcs.diff.BuildDiff;
 import tony.mcvcs.diff.ChangeKind;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 
 /**
- * {@code /vcs diff} finds every block that differs between a saved version and the world, tells them apart by
- * whether they were added, removed or changed, and has the client highlight them until {@code /vcs diff off}.
+ * {@code /vcs diff} finds every block that differs between a saved version and the world, by state or by the data of
+ * its block entity, tells them apart by whether they were added, removed or changed, and has the client highlight
+ * them until {@code /vcs diff off}.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsDiffCommandGameTest implements FabricClientGameTest {
@@ -49,16 +53,19 @@ public class VcsDiffCommandGameTest implements FabricClientGameTest {
 			singleplayer.getClientLevel().waitForChunksRender();
 
 			// v1: a 3x2x2 stone box in front of and to the right of the player, with a gold block in the top north-west
-			// corner and the top north-east corner left empty; both corners face the player.
+			// corner, the top north-east corner left empty and an empty barrel in the bottom north-west corner; all
+			// three face the player.
 			BlockPos min = playerPos(singleplayer).offset(2, 0, 2);
 			BlockPos max = min.offset(2, 1, 1);
 			BlockPos gold = new BlockPos(min.getX(), max.getY(), min.getZ());
 			BlockPos hole = new BlockPos(max.getX(), max.getY(), min.getZ());
 			BlockPos middle = new BlockPos(min.getX() + 1, max.getY(), min.getZ());
+			BlockPos barrel = new BlockPos(min.getX(), min.getY(), min.getZ());
 			BuildBox box = new BuildBox(min, max);
 
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), gold, Blocks.GOLD_BLOCK.defaultBlockState());
 			setBlock(singleplayer, hole, Blocks.AIR.defaultBlockState());
+			setBlock(singleplayer, barrel, Blocks.BARREL.defaultBlockState());
 			select(singleplayer, min, max);
 			runCommand(context, "vcs create " + BUILD_NAME);
 			read(schematic(BUILD_NAME, 1));
@@ -71,9 +78,11 @@ public class VcsDiffCommandGameTest implements FabricClientGameTest {
 			assertNoDiff(context);
 
 			// One block of each kind: the hole filled in, the gold block dug out, and a stone block swapped for diamond.
+			// Plus a change that leaves the block itself alone: a diamond put into the barrel.
 			setBlock(singleplayer, hole, Blocks.DIAMOND_BLOCK.defaultBlockState());
 			setBlock(singleplayer, gold, Blocks.AIR.defaultBlockState());
 			setBlock(singleplayer, middle, Blocks.DIAMOND_BLOCK.defaultBlockState());
+			putItem(singleplayer, barrel, 0, new ItemStack(Items.DIAMOND));
 
 			// Nothing to diff beyond the latest version; the earlier result stands.
 			runCommand(context, "vcs diff 2");
@@ -84,12 +93,14 @@ public class VcsDiffCommandGameTest implements FabricClientGameTest {
 			ClientDiff diff = waitForDiff(context, 1);
 			assertDiff(diff, BUILD_NAME, 1, box);
 			assertChanges(diff.diff(), Map.of(
-				hole, new Expected(ChangeKind.ADDED, Blocks.AIR, Blocks.DIAMOND_BLOCK),
-				gold, new Expected(ChangeKind.REMOVED, Blocks.GOLD_BLOCK, Blocks.AIR),
-				middle, new Expected(ChangeKind.CHANGED, Blocks.STONE, Blocks.DIAMOND_BLOCK)
+				hole, new Expected(ChangeKind.ADDED, Blocks.AIR, Blocks.DIAMOND_BLOCK, false),
+				gold, new Expected(ChangeKind.REMOVED, Blocks.GOLD_BLOCK, Blocks.AIR, false),
+				middle, new Expected(ChangeKind.CHANGED, Blocks.STONE, Blocks.DIAMOND_BLOCK, false),
+				barrel, new Expected(ChangeKind.CHANGED, Blocks.BARREL, Blocks.BARREL, true)
 			));
-			// The three changed blocks are next to each other but differ in kind, so each gets a box of its own.
+			// The changed blocks are next to each other but differ in kind, so each gets a box of its own.
 			assertHighlights(diff, List.of(
+				new DiffHighlights.Highlight(blockBox(barrel), ChangeKind.CHANGED),
 				new DiffHighlights.Highlight(blockBox(gold), ChangeKind.REMOVED),
 				new DiffHighlights.Highlight(blockBox(middle), ChangeKind.CHANGED),
 				new DiffHighlights.Highlight(blockBox(hole), ChangeKind.ADDED)
@@ -98,8 +109,9 @@ public class VcsDiffCommandGameTest implements FabricClientGameTest {
 			lookAt(context, min, max);
 			screenshotLastFrame(context, "mcvcs-vcs-diff");
 
-			// v2 is the world as it is now, so diffing against it finds nothing and drops the highlights, while
-			// diffing against v1 explicitly finds the same three blocks again.
+			// v2 is the world as it is now, so diffing against it finds nothing and drops the highlights: the barrel's
+			// contents read back from the schematic the same as from the world. Diffing against v1 explicitly finds
+			// the same four blocks again.
 			runCommand(context, "vcs commit");
 			read(schematic(BUILD_NAME, 2));
 			assertSuggestions(singleplayer, "vcs diff ", List.of("1", "2", "off"));
@@ -109,9 +121,15 @@ public class VcsDiffCommandGameTest implements FabricClientGameTest {
 			runCommand(context, "vcs diff 1");
 			diff = waitForDiff(context, 1);
 			assertDiff(diff, BUILD_NAME, 1, box);
-			if (diff.diff().size() != 3) {
-				throw new AssertionError("Expected 3 changes against v1 but got " + diff.diff().changes());
+			if (diff.diff().size() != 4) {
+				throw new AssertionError("Expected 4 changes against v1 but got " + diff.diff().changes());
 			}
+
+			// Taking the diamond out again makes the barrel match v1 but not v2.
+			putItem(singleplayer, barrel, 0, ItemStack.EMPTY);
+			runCommand(context, "vcs diff");
+			diff = waitForDiff(context, 2);
+			assertChanges(diff.diff(), Map.of(barrel, new Expected(ChangeKind.CHANGED, Blocks.BARREL, Blocks.BARREL, true)));
 
 			runCommand(context, "vcs diff off");
 			assertNoDiff(context);
@@ -122,7 +140,7 @@ public class VcsDiffCommandGameTest implements FabricClientGameTest {
 		}
 	}
 
-	private record Expected(ChangeKind kind, Block from, Block to) {
+	private record Expected(ChangeKind kind, Block from, Block to, boolean dataChanged) {
 	}
 
 	private static ClientDiff waitForDiff(ClientGameTestContext context, int version) {
@@ -170,8 +188,8 @@ public class VcsDiffCommandGameTest implements FabricClientGameTest {
 			if (want == null) {
 				throw new AssertionError("Unexpected change at " + change.pos() + ": " + change);
 			}
-			if (change.kind() != want.kind() || change.from().getBlock() != want.from() || change.to().getBlock() != want.to()) {
-				throw new AssertionError("Expected " + want + " at " + change.pos() + " but got " + change.kind() + " " + change.from() + " -> " + change.to());
+			if (change.kind() != want.kind() || change.from().getBlock() != want.from() || change.to().getBlock() != want.to() || change.dataChanged() != want.dataChanged()) {
+				throw new AssertionError("Expected " + want + " at " + change.pos() + " but got " + change);
 			}
 		}
 		Map<ChangeKind, Integer> counts = diff.counts();
