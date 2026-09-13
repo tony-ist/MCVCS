@@ -44,6 +44,7 @@ import com.sk89q.worldedit.function.operation.ForwardExtentCopy;
 import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.Region;
+import com.sk89q.worldedit.session.ClipboardHolder;
 import com.sk89q.worldedit.world.World;
 
 /**
@@ -63,6 +64,9 @@ import com.sk89q.worldedit.world.World;
  * <li>{@code /vcs preview <version>}: sends that version's schematic to the player's client, which draws it in place
  * of the real blocks inside the build's box. Nothing in the world changes. {@code /vcs preview off} shows the
  * real blocks again.</li>
+ * <li>{@code /vcs load [version]}: puts that version's schematic, or the latest one if no version is given, into
+ * the player's WorldEdit clipboard, as {@code //copy} or {@code //schem load} would, so {@code //paste} places it.
+ * The schematic stays where it is; nothing is written to WorldEdit's own schematic folder.</li>
  * </ul>
  * Builds and selections are looked up through {@link BuildRegistry}, which only shows those belonging to the
  * world being played; a build remembers which world and dimension its box is in.
@@ -85,6 +89,8 @@ public final class VcsCommand {
 	public static final String SELECT_BUTTON = "Select";
 	/** Marker {@code /vcs builds} puts after the selected build instead of a button. */
 	public static final String SELECTED_MARKER = "selected";
+	/** Version number standing for the selected build's latest version, used when {@code /vcs load} is given none. */
+	private static final int LATEST = 0;
 
 	/** A corner of a cuboid; north is -Z, west is -X, bottom is -Y. */
 	public enum Corner {
@@ -143,7 +149,12 @@ public final class VcsCommand {
 						.executes(context -> previewOff(context.getSource())))
 					.then(Commands.argument("version", IntegerArgumentType.integer(1))
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(versions(context.getSource()), builder))
-						.executes(context -> preview(context.getSource(), IntegerArgumentType.getInteger(context, "version")))))));
+						.executes(context -> preview(context.getSource(), IntegerArgumentType.getInteger(context, "version")))))
+				.then(Commands.literal("load")
+					.executes(context -> load(context.getSource(), LATEST))
+					.then(Commands.argument("version", IntegerArgumentType.integer(1))
+						.suggests((context, builder) -> SharedSuggestionProvider.suggest(versions(context.getSource()), builder))
+						.executes(context -> load(context.getSource(), IntegerArgumentType.getInteger(context, "version")))))));
 	}
 
 	/** Every version number of the build the source player has selected; nothing if there is no player or selection. */
@@ -339,6 +350,43 @@ public final class VcsCommand {
 		PreviewSender.clear(player);
 		source.sendSuccess(() -> Component.literal("Preview off"), false);
 		return 1;
+	}
+
+	/** @param version the version to load, or {@link #LATEST} for the selected build's latest one */
+	private static int load(CommandSourceStack source, int version) throws CommandSyntaxException {
+		ServerPlayer player = source.getPlayerOrException();
+		Optional<Build> selected = BuildRegistry.selected(player);
+		if (selected.isEmpty()) {
+			source.sendFailure(Component.literal("No build selected in this world; run /vcs create <buildname> first"));
+			return 0;
+		}
+
+		Build latest = selected.get();
+		if (version > latest.version()) {
+			source.sendFailure(Component.literal("Build '" + latest.name() + "' only has versions 1 to " + latest.version()));
+			return 0;
+		}
+
+		Build build = version == LATEST ? latest : latest.atVersion(version);
+		Player actor = FabricAdapter.get().fromNativePlayer(player);
+		LocalSession session = WorldEdit.getInstance().getSessionManager().get(actor);
+
+		try {
+			Clipboard clipboard = BuildStorage.read(build);
+			// Same as //schem load: the clipboard replaces whatever the player had copied, origin and all, so //paste
+			// puts the build at their feet the way ORIGIN_CORNER and ORIGIN_OFFSET arranged it.
+			session.setClipboard(new ClipboardHolder(clipboard));
+
+			source.sendSuccess(() -> Component.literal("Loaded build '" + build.name() + "' v" + build.version() + " (" + build.box().volume() + " blocks) into your clipboard; run //paste to place it"), false);
+			return 1;
+		} catch (NoSuchFileException e) {
+			source.sendFailure(Component.literal("No schematic for build '" + build.name() + "' v" + build.version() + " at " + e.getFile()));
+			return 0;
+		} catch (IOException | IllegalArgumentException e) {
+			MCVCS.LOGGER.error("Failed to load build '{}' v{} for {}", build.name(), build.version(), player.getGameProfile().name(), e);
+			source.sendFailure(Component.literal("Failed to load schematic: " + e.getMessage()));
+			return 0;
+		}
 	}
 
 	/**

@@ -22,6 +22,7 @@ Select a build with WorldEdit, turn it into a build, and commit snapshots of it 
 | `/vcs commit` | Saves the selected build's region again as the next version. The region is the one captured by `create`; your current WorldEdit selection is ignored. |
 | `/vcs preview <version>` | Renders that version in place of the real blocks inside the build's region. Nothing in the world changes. |
 | `/vcs preview off` | Shows the real blocks again. |
+| `/vcs load [version]` | Puts that version, or the latest one if none is given, into your WorldEdit clipboard, replacing whatever you had copied, so `//paste` places it. The origin is one block above the top north-west corner of the build, so `//paste` puts the build one block below your feet, extending east and south. Nothing is written to WorldEdit's own schematic folder. |
 
 ## How it works
 
@@ -58,7 +59,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ## TODO
 
-- Command to load version of the build as schematic to worldedit, so that user can //paste it 
 - `/vcs checkout version` clears current selection and loads selected version instead. Think about what happens when build has observers or updating components.
 - Test that server mod works separately from client mod, and you can connect to server without client mod.
 - Diff tool that shows which block changed between current version of the build and selected version from VCS.
