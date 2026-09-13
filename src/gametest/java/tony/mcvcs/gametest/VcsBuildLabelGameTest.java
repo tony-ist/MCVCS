@@ -4,7 +4,7 @@ import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
 import static tony.mcvcs.gametest.VcsTestSupport.read;
-import static tony.mcvcs.gametest.VcsTestSupport.resetProjects;
+import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
@@ -17,9 +17,9 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
 import tony.mcvcs.client.label.BuildLabelRenderer;
-import tony.mcvcs.client.project.ClientProjects;
-import tony.mcvcs.project.ClientProject;
-import tony.mcvcs.project.ProjectBox;
+import tony.mcvcs.client.build.ClientBuilds;
+import tony.mcvcs.build.ClientBuild;
+import tony.mcvcs.build.BuildBox;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -38,23 +38,23 @@ public class VcsBuildLabelGameTest implements FabricClientGameTest {
 	@Override
 	public void runTest(ClientGameTestContext context) {
 		// Before the world exists: the player is told the builds on join, so they must be gone by then.
-		resetProjects(NEAR, FAR);
+		resetBuilds(NEAR, FAR);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 
 			// No builds yet, so nothing is labelled.
 			context.waitTicks(5);
-			if (!context.computeOnClient(client -> ClientProjects.all()).isEmpty()) {
-				throw new AssertionError("Expected no builds before /vcs create but got " + ClientProjects.all());
+			if (!context.computeOnClient(client -> ClientBuilds.all()).isEmpty()) {
+				throw new AssertionError("Expected no builds before /vcs create but got " + ClientBuilds.all());
 			}
 
 			// A 3x2x2 stone box in front of the player and another one well beyond the label range.
 			BlockPos nearMin = playerPos(singleplayer).offset(2, 0, 2);
 			BlockPos nearMax = nearMin.offset(2, 1, 1);
-			ProjectBox nearBox = new ProjectBox(nearMin, nearMax);
+			BuildBox nearBox = new BuildBox(nearMin, nearMax);
 			BlockPos farMin = playerPos(singleplayer).offset((int) BuildLabelRenderer.RANGE + 20, 0, 2);
 			BlockPos farMax = farMin.offset(2, 1, 1);
-			ProjectBox farBox = new ProjectBox(farMin, farMax);
+			BuildBox farBox = new BuildBox(farMin, farMax);
 
 			// The far build first, so the near one is created last and selected while the far one is not.
 			fillBox(singleplayer, farMin, farMax, Blocks.STONE.defaultBlockState(), farMin, Blocks.STONE.defaultBlockState());
@@ -76,8 +76,8 @@ public class VcsBuildLabelGameTest implements FabricClientGameTest {
 
 			// Deselecting drops the box but not the build or its label.
 			runCommand(context, "vcs deselect");
-			context.waitFor(client -> ClientProjects.selected() == null);
-			assertBuilds(context.computeOnClient(client -> ClientProjects.all()), List.of(FAR, NEAR), List.of(farBox, nearBox));
+			context.waitFor(client -> ClientBuilds.selected() == null);
+			assertBuilds(context.computeOnClient(client -> ClientBuilds.all()), List.of(FAR, NEAR), List.of(farBox, nearBox));
 			assertLabelled(context, nearBox, farBox);
 
 			lookAt(context, nearMin, nearMax.above(2));
@@ -85,19 +85,19 @@ public class VcsBuildLabelGameTest implements FabricClientGameTest {
 		}
 	}
 
-	private static List<ClientProject> waitForBuilds(ClientGameTestContext context, int count) {
-		context.waitFor(client -> ClientProjects.all().size() == count);
-		return context.computeOnClient(client -> ClientProjects.all());
+	private static List<ClientBuild> waitForBuilds(ClientGameTestContext context, int count) {
+		context.waitFor(client -> ClientBuilds.all().size() == count);
+		return context.computeOnClient(client -> ClientBuilds.all());
 	}
 
 	/** The builds the client knows, in the order the server lists them, each in the overworld at version 1. */
-	private static void assertBuilds(List<ClientProject> builds, List<String> names, List<ProjectBox> boxes) {
-		List<String> actualNames = builds.stream().map(ClientProject::name).toList();
+	private static void assertBuilds(List<ClientBuild> builds, List<String> names, List<BuildBox> boxes) {
+		List<String> actualNames = builds.stream().map(ClientBuild::name).toList();
 		if (!actualNames.equals(names)) {
 			throw new AssertionError("Expected builds " + names + " but got " + actualNames);
 		}
 		for (int i = 0; i < builds.size(); i++) {
-			ClientProject build = builds.get(i);
+			ClientBuild build = builds.get(i);
 			if (build.version() != 1 || !build.dimension().equals(Level.OVERWORLD) || !build.box().equals(boxes.get(i))) {
 				throw new AssertionError("Expected build '" + names.get(i) + "' v1 in the overworld at " + boxes.get(i) + " but got " + build);
 			}
@@ -105,7 +105,7 @@ public class VcsBuildLabelGameTest implements FabricClientGameTest {
 	}
 
 	/** From where the player stands, the near build's label is fully visible and the far one's not at all. */
-	private static void assertLabelled(ClientGameTestContext context, ProjectBox near, ProjectBox far) {
+	private static void assertLabelled(ClientGameTestContext context, BuildBox near, BuildBox far) {
 		Vec3 camera = context.computeOnClient(client -> client.gameRenderer.getMainCamera().position());
 		float nearOpacity = BuildLabelRenderer.opacity(near, camera);
 		float farOpacity = BuildLabelRenderer.opacity(far, camera);

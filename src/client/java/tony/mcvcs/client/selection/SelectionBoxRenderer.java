@@ -6,15 +6,15 @@ import net.minecraft.gizmos.GizmoStyle;
 import net.minecraft.gizmos.Gizmos;
 import net.minecraft.world.phys.AABB;
 
-import tony.mcvcs.client.project.ClientProjects;
-import tony.mcvcs.project.ClientProject;
-import tony.mcvcs.project.ProjectBox;
+import tony.mcvcs.client.build.ClientBuilds;
+import tony.mcvcs.build.ClientBuild;
+import tony.mcvcs.build.BuildBox;
 
 /**
- * Draws the bounding box of the player's selected project as a thin line outline.
+ * Draws the bounding box of the player's selected build as a thin line outline.
  * <p>
  * The outline is emitted through the game's own gizmo pipeline once per frame, so it is depth-tested like any block:
- * clearly visible when the project is in view, never painted over terrain or entities standing in front of it, and
+ * clearly visible when the build is in view, never painted over terrain or entities standing in front of it, and
  * gone when the player looks away or moves behind a wall.
  */
 public final class SelectionBoxRenderer {
@@ -33,12 +33,12 @@ public final class SelectionBoxRenderer {
 	}
 
 	private static void emit(LevelExtractionContext context) {
-		ClientProject project = ClientProjects.selected();
-		if (project == null || !project.dimension().equals(context.level().dimension())) {
+		ClientBuild build = ClientBuilds.selected();
+		if (build == null || !build.dimension().equals(context.level().dimension())) {
 			return;
 		}
 
-		ProjectBox box = project.box();
+		BuildBox box = build.box();
 		AABB aabb = AABB.encapsulatingFullBlocks(box.min(), box.max()).inflate(OUTSET);
 		Gizmos.cuboid(aabb, STYLE);
 	}

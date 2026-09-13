@@ -1,4 +1,4 @@
-package tony.mcvcs.project;
+package tony.mcvcs.build;
 
 import java.util.regex.Pattern;
 
@@ -21,7 +21,7 @@ import com.sk89q.worldedit.regions.Region;
  * version most recently written to disk.
  * <p>
  * The box is fixed at {@code /vcs create} time; later changes to the player's WorldEdit selection do not touch it.
- * It is stored on disk by {@link ProjectStorage} next to the schematics of each version, so it must not reference
+ * It is stored on disk by {@link BuildStorage} next to the schematics of each version, so it must not reference
  * the world itself; {@link #region} turns it back into a WorldEdit region when one is needed.
  *
  * @param name      build name as given to {@code /vcs create}
@@ -30,22 +30,22 @@ import com.sk89q.worldedit.regions.Region;
  * @param box       the world box the build covers
  * @param version   last saved version, starting at 1 for the schematic {@code /vcs create} writes
  */
-public record Project(String name, String world, ResourceKey<Level> dimension, ProjectBox box, int version) {
+public record Build(String name, String world, ResourceKey<Level> dimension, BuildBox box, int version) {
 	/**
-	 * What a build name may look like. The name becomes the project's folder on disk, so this is the set of
+	 * What a build name may look like. The name becomes the build's folder on disk, so this is the set of
 	 * characters a command word may contain minus anything that could name another folder: no {@code .} or
 	 * {@code ..} segments, no leading or trailing dots and no separators.
 	 */
 	public static final Pattern NAME = Pattern.compile("[A-Za-z0-9_+-]+(\\.[A-Za-z0-9_+-]+)*");
-	public static final Codec<Project> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-		Codec.STRING.fieldOf("name").forGetter(Project::name),
-		Codec.STRING.fieldOf("world").forGetter(Project::world),
-		ResourceKey.codec(Registries.DIMENSION).fieldOf("dimension").forGetter(Project::dimension),
-		ProjectBox.CODEC.fieldOf("box").forGetter(Project::box),
-		ExtraCodecs.POSITIVE_INT.fieldOf("version").forGetter(Project::version)
-	).apply(instance, Project::new));
+	public static final Codec<Build> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+		Codec.STRING.fieldOf("name").forGetter(Build::name),
+		Codec.STRING.fieldOf("world").forGetter(Build::world),
+		ResourceKey.codec(Registries.DIMENSION).fieldOf("dimension").forGetter(Build::dimension),
+		BuildBox.CODEC.fieldOf("box").forGetter(Build::box),
+		ExtraCodecs.POSITIVE_INT.fieldOf("version").forGetter(Build::version)
+	).apply(instance, Build::new));
 
-	/** Whether {@code name} matches {@link #NAME} and so can be used as a project's folder name. */
+	/** Whether {@code name} matches {@link #NAME} and so can be used as a build's folder name. */
 	public static boolean isValidName(String name) {
 		return NAME.matcher(name).matches();
 	}
@@ -64,14 +64,14 @@ public record Project(String name, String world, ResourceKey<Level> dimension, P
 		return world.equals(worldOf(server));
 	}
 
-	/** The project as it will be after the next commit. */
-	public Project nextVersion() {
-		return new Project(name, world, dimension, box, version + 1);
+	/** The build as it will be after the next commit. */
+	public Build nextVersion() {
+		return new Build(name, world, dimension, box, version + 1);
 	}
 
 	/** The same build at an earlier (or the same) version, e.g. to locate that version's schematic. */
-	public Project atVersion(int version) {
-		return new Project(name, world, dimension, box, version);
+	public Build atVersion(int version) {
+		return new Build(name, world, dimension, box, version);
 	}
 
 	/** The build's box as a WorldEdit region in {@code level}, which must be the world {@link #dimension} names. */

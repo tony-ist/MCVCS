@@ -4,7 +4,7 @@ import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
 import static tony.mcvcs.gametest.VcsTestSupport.read;
-import static tony.mcvcs.gametest.VcsTestSupport.resetProjects;
+import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
@@ -22,22 +22,22 @@ import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.common.ServerboundCustomClickActionPacket;
 
-import tony.mcvcs.client.project.ClientProjects;
+import tony.mcvcs.client.build.ClientBuilds;
 import tony.mcvcs.command.VcsCommand;
 import tony.mcvcs.network.ChatButtons;
-import tony.mcvcs.project.ClientProject;
+import tony.mcvcs.build.ClientBuild;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * {@code /vcs projects} lists every build in the world with a {@code [Select]} button after each one that is not
+ * {@code /vcs builds} lists every build in the world with a {@code [Select]} button after each one that is not
  * selected; pressing the button selects that build with no confirmation dialog in between. The selected build is
  * marked instead.
  */
 @SuppressWarnings("UnstableApiUsage")
-public class VcsProjectsCommandGameTest implements FabricClientGameTest {
-	private static final String FIRST = "gametest-projects-first";
-	private static final String SECOND = "gametest-projects-second";
+public class VcsBuildsCommandGameTest implements FabricClientGameTest {
+	private static final String FIRST = "gametest-builds-first";
+	private static final String SECOND = "gametest-builds-second";
 
 	/** Every game message the client has received, filled on the client thread. */
 	private static final List<Component> RECEIVED = new ArrayList<>();
@@ -49,12 +49,12 @@ public class VcsProjectsCommandGameTest implements FabricClientGameTest {
 	@Override
 	public void runTest(ClientGameTestContext context) {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
-		resetProjects(FIRST, SECOND);
+		resetBuilds(FIRST, SECOND);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 
 			// Nothing to list yet.
-			List<Component> empty = listProjects(context);
+			List<Component> empty = listBuilds(context);
 			if (empty.size() != 1 || !empty.get(0).getString().startsWith("No builds in this world")) {
 				throw new AssertionError("Expected only a 'No builds' message but got " + strings(empty));
 			}
@@ -78,8 +78,8 @@ public class VcsProjectsCommandGameTest implements FabricClientGameTest {
 
 			// Header plus one line per build, in name order, with a button on the first and a marker on the second.
 			lookAt(context, firstMin, firstMax);
-			List<Component> listed = listProjects(context);
-			screenshotLastFrame(context, "mcvcs-vcs-projects");
+			List<Component> listed = listBuilds(context);
+			screenshotLastFrame(context, "mcvcs-vcs-builds");
 			if (listed.size() != 3) {
 				throw new AssertionError("Expected a header and two builds but got " + strings(listed));
 			}
@@ -102,7 +102,7 @@ public class VcsProjectsCommandGameTest implements FabricClientGameTest {
 			waitForSelection(context, FIRST);
 
 			// Listing again shows the marker moved.
-			List<Component> relisted = listProjects(context);
+			List<Component> relisted = listBuilds(context);
 			if (relisted.size() != 3) {
 				throw new AssertionError("Expected a header and two builds but got " + strings(relisted));
 			}
@@ -111,10 +111,10 @@ public class VcsProjectsCommandGameTest implements FabricClientGameTest {
 		}
 	}
 
-	/** Runs {@code /vcs projects} and returns every game message it produced, in order. */
-	private static List<Component> listProjects(ClientGameTestContext context) {
+	/** Runs {@code /vcs builds} and returns every game message it produced, in order. */
+	private static List<Component> listBuilds(ClientGameTestContext context) {
 		context.runOnClient(client -> RECEIVED.clear());
-		runCommand(context, "vcs projects");
+		runCommand(context, "vcs builds");
 		context.waitTicks(5);
 		return context.computeOnClient(client -> List.copyOf(RECEIVED));
 	}
@@ -155,7 +155,7 @@ public class VcsProjectsCommandGameTest implements FabricClientGameTest {
 
 	private static void waitForSelection(ClientGameTestContext context, String name) {
 		context.waitFor(client -> {
-			ClientProject selected = ClientProjects.selected();
+			ClientBuild selected = ClientBuilds.selected();
 			return selected != null && selected.name().equals(name);
 		});
 	}

@@ -14,10 +14,10 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
-import tony.mcvcs.client.project.ClientProjects;
+import tony.mcvcs.client.build.ClientBuilds;
 import tony.mcvcs.client.selection.SelectionBoxRenderer;
-import tony.mcvcs.project.ClientProject;
-import tony.mcvcs.project.ProjectBox;
+import tony.mcvcs.build.ClientBuild;
+import tony.mcvcs.build.BuildBox;
 
 /**
  * Floats each build's name above its box while the player is near it, selected or not.
@@ -50,41 +50,41 @@ public final class BuildLabelRenderer {
 	 * How opaque the label of a build covering {@code box} is when seen from {@code camera}: fully within
 	 * {@link #RANGE} minus {@link #FADE} blocks of the box, not at all beyond {@link #RANGE}, fading in between.
 	 */
-	public static float opacity(ProjectBox box, Vec3 camera) {
+	public static float opacity(BuildBox box, Vec3 camera) {
 		double distance = Math.sqrt(aabb(box).distanceToSqr(camera));
 		return (float) Mth.clamp((RANGE - distance) / FADE, 0.0, 1.0);
 	}
 
 	private static void emit(LevelExtractionContext context) {
-		List<ClientProject> projects = ClientProjects.all();
-		if (projects.isEmpty()) {
+		List<ClientBuild> builds = ClientBuilds.all();
+		if (builds.isEmpty()) {
 			return;
 		}
 
-		ClientProject selected = ClientProjects.selected();
+		ClientBuild selected = ClientBuilds.selected();
 		ResourceKey<Level> dimension = context.level().dimension();
 		Vec3 camera = context.camera().position();
 		// The text hangs down from its position, so the position is lifted by the text's own height to keep the gap.
 		double lift = GAP + Minecraft.getInstance().font.lineHeight * SCALE / 16.0;
 
-		for (ClientProject project : projects) {
-			if (!project.dimension().equals(dimension)) {
+		for (ClientBuild build : builds) {
+			if (!build.dimension().equals(dimension)) {
 				continue;
 			}
-			float opacity = opacity(project.box(), camera);
+			float opacity = opacity(build.box(), camera);
 			if (opacity <= 0.0f) {
 				continue;
 			}
 
-			AABB aabb = aabb(project.box());
+			AABB aabb = aabb(build.box());
 			Vec3 center = aabb.getCenter();
 			Vec3 pos = new Vec3(center.x, aabb.maxY + lift, center.z);
-			int color = ARGB.multiplyAlpha(project.equals(selected) ? SelectionBoxRenderer.COLOR : COLOR, opacity);
-			Gizmos.billboardText(project.name(), pos, TextGizmo.Style.forColorAndCentered(color).withScale(SCALE)).setAlwaysOnTop();
+			int color = ARGB.multiplyAlpha(build.equals(selected) ? SelectionBoxRenderer.COLOR : COLOR, opacity);
+			Gizmos.billboardText(build.name(), pos, TextGizmo.Style.forColorAndCentered(color).withScale(SCALE)).setAlwaysOnTop();
 		}
 	}
 
-	private static AABB aabb(ProjectBox box) {
+	private static AABB aabb(BuildBox box) {
 		return AABB.encapsulatingFullBlocks(box.min(), box.max());
 	}
 }

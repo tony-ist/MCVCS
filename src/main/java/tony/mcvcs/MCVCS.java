@@ -6,7 +6,7 @@ import net.minecraft.resources.Identifier;
 
 import tony.mcvcs.command.VcsCommand;
 import tony.mcvcs.network.PreviewSender;
-import tony.mcvcs.network.ProjectSync;
+import tony.mcvcs.network.BuildSync;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +28,7 @@ public class MCVCS implements ModInitializer {
 		LOGGER.info("Hello Fabric world!");
 
 		PreviewSender.register();
-		ProjectSync.register();
+		BuildSync.register();
 		VcsCommand.register();
 	}
 

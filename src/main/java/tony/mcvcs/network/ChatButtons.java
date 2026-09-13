@@ -9,7 +9,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 
 import tony.mcvcs.MCVCS;
-import tony.mcvcs.project.Project;
+import tony.mcvcs.build.Build;
 
 /**
  * Chat buttons that run a {@code /vcs} command for the player who clicks them.
@@ -43,7 +43,7 @@ public final class ChatButtons {
 		if (!id.equals(SELECT)) {
 			return false;
 		}
-		Optional<String> name = payload.flatMap(Tag::asString).filter(Project::isValidName);
+		Optional<String> name = payload.flatMap(Tag::asString).filter(Build::isValidName);
 		if (name.isEmpty()) {
 			MCVCS.LOGGER.warn("{} clicked a {} button with an invalid payload {}", player.getGameProfile().name(), id, payload.orElse(null));
 			return true;

@@ -1,4 +1,4 @@
-package tony.mcvcs.project;
+package tony.mcvcs.build;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.codec.StreamCodec;
@@ -11,41 +11,41 @@ import com.sk89q.worldedit.regions.Region;
 import io.netty.buffer.ByteBuf;
 
 /**
- * The inclusive block box a project's region covers, in a form the client understands, plus the fixed order its
+ * The inclusive block box a build's region covers, in a form the client understands, plus the fixed order its
  * blocks are streamed in for previews.
  * <p>
  * Both sides of the connection derive the block order from the box alone, so the block payloads only carry block
  * states, never positions. The order is x-major, then y, then z: {@code index = ((x * sizeY) + y) * sizeZ + z} with
  * all three relative to {@link #min()}.
  */
-public record ProjectBox(BlockPos min, BlockPos max) {
+public record BuildBox(BlockPos min, BlockPos max) {
 	/** Saved as {@code min} and {@code max} fields; a box whose corners are the wrong way round is a data error. */
-	public static final Codec<ProjectBox> CODEC = Codec.pair(
+	public static final Codec<BuildBox> CODEC = Codec.pair(
 		BlockPos.CODEC.fieldOf("min").codec(),
 		BlockPos.CODEC.fieldOf("max").codec()
 	).comapFlatMap(corners -> {
 		try {
-			return DataResult.success(new ProjectBox(corners.getFirst(), corners.getSecond()));
+			return DataResult.success(new BuildBox(corners.getFirst(), corners.getSecond()));
 		} catch (IllegalArgumentException e) {
 			return DataResult.error(e::getMessage);
 		}
 	}, box -> Pair.of(box.min(), box.max()));
-	public static final StreamCodec<ByteBuf, ProjectBox> STREAM_CODEC = StreamCodec.composite(
-		BlockPos.STREAM_CODEC, ProjectBox::min,
-		BlockPos.STREAM_CODEC, ProjectBox::max,
-		ProjectBox::new
+	public static final StreamCodec<ByteBuf, BuildBox> STREAM_CODEC = StreamCodec.composite(
+		BlockPos.STREAM_CODEC, BuildBox::min,
+		BlockPos.STREAM_CODEC, BuildBox::max,
+		BuildBox::new
 	);
 
-	public ProjectBox {
+	public BuildBox {
 		if (min.getX() > max.getX() || min.getY() > max.getY() || min.getZ() > max.getZ()) {
 			throw new IllegalArgumentException("min " + min + " exceeds max " + max);
 		}
 	}
 
 	/** The bounding box of a WorldEdit region. */
-	public static ProjectBox of(Region region) {
+	public static BuildBox of(Region region) {
 		FabricAdapter adapter = FabricAdapter.get();
-		return new ProjectBox(adapter.toBlockPos(region.getMinimumPoint()), adapter.toBlockPos(region.getMaximumPoint()));
+		return new BuildBox(adapter.toBlockPos(region.getMinimumPoint()), adapter.toBlockPos(region.getMaximumPoint()));
 	}
 
 	public int sizeX() {

@@ -12,7 +12,7 @@
 			"tony.mcvcs.gametest.VcsSelectionBoxGameTest",
 			"tony.mcvcs.gametest.VcsBuildLabelGameTest",
 			"tony.mcvcs.gametest.VcsSelectCommandGameTest",
-			"tony.mcvcs.gametest.VcsProjectsCommandGameTest",
+			"tony.mcvcs.gametest.VcsBuildsCommandGameTest",
 			"tony.mcvcs.gametest.VcsDeselectCommandGameTest",
 			"tony.mcvcs.gametest.VcsReloadGameTest",
 			"tony.mcvcs.gametest.VcsWorldScopeGameTest"

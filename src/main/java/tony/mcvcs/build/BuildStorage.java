@@ -1,4 +1,4 @@
-package tony.mcvcs.project;
+package tony.mcvcs.build;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -38,24 +38,24 @@ import com.sk89q.worldedit.extent.clipboard.io.ClipboardWriter;
  * Everything the mod keeps on disk, under {@code mcvcs/} in the game directory:
  * <pre>
  * mcvcs/
- *   selections.json          which project each player has selected in each world, by world then player UUID
+ *   selections.json          which build each player has selected in each world, by world then player UUID
  *   &lt;buildname&gt;/
- *     project.json           the {@link Project}: its world, dimension, box and latest version
+ *     build.json             the {@link Build}: its world, dimension, box and latest version
  *     v1.schem, v2.schem ... one schematic per version
  * </pre>
- * Every project has a folder of its own and none of it mixes with WorldEdit's {@code //schem} files. The folder
- * is shared by every world in the game directory, so each project records the world it belongs to and lookups
+ * Every build has a folder of its own and none of it mixes with WorldEdit's {@code //schem} files. The folder
+ * is shared by every world in the game directory, so each build records the world it belongs to and lookups
  * filter on it; a name can only be taken by one world at a time. Nothing is cached: each call reads or writes
  * the files, so the folder is the single source of truth and can be edited or copied between game directories
  * while the server is down.
  * <p>
- * Names reach the file system as directory names, so only {@link Project#isValidName valid names} may be stored.
+ * Names reach the file system as directory names, so only {@link Build#isValidName valid names} may be stored.
  */
-public final class ProjectStorage {
-	/** Directory under the game directory holding one folder per project. */
+public final class BuildStorage {
+	/** Directory under the game directory holding one folder per build. */
 	public static final String ROOT = "mcvcs";
-	/** File in each project's folder describing the project. */
-	public static final String PROJECT_FILE = "project.json";
+	/** File in each build's folder describing the build. */
+	public static final String BUILD_FILE = "build.json";
 	/** File under {@link #ROOT} holding every player's selection in every world. */
 	public static final String SELECTIONS_FILE = "selections.json";
 	/** Schematic file format. */
@@ -65,108 +65,108 @@ public final class ProjectStorage {
 	private static final Codec<Map<String, Map<UUID, String>>> SELECTIONS_CODEC = Codec.unboundedMap(Codec.STRING, Codec.unboundedMap(UUIDUtil.STRING_CODEC, Codec.STRING));
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-	private ProjectStorage() {
+	private BuildStorage() {
 	}
 
-	/** The folder holding every project's folder. */
+	/** The folder holding every build's folder. */
 	public static Path root() {
 		return FabricLoader.getInstance().getGameDir().resolve(ROOT);
 	}
 
-	/** The folder holding every version of the project called {@code name}. */
+	/** The folder holding every version of the build called {@code name}. */
 	public static Path directory(String name) {
-		if (!Project.isValidName(name)) {
+		if (!Build.isValidName(name)) {
 			throw new IllegalArgumentException("Invalid build name '" + name + "'");
 		}
 		return root().resolve(name);
 	}
 
-	/** The file describing the project called {@code name}. */
-	public static Path projectFile(String name) {
-		return directory(name).resolve(PROJECT_FILE);
+	/** The file describing the build called {@code name}. */
+	public static Path buildFile(String name) {
+		return directory(name).resolve(BUILD_FILE);
 	}
 
-	/** The schematic of {@code project} at its version. */
-	public static Path schematicFile(Project project) {
-		return directory(project.name()).resolve("v" + project.version() + "." + FORMAT.getPrimaryFileExtension());
+	/** The schematic of {@code build} at its version. */
+	public static Path schematicFile(Build build) {
+		return directory(build.name()).resolve("v" + build.version() + "." + FORMAT.getPrimaryFileExtension());
 	}
 
-	/** The file recording every player's selected project in every world. */
+	/** The file recording every player's selected build in every world. */
 	public static Path selectionsFile() {
 		return root().resolve(SELECTIONS_FILE);
 	}
 
-	/** Every project belonging to {@code world} that has a folder with a {@link #PROJECT_FILE} in it, sorted by name. */
-	public static List<Project> all(String world) throws IOException {
+	/** Every build belonging to {@code world} that has a folder with a {@link #BUILD_FILE} in it, sorted by name. */
+	public static List<Build> all(String world) throws IOException {
 		if (!Files.isDirectory(root())) {
 			return List.of();
 		}
 		List<String> names;
 		try (Stream<Path> folders = Files.list(root())) {
 			names = folders
-				.filter(folder -> Files.isRegularFile(folder.resolve(PROJECT_FILE)))
+				.filter(folder -> Files.isRegularFile(folder.resolve(BUILD_FILE)))
 				.map(folder -> folder.getFileName().toString())
-				.filter(Project::isValidName)
+				.filter(Build::isValidName)
 				.sorted()
 				.toList();
 		}
-		List<Project> inWorld = new ArrayList<>();
+		List<Build> inWorld = new ArrayList<>();
 		for (String name : names) {
-			Project project = readJson(projectFile(name), Project.CODEC);
-			if (project.world().equals(world)) {
-				inWorld.add(project);
+			Build build = readJson(buildFile(name), Build.CODEC);
+			if (build.world().equals(world)) {
+				inWorld.add(build);
 			}
 		}
 		return List.copyOf(inWorld);
 	}
 
-	/** Names of every project belonging to {@code world} that has a folder with a {@link #PROJECT_FILE} in it, sorted. */
+	/** Names of every build belonging to {@code world} that has a folder with a {@link #BUILD_FILE} in it, sorted. */
 	public static List<String> names(String world) throws IOException {
-		return all(world).stream().map(Project::name).toList();
+		return all(world).stream().map(Build::name).toList();
 	}
 
-	/** The project called {@code name} in whichever world it belongs to, if it has a folder with a {@link #PROJECT_FILE} in it. */
-	public static Optional<Project> findInAnyWorld(String name) throws IOException {
-		if (!Project.isValidName(name)) {
+	/** The build called {@code name} in whichever world it belongs to, if it has a folder with a {@link #BUILD_FILE} in it. */
+	public static Optional<Build> findInAnyWorld(String name) throws IOException {
+		if (!Build.isValidName(name)) {
 			return Optional.empty();
 		}
-		Path file = projectFile(name);
+		Path file = buildFile(name);
 		if (!Files.isRegularFile(file)) {
 			return Optional.empty();
 		}
-		return Optional.of(readJson(file, Project.CODEC));
+		return Optional.of(readJson(file, Build.CODEC));
 	}
 
-	/** The project called {@code name}, if it exists and belongs to {@code world}. */
-	public static Optional<Project> find(String world, String name) throws IOException {
-		return findInAnyWorld(name).filter(project -> project.world().equals(world));
+	/** The build called {@code name}, if it exists and belongs to {@code world}. */
+	public static Optional<Build> find(String world, String name) throws IOException {
+		return findInAnyWorld(name).filter(build -> build.world().equals(world));
 	}
 
 	/**
-	 * Writes {@code clipboard} as the schematic of {@code project} at its version and records the project itself as
-	 * the latest state of the build with its name, creating the project's folder if needed.
+	 * Writes {@code clipboard} as the schematic of {@code build} at its version and records the build itself as
+	 * the latest state of the build with its name, creating the build's folder if needed.
 	 *
 	 * @return the schematic written
 	 */
-	public static Path save(Project project, Clipboard clipboard) throws IOException {
-		Path file = schematicFile(project);
+	public static Path save(Build build, Clipboard clipboard) throws IOException {
+		Path file = schematicFile(build);
 		Files.createDirectories(file.getParent());
 
 		try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(file));
 			 ClipboardWriter writer = FORMAT.getWriter(out)) {
 			writer.write(clipboard);
 		}
-		writeJson(projectFile(project.name()), Project.CODEC, project);
+		writeJson(buildFile(build.name()), Build.CODEC, build);
 		return file;
 	}
 
 	/**
-	 * Reads the schematic {@link #save} wrote for {@code project} at its version.
+	 * Reads the schematic {@link #save} wrote for {@code build} at its version.
 	 *
 	 * @throws NoSuchFileException if no schematic was written for that version
 	 */
-	public static Clipboard read(Project project) throws IOException {
-		Path file = schematicFile(project);
+	public static Clipboard read(Build build) throws IOException {
+		Path file = schematicFile(build);
 		if (!Files.isRegularFile(file)) {
 			throw new NoSuchFileException(file.toString());
 		}
@@ -177,12 +177,12 @@ public final class ProjectStorage {
 		}
 	}
 
-	/** The name of the project {@code player} has selected in {@code world}, if any is recorded. */
+	/** The name of the build {@code player} has selected in {@code world}, if any is recorded. */
 	public static Optional<String> selection(String world, UUID player) throws IOException {
 		return Optional.ofNullable(selections().getOrDefault(world, Map.of()).get(player));
 	}
 
-	/** Records {@code name} as the project {@code player} has selected in {@code world}, leaving every other selection alone. */
+	/** Records {@code name} as the build {@code player} has selected in {@code world}, leaving every other selection alone. */
 	public static void saveSelection(String world, UUID player, String name) throws IOException {
 		Map<String, Map<UUID, String>> selections = new HashMap<>(selections());
 		Map<UUID, String> inWorld = new HashMap<>(selections.getOrDefault(world, Map.of()));
@@ -193,7 +193,7 @@ public final class ProjectStorage {
 		writeJson(selectionsFile(), SELECTIONS_CODEC, selections);
 	}
 
-	/** Forgets which project {@code player} has selected in {@code world}, leaving every other selection alone. */
+	/** Forgets which build {@code player} has selected in {@code world}, leaving every other selection alone. */
 	public static void clearSelection(String world, UUID player) throws IOException {
 		Map<String, Map<UUID, String>> selections = new HashMap<>(selections());
 		Map<UUID, String> inWorld = new HashMap<>(selections.getOrDefault(world, Map.of()));

@@ -9,8 +9,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.state.BlockState;
 
-import tony.mcvcs.project.Project;
-import tony.mcvcs.project.ProjectBox;
+import tony.mcvcs.build.Build;
+import tony.mcvcs.build.BuildBox;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.fabric.FabricAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -41,21 +41,21 @@ public final class PreviewSender {
 	}
 
 	/**
-	 * Streams {@code clipboard}, the schematic saved for {@code project}, to {@code player} so the client shows it
-	 * inside the project's region. The clipboard's own coordinates are ignored: its blocks are laid over the project
+	 * Streams {@code clipboard}, the schematic saved for {@code build}, to {@code player} so the client shows it
+	 * inside the build's region. The clipboard's own coordinates are ignored: its blocks are laid over the build
 	 * region corner to corner.
 	 *
-	 * @throws IllegalArgumentException if the clipboard is not the size of the project's region
+	 * @throws IllegalArgumentException if the clipboard is not the size of the build's region
 	 */
-	public static void send(ServerPlayer player, Project project, Clipboard clipboard) {
-		ProjectBox box = project.box();
+	public static void send(ServerPlayer player, Build build, Clipboard clipboard) {
+		BuildBox box = build.box();
 		BlockVector3 dimensions = clipboard.getDimensions();
 		if (dimensions.x() != box.sizeX() || dimensions.y() != box.sizeY() || dimensions.z() != box.sizeZ()) {
 			throw new IllegalArgumentException("Schematic is " + dimensions + " but the build's region is "
 				+ BlockVector3.at(box.sizeX(), box.sizeY(), box.sizeZ()));
 		}
 
-		ServerPlayNetworking.send(player, new PreviewBeginPayload(project.name(), project.version(), project.dimension(), box));
+		ServerPlayNetworking.send(player, new PreviewBeginPayload(build.name(), build.version(), build.dimension(), box));
 
 		FabricAdapter adapter = FabricAdapter.get();
 		BlockVector3 clipboardMin = clipboard.getMinimumPoint();

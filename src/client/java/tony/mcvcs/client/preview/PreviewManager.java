@@ -15,7 +15,7 @@ import tony.mcvcs.MCVCS;
 import tony.mcvcs.network.PreviewBeginPayload;
 import tony.mcvcs.network.PreviewBlocksPayload;
 import tony.mcvcs.network.PreviewClearPayload;
-import tony.mcvcs.project.ProjectBox;
+import tony.mcvcs.build.BuildBox;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -109,7 +109,7 @@ public final class PreviewManager {
 		}
 	}
 
-	private static void rebuild(Minecraft client, ProjectBox box) {
+	private static void rebuild(Minecraft client, BuildBox box) {
 		BlockPos min = box.min();
 		BlockPos max = box.max();
 		// Expands by one block on each side, so neighbours re-evaluate face culling against the new contents.

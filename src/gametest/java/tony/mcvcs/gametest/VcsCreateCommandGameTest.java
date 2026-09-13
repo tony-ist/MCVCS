@@ -3,7 +3,7 @@ package tony.mcvcs.gametest;
 import static tony.mcvcs.gametest.VcsTestSupport.assertBlock;
 import static tony.mcvcs.gametest.VcsTestSupport.assertOrigin;
 import static tony.mcvcs.gametest.VcsTestSupport.assertSize;
-import static tony.mcvcs.gametest.VcsTestSupport.resetProjects;
+import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
 import static tony.mcvcs.gametest.VcsTestSupport.read;
@@ -18,7 +18,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
-import tony.mcvcs.project.ProjectStorage;
+import tony.mcvcs.build.BuildStorage;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.fabric.FabricAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -36,7 +36,7 @@ public class VcsCreateCommandGameTest implements FabricClientGameTest {
 
 		// /vcs requires op, which in singleplayer means cheats must be on.
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
-		resetProjects(BUILD_NAME);
+		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 
@@ -53,9 +53,9 @@ public class VcsCreateCommandGameTest implements FabricClientGameTest {
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), gold, Blocks.GOLD_BLOCK.defaultBlockState());
 			select(singleplayer, min, max);
 
-			// The name is a folder name, so one that points outside the projects folder is refused before anything is written.
+			// The name is a folder name, so one that points outside the builds folder is refused before anything is written.
 			runCommand(context, "vcs create ..");
-			Path escaped = ProjectStorage.root().resolve("..").resolve("v1.schem").normalize();
+			Path escaped = BuildStorage.root().resolve("..").resolve("v1.schem").normalize();
 			if (Files.exists(escaped)) {
 				throw new AssertionError("Create with name '..' must not write " + escaped);
 			}

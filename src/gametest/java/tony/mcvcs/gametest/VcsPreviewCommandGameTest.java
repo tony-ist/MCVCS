@@ -1,6 +1,6 @@
 package tony.mcvcs.gametest;
 
-import static tony.mcvcs.gametest.VcsTestSupport.resetProjects;
+import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
@@ -20,7 +20,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 
 import tony.mcvcs.client.preview.ClientPreview;
 import tony.mcvcs.client.preview.PreviewManager;
-import tony.mcvcs.project.ProjectBox;
+import tony.mcvcs.build.BuildBox;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
@@ -34,7 +34,7 @@ public class VcsPreviewCommandGameTest implements FabricClientGameTest {
 	@Override
 	public void runTest(ClientGameTestContext context) {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
-		resetProjects(BUILD_NAME);
+		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 
@@ -44,7 +44,7 @@ public class VcsPreviewCommandGameTest implements FabricClientGameTest {
 			BlockPos max = min.offset(2, 1, 1);
 			BlockPos gold = new BlockPos(min.getX(), max.getY(), min.getZ());
 			BlockPos hole = new BlockPos(max.getX(), max.getY(), min.getZ());
-			ProjectBox box = new ProjectBox(min, max);
+			BuildBox box = new BuildBox(min, max);
 
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), gold, Blocks.GOLD_BLOCK.defaultBlockState());
 			setBlock(singleplayer, hole, Blocks.AIR.defaultBlockState());
@@ -117,7 +117,7 @@ public class VcsPreviewCommandGameTest implements FabricClientGameTest {
 		}
 	}
 
-	private static void assertPreview(ClientPreview preview, String name, int version, ResourceKey<Level> dimension, ProjectBox box) {
+	private static void assertPreview(ClientPreview preview, String name, int version, ResourceKey<Level> dimension, BuildBox box) {
 		if (!preview.name().equals(name) || preview.version() != version) {
 			throw new AssertionError("Expected preview of '" + name + "' v" + version + " but got '" + preview.name() + "' v" + preview.version());
 		}

@@ -3,7 +3,7 @@ package tony.mcvcs.gametest;
 import static tony.mcvcs.gametest.VcsTestSupport.assertBlock;
 import static tony.mcvcs.gametest.VcsTestSupport.assertOrigin;
 import static tony.mcvcs.gametest.VcsTestSupport.assertSize;
-import static tony.mcvcs.gametest.VcsTestSupport.resetProjects;
+import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
 import static tony.mcvcs.gametest.VcsTestSupport.read;
@@ -34,7 +34,7 @@ public class VcsCommitCommandGameTest implements FabricClientGameTest {
 		FabricAdapter adapter = FabricAdapter.get();
 
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
-		resetProjects(BUILD_NAME);
+		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 

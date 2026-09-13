@@ -10,14 +10,14 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
 import tony.mcvcs.MCVCS;
-import tony.mcvcs.project.ProjectBox;
+import tony.mcvcs.build.BuildBox;
 import io.netty.buffer.ByteBuf;
 
 /**
  * Server to client: one slice of the preview announced by the last {@link PreviewBeginPayload}.
  * <p>
  * Blocks are palette-compressed: {@code indices[i]} is the palette entry of the block at
- * {@link ProjectBox} index {@code offset + i}. Slices arrive in order and the one flagged {@code last} completes the
+ * {@link BuildBox} index {@code offset + i}. Slices arrive in order and the one flagged {@code last} completes the
  * preview.
  *
  * @param offset  box index of the first block in this slice

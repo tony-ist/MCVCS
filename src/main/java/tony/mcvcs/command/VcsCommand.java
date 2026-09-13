@@ -26,11 +26,11 @@ import net.minecraft.server.permissions.PermissionCheck;
 import tony.mcvcs.MCVCS;
 import tony.mcvcs.network.ChatButtons;
 import tony.mcvcs.network.PreviewSender;
-import tony.mcvcs.network.ProjectSync;
-import tony.mcvcs.project.Project;
-import tony.mcvcs.project.ProjectBox;
-import tony.mcvcs.project.ProjectRegistry;
-import tony.mcvcs.project.ProjectStorage;
+import tony.mcvcs.network.BuildSync;
+import tony.mcvcs.build.Build;
+import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.BuildRegistry;
+import tony.mcvcs.build.BuildStorage;
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.IncompleteRegionException;
 import com.sk89q.worldedit.LocalSession;
@@ -50,22 +50,22 @@ import com.sk89q.worldedit.world.World;
  * {@code /vcs} command tree.
  * <ul>
  * <li>{@code /vcs create <buildname>}: copies the bounding box of the player's current WorldEdit selection and saves
- * it as version 1 of the project, in the project's own folder under {@code mcvcs/} in the game directory, see
- * {@link ProjectStorage}. The new project becomes the player's selected project.</li>
- * <li>{@code /vcs select <buildname>}: makes an existing project the player's selected project, so its bounding
+ * it as version 1 of the build, in the build's own folder under {@code mcvcs/} in the game directory, see
+ * {@link BuildStorage}. The new build becomes the player's selected build.</li>
+ * <li>{@code /vcs select <buildname>}: makes an existing build the player's selected build, so its bounding
  * box is shown and later commands act on it.</li>
- * <li>{@code /vcs projects}: lists every project in the world, each with a chat button that runs
+ * <li>{@code /vcs builds}: lists every build in the world, each with a chat button that runs
  * {@code /vcs select} for it, see {@link ChatButtons}; the selected one is marked instead.</li>
- * <li>{@code /vcs deselect}: leaves the player with no selected project, so no bounding box is shown and commands
+ * <li>{@code /vcs deselect}: leaves the player with no selected build, so no bounding box is shown and commands
  * that need a selection refuse until one is made again.</li>
- * <li>{@code /vcs commit}: saves the selected project's box again as its next version. The box is the one
+ * <li>{@code /vcs commit}: saves the selected build's box again as its next version. The box is the one
  * captured by {@code /vcs create}; the player's current WorldEdit selection is ignored.</li>
  * <li>{@code /vcs preview <version>}: sends that version's schematic to the player's client, which draws it in place
- * of the real blocks inside the project's box. Nothing in the world changes. {@code /vcs preview off} shows the
+ * of the real blocks inside the build's box. Nothing in the world changes. {@code /vcs preview off} shows the
  * real blocks again.</li>
  * </ul>
- * Projects and selections are looked up through {@link ProjectRegistry}, which only shows those belonging to the
- * world being played; a project remembers which world and dimension its box is in.
+ * Builds and selections are looked up through {@link BuildRegistry}, which only shows those belonging to the
+ * world being played; a build remembers which world and dimension its box is in.
  */
 public final class VcsCommand {
 	/** Corner of the selection the schematic origin is anchored to. */
@@ -81,9 +81,9 @@ public final class VcsCommand {
 	public static final boolean COPY_BIOMES = false;
 	/** Vanilla permission required to run the command (gamemasters = op level 2 / cheats). */
 	public static final PermissionCheck PERMISSION = Commands.LEVEL_GAMEMASTERS;
-	/** Label of the button {@code /vcs projects} puts after each project that is not selected. */
+	/** Label of the button {@code /vcs builds} puts after each build that is not selected. */
 	public static final String SELECT_BUTTON = "Select";
-	/** Marker {@code /vcs projects} puts after the selected project instead of a button. */
+	/** Marker {@code /vcs builds} puts after the selected build instead of a button. */
 	public static final String SELECTED_MARKER = "selected";
 
 	/** A corner of a cuboid; north is -Z, west is -X, bottom is -Y. */
@@ -130,10 +130,10 @@ public final class VcsCommand {
 						.executes(context -> create(context.getSource(), StringArgumentType.getString(context, "buildname")))))
 				.then(Commands.literal("select")
 					.then(Commands.argument("buildname", StringArgumentType.word())
-						.suggests((context, builder) -> SharedSuggestionProvider.suggest(ProjectRegistry.names(context.getSource().getServer()), builder))
+						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))
 						.executes(context -> select(context.getSource(), StringArgumentType.getString(context, "buildname")))))
-				.then(Commands.literal("projects")
-					.executes(context -> projects(context.getSource())))
+				.then(Commands.literal("builds")
+					.executes(context -> builds(context.getSource())))
 				.then(Commands.literal("deselect")
 					.executes(context -> deselect(context.getSource())))
 				.then(Commands.literal("commit")
@@ -152,21 +152,21 @@ public final class VcsCommand {
 		if (player == null) {
 			return List.of();
 		}
-		return ProjectRegistry.selected(player)
-			.map(project -> IntStream.rangeClosed(1, project.version()).mapToObj(Integer::toString).toList())
+		return BuildRegistry.selected(player)
+			.map(build -> IntStream.rangeClosed(1, build.version()).mapToObj(Integer::toString).toList())
 			.orElse(List.of());
 	}
 
 	private static int create(CommandSourceStack source, String buildName) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
 		// The name becomes a folder on disk, so it has to be checked before anything is written under it.
-		if (!Project.isValidName(buildName)) {
+		if (!Build.isValidName(buildName)) {
 			source.sendFailure(Component.literal("Build name '" + buildName + "' may only contain letters, digits, _ + - and dots between them"));
 			return 0;
 		}
-		// Project folders are shared by every world in the game directory, so a name can only belong to one world.
-		String world = Project.worldOf(source.getServer());
-		Optional<Project> taken = ProjectRegistry.findInAnyWorld(buildName).filter(project -> !project.world().equals(world));
+		// Build folders are shared by every world in the game directory, so a name can only belong to one world.
+		String world = Build.worldOf(source.getServer());
+		Optional<Build> taken = BuildRegistry.findInAnyWorld(buildName).filter(build -> !build.world().equals(world));
 		if (taken.isPresent()) {
 			source.sendFailure(Component.literal("Build name '" + buildName + "' is already used by a build in world '" + taken.get().world() + "'"));
 			return 0;
@@ -176,12 +176,12 @@ public final class VcsCommand {
 		LocalSession session = worldEdit.getSessionManager().get(actor);
 
 		try {
-			// Only the bounding box is kept, so later //pos1, //pos2 or wand clicks cannot move the project's box under us.
-			Project project = new Project(buildName, world, player.level().dimension(), ProjectBox.of(session.getSelection(actor.getWorld())), 1);
-			Path file = save(actor, session, project, player.level());
-			ProjectRegistry.select(player, project);
+			// Only the bounding box is kept, so later //pos1, //pos2 or wand clicks cannot move the build's box under us.
+			Build build = new Build(buildName, world, player.level().dimension(), BuildBox.of(session.getSelection(actor.getWorld())), 1);
+			Path file = save(actor, session, build, player.level());
+			BuildRegistry.select(player, build);
 
-			source.sendSuccess(() -> Component.literal("Created build '" + buildName + "' (" + project.box().volume() + " blocks) at " + ProjectStorage.root().relativize(file)), false);
+			source.sendSuccess(() -> Component.literal("Created build '" + buildName + "' (" + build.box().volume() + " blocks) at " + BuildStorage.root().relativize(file)), false);
 			return 1;
 		} catch (IncompleteRegionException e) {
 			source.sendFailure(Component.literal("Make a WorldEdit selection first"));
@@ -195,57 +195,57 @@ public final class VcsCommand {
 
 	private static int select(CommandSourceStack source, String buildName) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
-		Optional<Project> project = ProjectRegistry.find(source.getServer(), buildName);
-		if (project.isEmpty()) {
+		Optional<Build> build = BuildRegistry.find(source.getServer(), buildName);
+		if (build.isEmpty()) {
 			source.sendFailure(Component.literal("No build named '" + buildName + "' in this world; create it with /vcs create " + buildName));
 			return 0;
 		}
 
 		try {
-			ProjectRegistry.select(player, project.get());
+			BuildRegistry.select(player, build.get());
 		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to select build '{}' for {}", buildName, player.getGameProfile().name(), e);
 			source.sendFailure(Component.literal("Failed to save selection: " + e.getMessage()));
 			return 0;
 		}
-		source.sendSuccess(() -> Component.literal("Selected build '" + buildName + "' v" + project.get().version() + " (" + project.get().box().volume() + " blocks)"), false);
+		source.sendSuccess(() -> Component.literal("Selected build '" + buildName + "' v" + build.get().version() + " (" + build.get().box().volume() + " blocks)"), false);
 		return 1;
 	}
 
-	private static int projects(CommandSourceStack source) throws CommandSyntaxException {
+	private static int builds(CommandSourceStack source) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
-		List<Project> projects = ProjectRegistry.all(source.getServer());
-		if (projects.isEmpty()) {
+		List<Build> builds = BuildRegistry.all(source.getServer());
+		if (builds.isEmpty()) {
 			source.sendFailure(Component.literal("No builds in this world; create one with /vcs create <buildname>"));
 			return 0;
 		}
 
-		String selected = ProjectRegistry.selected(player).map(Project::name).orElse(null);
-		source.sendSuccess(() -> Component.literal(projects.size() + (projects.size() == 1 ? " build" : " builds") + " in this world:"), false);
-		for (Project project : projects) {
-			source.sendSuccess(() -> projectLine(project, project.name().equals(selected)), false);
+		String selected = BuildRegistry.selected(player).map(Build::name).orElse(null);
+		source.sendSuccess(() -> Component.literal(builds.size() + (builds.size() == 1 ? " build" : " builds") + " in this world:"), false);
+		for (Build build : builds) {
+			source.sendSuccess(() -> buildLine(build, build.name().equals(selected)), false);
 		}
-		return projects.size();
+		return builds.size();
 	}
 
 	/**
-	 * One line of {@code /vcs projects}: the build's name, version and size, followed by a clickable
+	 * One line of {@code /vcs builds}: the build's name, version and size, followed by a clickable
 	 * {@code [Select]} that runs {@code /vcs select} for it, or a {@code [selected]} marker if it already is.
 	 */
-	private static MutableComponent projectLine(Project project, boolean selected) {
-		MutableComponent line = Component.literal("- " + project.name() + " v" + project.version() + " (" + project.box().volume() + " blocks) ");
+	private static MutableComponent buildLine(Build build, boolean selected) {
+		MutableComponent line = Component.literal("- " + build.name() + " v" + build.version() + " (" + build.box().volume() + " blocks) ");
 		if (selected) {
 			return line.append(ComponentUtils.wrapInSquareBrackets(Component.literal(SELECTED_MARKER)).withStyle(ChatFormatting.GRAY));
 		}
 		return line.append(ComponentUtils.wrapInSquareBrackets(Component.literal(SELECT_BUTTON))
 			.withStyle(style -> style.withColor(ChatFormatting.GREEN)
-				.withClickEvent(ChatButtons.select(project.name()))
-				.withHoverEvent(new HoverEvent.ShowText(Component.literal("Click to run /vcs select " + project.name())))));
+				.withClickEvent(ChatButtons.select(build.name()))
+				.withHoverEvent(new HoverEvent.ShowText(Component.literal("Click to run /vcs select " + build.name())))));
 	}
 
 	private static int deselect(CommandSourceStack source) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
-		Optional<Project> selected = ProjectRegistry.selected(player);
+		Optional<Build> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
 			source.sendFailure(Component.literal("No build selected in this world"));
 			return 0;
@@ -253,7 +253,7 @@ public final class VcsCommand {
 
 		String buildName = selected.get().name();
 		try {
-			ProjectRegistry.deselect(player);
+			BuildRegistry.deselect(player);
 		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to deselect build '{}' for {}", buildName, player.getGameProfile().name(), e);
 			source.sendFailure(Component.literal("Failed to save selection: " + e.getMessage()));
@@ -265,29 +265,29 @@ public final class VcsCommand {
 
 	private static int commit(CommandSourceStack source) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
-		Optional<Project> selected = ProjectRegistry.selected(player);
+		Optional<Build> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
 			source.sendFailure(Component.literal("No build selected in this world; run /vcs create <buildname> first"));
 			return 0;
 		}
 
-		Project project = selected.get().nextVersion();
-		ServerLevel level = source.getServer().getLevel(project.dimension());
+		Build build = selected.get().nextVersion();
+		ServerLevel level = source.getServer().getLevel(build.dimension());
 		if (level == null) {
-			source.sendFailure(Component.literal("Build '" + project.name() + "' is in " + project.dimension().identifier() + ", which does not exist here"));
+			source.sendFailure(Component.literal("Build '" + build.name() + "' is in " + build.dimension().identifier() + ", which does not exist here"));
 			return 0;
 		}
 		Player actor = FabricAdapter.get().fromNativePlayer(player);
 		LocalSession session = WorldEdit.getInstance().getSessionManager().get(actor);
 
 		try {
-			Path file = save(actor, session, project, level);
-			ProjectRegistry.select(player, project);
+			Path file = save(actor, session, build, level);
+			BuildRegistry.select(player, build);
 
-			source.sendSuccess(() -> Component.literal("Committed build '" + project.name() + "' v" + project.version() + " (" + project.box().volume() + " blocks) at " + ProjectStorage.root().relativize(file)), false);
+			source.sendSuccess(() -> Component.literal("Committed build '" + build.name() + "' v" + build.version() + " (" + build.box().volume() + " blocks) at " + BuildStorage.root().relativize(file)), false);
 			return 1;
 		} catch (WorldEditException | IOException e) {
-			MCVCS.LOGGER.error("Failed to commit build '{}' v{} for {}", project.name(), project.version(), player.getGameProfile().name(), e);
+			MCVCS.LOGGER.error("Failed to commit build '{}' v{} for {}", build.name(), build.version(), player.getGameProfile().name(), e);
 			source.sendFailure(Component.literal("Failed to save schematic: " + e.getMessage()));
 			return 0;
 		}
@@ -295,7 +295,7 @@ public final class VcsCommand {
 
 	private static int preview(CommandSourceStack source, int version) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
-		Optional<Project> selected = ProjectRegistry.selected(player);
+		Optional<Build> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
 			source.sendFailure(Component.literal("No build selected in this world; run /vcs create <buildname> first"));
 			return 0;
@@ -305,25 +305,25 @@ public final class VcsCommand {
 			return 0;
 		}
 
-		Project latest = selected.get();
+		Build latest = selected.get();
 		if (version > latest.version()) {
 			source.sendFailure(Component.literal("Build '" + latest.name() + "' only has versions 1 to " + latest.version()));
 			return 0;
 		}
 
-		Project project = latest.atVersion(version);
+		Build build = latest.atVersion(version);
 
 		try {
-			Clipboard clipboard = ProjectStorage.read(project);
-			PreviewSender.send(player, project, clipboard);
+			Clipboard clipboard = BuildStorage.read(build);
+			PreviewSender.send(player, build, clipboard);
 
-			source.sendSuccess(() -> Component.literal("Previewing build '" + project.name() + "' v" + project.version() + " (" + project.box().volume() + " blocks); run /vcs preview off to stop"), false);
+			source.sendSuccess(() -> Component.literal("Previewing build '" + build.name() + "' v" + build.version() + " (" + build.box().volume() + " blocks); run /vcs preview off to stop"), false);
 			return 1;
 		} catch (NoSuchFileException e) {
-			source.sendFailure(Component.literal("No schematic for build '" + project.name() + "' v" + project.version() + " at " + e.getFile()));
+			source.sendFailure(Component.literal("No schematic for build '" + build.name() + "' v" + build.version() + " at " + e.getFile()));
 			return 0;
 		} catch (IOException | IllegalArgumentException e) {
-			MCVCS.LOGGER.error("Failed to preview build '{}' v{} for {}", project.name(), project.version(), player.getGameProfile().name(), e);
+			MCVCS.LOGGER.error("Failed to preview build '{}' v{} for {}", build.name(), build.version(), player.getGameProfile().name(), e);
 			source.sendFailure(Component.literal("Failed to load schematic: " + e.getMessage()));
 			return 0;
 		}
@@ -342,12 +342,12 @@ public final class VcsCommand {
 	}
 
 	/**
-	 * Copies the project's box in {@code level}, the world the project is in, into a clipboard anchored at the
-	 * configured origin, writes it and the project to {@link ProjectStorage} and tells every client about the
+	 * Copies the build's box in {@code level}, the world the build is in, into a clipboard anchored at the
+	 * configured origin, writes it and the build to {@link BuildStorage} and tells every client about the
 	 * new state of the build.
 	 */
-	private static Path save(Player actor, LocalSession session, Project project, ServerLevel level) throws WorldEditException, IOException {
-		Region region = project.region(level);
+	private static Path save(Player actor, LocalSession session, Build build, ServerLevel level) throws WorldEditException, IOException {
+		Region region = build.region(level);
 		World world = region.getWorld();
 
 		BlockArrayClipboard clipboard = new BlockArrayClipboard(region);
@@ -360,10 +360,10 @@ public final class VcsCommand {
 			Operations.complete(copy);
 		}
 
-		Path file = ProjectStorage.save(project, clipboard);
-		MCVCS.LOGGER.info("{} saved build '{}' v{} from {} at {}", actor.getName(), project.name(), project.version(), world == null ? "its box" : "its box in " + world.getName(), file);
+		Path file = BuildStorage.save(build, clipboard);
+		MCVCS.LOGGER.info("{} saved build '{}' v{} from {} at {}", actor.getName(), build.name(), build.version(), world == null ? "its box" : "its box in " + world.getName(), file);
 		// Builds are shared, so every client's list just changed; the caller's own selection is sent once it is updated.
-		ProjectSync.broadcast(level.getServer());
+		BuildSync.broadcast(level.getServer());
 		return file;
 	}
 }

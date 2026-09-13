@@ -1,6 +1,6 @@
 package tony.mcvcs.gametest;
 
-import static tony.mcvcs.gametest.VcsTestSupport.resetProjects;
+import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
@@ -16,13 +16,13 @@ import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
-import tony.mcvcs.client.project.ClientProjects;
-import tony.mcvcs.project.ProjectBox;
-import tony.mcvcs.project.ClientProject;
+import tony.mcvcs.client.build.ClientBuilds;
+import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.ClientBuild;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
-/** {@code /vcs select} switches the selected project, so the client draws its box and later commits go to it. */
+/** {@code /vcs select} switches the selected build, so the client draws its box and later commits go to it. */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsSelectCommandGameTest implements FabricClientGameTest {
 	private static final String FIRST = "gametest-select-first";
@@ -31,7 +31,7 @@ public class VcsSelectCommandGameTest implements FabricClientGameTest {
 	@Override
 	public void runTest(ClientGameTestContext context) {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
-		resetProjects(FIRST, SECOND);
+		resetBuilds(FIRST, SECOND);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 
@@ -40,8 +40,8 @@ public class VcsSelectCommandGameTest implements FabricClientGameTest {
 			BlockPos firstMax = firstMin.offset(2, 1, 1);
 			BlockPos secondMin = playerPos(singleplayer).offset(-4, 0, 2);
 			BlockPos secondMax = secondMin.offset(2, 1, 1);
-			ProjectBox firstBox = new ProjectBox(firstMin, firstMax);
-			ProjectBox secondBox = new ProjectBox(secondMin, secondMax);
+			BuildBox firstBox = new BuildBox(firstMin, firstMax);
+			BuildBox secondBox = new BuildBox(secondMin, secondMax);
 
 			fillBox(singleplayer, firstMin, firstMax, Blocks.STONE.defaultBlockState(), firstMin, Blocks.STONE.defaultBlockState());
 			fillBox(singleplayer, secondMin, secondMax, Blocks.STONE.defaultBlockState(), secondMin, Blocks.STONE.defaultBlockState());
@@ -58,7 +58,7 @@ public class VcsSelectCommandGameTest implements FabricClientGameTest {
 			// A name that was never created leaves the selection alone.
 			runCommand(context, "vcs select gametest-select-missing");
 			context.waitTicks(5);
-			assertSelected(context.computeOnClient(client -> ClientProjects.selected()), SECOND, 1, secondBox);
+			assertSelected(context.computeOnClient(client -> ClientBuilds.selected()), SECOND, 1, secondBox);
 
 			runCommand(context, "vcs select " + FIRST);
 			assertSelected(waitForSelection(context, FIRST), FIRST, 1, firstBox);
@@ -80,19 +80,19 @@ public class VcsSelectCommandGameTest implements FabricClientGameTest {
 		}
 	}
 
-	private static ClientProject waitForSelection(ClientGameTestContext context, String name) {
+	private static ClientBuild waitForSelection(ClientGameTestContext context, String name) {
 		return waitForSelection(context, name, 1);
 	}
 
-	private static ClientProject waitForSelection(ClientGameTestContext context, String name, int version) {
+	private static ClientBuild waitForSelection(ClientGameTestContext context, String name, int version) {
 		context.waitFor(client -> {
-			ClientProject selected = ClientProjects.selected();
+			ClientBuild selected = ClientBuilds.selected();
 			return selected != null && selected.name().equals(name) && selected.version() == version;
 		});
-		return context.computeOnClient(client -> ClientProjects.selected());
+		return context.computeOnClient(client -> ClientBuilds.selected());
 	}
 
-	private static void assertSelected(ClientProject selected, String name, int version, ProjectBox box) {
+	private static void assertSelected(ClientBuild selected, String name, int version, BuildBox box) {
 		if (selected == null) {
 			throw new AssertionError("Expected selection '" + name + "' v" + version + " but nothing is selected");
 		}

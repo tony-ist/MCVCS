@@ -18,7 +18,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Screenshot;
 import net.minecraft.commands.CommandSourceStack;
 
-import tony.mcvcs.project.ProjectStorage;
+import tony.mcvcs.build.BuildStorage;
 import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
@@ -46,24 +46,24 @@ final class VcsTestSupport {
 	}
 
 	/** Where {@code /vcs} writes the description of the build called {@code name}, spelled out rather than taken from the mod. */
-	static Path projectFile(String name) {
-		return FabricLoader.getInstance().getGameDir().resolve("mcvcs").resolve(name).resolve("project.json");
+	static Path buildFile(String name) {
+		return FabricLoader.getInstance().getGameDir().resolve("mcvcs").resolve(name).resolve("build.json");
 	}
 
 	/**
-	 * Removes the given project folders and every player's selection left behind by earlier runs, so a test cannot
-	 * pass on stale output. Projects and selections are stored in the game directory, not with the world, so a
+	 * Removes the given build folders and every player's selection left behind by earlier runs, so a test cannot
+	 * pass on stale output. Builds and selections are stored in the game directory, not with the world, so a
 	 * fresh world alone does not clear them; each test uses names of its own and worlds get fresh save folders, so
 	 * this mostly matters when a save folder name is reused between runs.
 	 */
-	static void resetProjects(String... names) {
+	static void resetBuilds(String... names) {
 		try {
-			Files.deleteIfExists(ProjectStorage.selectionsFile());
+			Files.deleteIfExists(BuildStorage.selectionsFile());
 		} catch (IOException e) {
 			throw new AssertionError("Failed to delete stale selections", e);
 		}
 		for (String name : names) {
-			Path directory = ProjectStorage.directory(name);
+			Path directory = BuildStorage.directory(name);
 			if (!Files.exists(directory)) {
 				continue;
 			}
@@ -72,7 +72,7 @@ final class VcsTestSupport {
 					Files.delete(file);
 				}
 			} catch (IOException e) {
-				throw new AssertionError("Failed to delete stale project folder " + directory, e);
+				throw new AssertionError("Failed to delete stale build folder " + directory, e);
 			}
 		}
 	}
@@ -82,7 +82,7 @@ final class VcsTestSupport {
 			throw new AssertionError("Expected schematic at " + file);
 		}
 
-		try (InputStream in = Files.newInputStream(file); ClipboardReader reader = ProjectStorage.FORMAT.getReader(in)) {
+		try (InputStream in = Files.newInputStream(file); ClipboardReader reader = BuildStorage.FORMAT.getReader(in)) {
 			return reader.read();
 		} catch (IOException e) {
 			throw new AssertionError("Failed to read schematic " + file, e);
