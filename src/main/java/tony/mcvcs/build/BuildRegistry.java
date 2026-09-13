@@ -13,8 +13,8 @@ import tony.mcvcs.network.BuildSync;
 /**
  * Looks up {@link Build}s by name and tracks which one each player has selected. {@code /vcs create} and
  * {@code /vcs commit} select the build they wrote, {@code /vcs select} picks an existing one, {@code /vcs builds}
- * lists them all, {@code /vcs deselect} drops the selection, and {@code /vcs commit} and {@code /vcs preview}
- * operate on the selected one.
+ * lists them all, {@code /vcs deselect} drops the selection, and {@code /vcs commit}, {@code /vcs preview},
+ * {@code /vcs load} and {@code /vcs diff} operate on the selected one.
  * <p>
  * A selection is a reference by name, so a commit by one player is seen by everyone who has that build selected.
  * Builds and selections live in the {@link BuildStorage} folder, not in any world save, but each records the

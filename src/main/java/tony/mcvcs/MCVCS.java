@@ -5,6 +5,7 @@ import net.fabricmc.api.ModInitializer;
 import net.minecraft.resources.Identifier;
 
 import tony.mcvcs.command.VcsCommand;
+import tony.mcvcs.network.DiffSender;
 import tony.mcvcs.network.PreviewSender;
 import tony.mcvcs.network.BuildSync;
 
@@ -28,6 +29,7 @@ public class MCVCS implements ModInitializer {
 		LOGGER.info("Hello Fabric world!");
 
 		PreviewSender.register();
+		DiffSender.register();
 		BuildSync.register();
 		VcsCommand.register();
 	}

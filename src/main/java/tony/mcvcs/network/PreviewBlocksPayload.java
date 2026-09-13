@@ -3,15 +3,12 @@ package tony.mcvcs.network;
 import java.util.List;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
 import tony.mcvcs.MCVCS;
 import tony.mcvcs.build.BuildBox;
-import io.netty.buffer.ByteBuf;
 
 /**
  * Server to client: one slice of the preview announced by the last {@link PreviewBeginPayload}.
@@ -29,12 +26,9 @@ public record PreviewBlocksPayload(int offset, List<BlockState> palette, int[] i
 	public static final Type<PreviewBlocksPayload> TYPE = new Type<>(MCVCS.id("preview_blocks"));
 	public static final StreamCodec<FriendlyByteBuf, PreviewBlocksPayload> STREAM_CODEC = CustomPacketPayload.codec(PreviewBlocksPayload::write, PreviewBlocksPayload::read);
 
-	/** Block state ids match between client and server because the block registry is synced on join. */
-	private static final StreamCodec<ByteBuf, BlockState> BLOCK_STATE = ByteBufCodecs.idMapper(Block.BLOCK_STATE_REGISTRY);
-
 	private static PreviewBlocksPayload read(FriendlyByteBuf buf) {
 		int offset = buf.readVarInt();
-		List<BlockState> palette = buf.readList(BLOCK_STATE);
+		List<BlockState> palette = buf.readList(BlockPalette.STATE_CODEC);
 		int[] indices = buf.readVarIntArray();
 		boolean last = buf.readBoolean();
 		return new PreviewBlocksPayload(offset, palette, indices, last);
@@ -42,7 +36,7 @@ public record PreviewBlocksPayload(int offset, List<BlockState> palette, int[] i
 
 	private void write(FriendlyByteBuf buf) {
 		buf.writeVarInt(offset);
-		buf.writeCollection(palette, BLOCK_STATE);
+		buf.writeCollection(palette, BlockPalette.STATE_CODEC);
 		buf.writeVarIntArray(indices);
 		buf.writeBoolean(last);
 	}

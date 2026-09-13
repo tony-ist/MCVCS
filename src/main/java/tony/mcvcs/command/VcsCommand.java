@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
@@ -24,9 +25,13 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.PermissionCheck;
 
 import tony.mcvcs.MCVCS;
+import tony.mcvcs.diff.BuildDiff;
+import tony.mcvcs.diff.ChangeKind;
 import tony.mcvcs.network.ChatButtons;
+import tony.mcvcs.network.DiffSender;
 import tony.mcvcs.network.PreviewSender;
 import tony.mcvcs.network.BuildSync;
+import tony.mcvcs.build.BoxSnapshot;
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildRegistry;
@@ -67,6 +72,9 @@ import com.sk89q.worldedit.world.World;
  * <li>{@code /vcs load [version]}: puts that version's schematic, or the latest one if no version is given, into
  * the player's WorldEdit clipboard, as {@code //copy} or {@code //schem load} would, so {@code //paste} places it.
  * The schematic stays where it is; nothing is written to WorldEdit's own schematic folder.</li>
+ * <li>{@code /vcs diff [version]}: compares the blocks currently inside the build's box with that version, or the
+ * latest one if no version is given, see {@link BuildDiff}, reports how many were added, removed or changed since,
+ * and has the player's client highlight them in place. {@code /vcs diff off} stops the highlighting.</li>
  * </ul>
  * Builds and selections are looked up through {@link BuildRegistry}, which only shows those belonging to the
  * world being played; a build remembers which world and dimension its box is in.
@@ -89,7 +97,7 @@ public final class VcsCommand {
 	public static final String SELECT_BUTTON = "Select";
 	/** Marker {@code /vcs builds} puts after the selected build instead of a button. */
 	public static final String SELECTED_MARKER = "selected";
-	/** Version number standing for the selected build's latest version, used when {@code /vcs load} is given none. */
+	/** Version number standing for the selected build's latest version, used when {@code /vcs load} or {@code /vcs diff} is given none. */
 	private static final int LATEST = 0;
 
 	/** A corner of a cuboid; north is -Z, west is -X, bottom is -Y. */
@@ -154,7 +162,14 @@ public final class VcsCommand {
 					.executes(context -> load(context.getSource(), LATEST))
 					.then(Commands.argument("version", IntegerArgumentType.integer(1))
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(versions(context.getSource()), builder))
-						.executes(context -> load(context.getSource(), IntegerArgumentType.getInteger(context, "version")))))));
+						.executes(context -> load(context.getSource(), IntegerArgumentType.getInteger(context, "version")))))
+				.then(Commands.literal("diff")
+					.executes(context -> diff(context.getSource(), LATEST))
+					.then(Commands.literal("off")
+						.executes(context -> diffOff(context.getSource())))
+					.then(Commands.argument("version", IntegerArgumentType.integer(1))
+						.suggests((context, builder) -> SharedSuggestionProvider.suggest(versions(context.getSource()), builder))
+						.executes(context -> diff(context.getSource(), IntegerArgumentType.getInteger(context, "version")))))));
 	}
 
 	/** Every version number of the build the source player has selected; nothing if there is no player or selection. */
@@ -387,6 +402,83 @@ public final class VcsCommand {
 			source.sendFailure(Component.literal("Failed to load schematic: " + e.getMessage()));
 			return 0;
 		}
+	}
+
+	/**
+	 * Compares the blocks now inside the selected build's box with one of its versions. The summary goes to chat
+	 * whether or not the player's client has this mod; the highlighting needs it.
+	 *
+	 * @param version the version to compare against, or {@link #LATEST} for the selected build's latest one
+	 */
+	private static int diff(CommandSourceStack source, int version) throws CommandSyntaxException {
+		ServerPlayer player = source.getPlayerOrException();
+		Optional<Build> selected = BuildRegistry.selected(player);
+		if (selected.isEmpty()) {
+			source.sendFailure(Component.literal("No build selected in this world; run /vcs create <buildname> first"));
+			return 0;
+		}
+
+		Build latest = selected.get();
+		if (version > latest.version()) {
+			source.sendFailure(Component.literal("Build '" + latest.name() + "' only has versions 1 to " + latest.version()));
+			return 0;
+		}
+		Build build = version == LATEST ? latest : latest.atVersion(version);
+		ServerLevel level = source.getServer().getLevel(build.dimension());
+		if (level == null) {
+			source.sendFailure(Component.literal("Build '" + build.name() + "' is in " + build.dimension().identifier() + ", which does not exist here"));
+			return 0;
+		}
+
+		BuildDiff diff;
+		try {
+			// The version is the old side and the world the new one, so "added" reads as "built since that version".
+			diff = BuildDiff.between(BoxSnapshot.ofClipboard(build.box(), BuildStorage.read(build)), BoxSnapshot.ofLevel(build.box(), level));
+		} catch (NoSuchFileException e) {
+			source.sendFailure(Component.literal("No schematic for build '" + build.name() + "' v" + build.version() + " at " + e.getFile()));
+			return 0;
+		} catch (IOException | IllegalArgumentException e) {
+			MCVCS.LOGGER.error("Failed to diff build '{}' v{} for {}", build.name(), build.version(), player.getGameProfile().name(), e);
+			source.sendFailure(Component.literal("Failed to load schematic: " + e.getMessage()));
+			return 0;
+		}
+
+		boolean highlight = DiffSender.canSend(player);
+		if (diff.isEmpty()) {
+			// Nothing to highlight, and a stale highlight of an earlier diff would be misleading next to this message.
+			if (highlight) {
+				DiffSender.clear(player);
+			}
+			source.sendSuccess(() -> Component.literal("Build '" + build.name() + "' matches v" + build.version() + "; nothing to highlight"), false);
+			return 0;
+		}
+
+		if (highlight) {
+			DiffSender.send(player, build, diff);
+		}
+		String tail = highlight ? "; run /vcs diff off to stop highlighting" : "; install MCVCS on your client to see them highlighted";
+		source.sendSuccess(() -> Component.literal(diffSummary(build, diff) + tail), false);
+		return diff.size();
+	}
+
+	/** E.g. {@code 5 blocks in build 'x' differ from v2 (2 added, 1 removed, 2 changed)}. */
+	private static String diffSummary(Build build, BuildDiff diff) {
+		Map<ChangeKind, Integer> counts = diff.counts();
+		return diff.size() + (diff.size() == 1 ? " block" : " blocks") + " in build '" + build.name() + "' "
+			+ (diff.size() == 1 ? "differs" : "differ") + " from v" + build.version()
+			+ " (" + counts.get(ChangeKind.ADDED) + " added, " + counts.get(ChangeKind.REMOVED) + " removed, " + counts.get(ChangeKind.CHANGED) + " changed)";
+	}
+
+	private static int diffOff(CommandSourceStack source) throws CommandSyntaxException {
+		ServerPlayer player = source.getPlayerOrException();
+		if (!DiffSender.canSend(player)) {
+			source.sendFailure(Component.literal("Your client does not have MCVCS installed, so it cannot highlight diffs"));
+			return 0;
+		}
+
+		DiffSender.clear(player);
+		source.sendSuccess(() -> Component.literal("Diff off"), false);
+		return 1;
 	}
 
 	/**

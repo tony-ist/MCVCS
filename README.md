@@ -15,8 +15,8 @@ Select a build with WorldEdit, turn it into a build, and commit snapshots of it 
 
 The mod works in two setups:
 
-- **Server only.** Install it on the server (or in the host's single-player game). Players connect with a vanilla Fabric client and get the full command set: `create`, `select`, `builds`, `deselect`, `commit` and `load` all run on the server. Nothing is drawn in their world, though: no build labels and no selection box, and `/vcs preview` refuses with a message saying the client does not have MCVCS installed.
-- **Server and client.** Install it on both. On top of the commands, the client shows every build's name floating above its region, draws the selected build's bounding box, and can render `/vcs preview <version>` in place of the real blocks.
+- **Server only.** Install it on the server (or in the host's single-player game). Players connect with a vanilla Fabric client and get the full command set: `create`, `select`, `builds`, `deselect`, `commit`, `load` and `diff` all run on the server. Nothing is drawn in their world, though: no build labels and no selection box, `/vcs diff` only reports its counts in chat, and `/vcs preview` refuses with a message saying the client does not have MCVCS installed.
+- **Server and client.** Install it on both. On top of the commands, the client shows every build's name floating above its region, draws the selected build's bounding box, highlights the blocks `/vcs diff` finds, and can render `/vcs preview <version>` in place of the real blocks.
 
 There is no client-only mode: the builds live on the server, so the mod has to be there for anything to work.
 
@@ -32,6 +32,8 @@ There is no client-only mode: the builds live on the server, so the mod has to b
 | `/vcs preview <version>` | Renders that version in place of the real blocks inside the build's region. Nothing in the world changes. |
 | `/vcs preview off` | Shows the real blocks again. |
 | `/vcs load [version]` | Puts that version, or the latest one if none is given, into your WorldEdit clipboard, replacing whatever you had copied, so `//paste` places it. The origin is one block above the top north-west corner of the build, so `//paste` puts the build one block below your feet, extending east and south. Nothing is written to WorldEdit's own schematic folder. |
+| `/vcs diff [version]` | Compares the blocks currently inside the build's region with that version, or the latest one if none is given, and reports how many were added (air in the version, a block now), removed (a block in the version, air now) or changed (a different block or block state). The client highlights them in place with see-through boxes: green for added, red for removed, yellow for changed. Only block states are compared; chest contents, sign text and the like are not. |
+| `/vcs diff off` | Removes the highlights. |
 
 ## How it works
 
@@ -68,7 +70,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ## TODO
 
-- Diff tool that shows which block changed between current version of the build and selected version from VCS.
 - `/vcs checkout version` clears current selection and loads selected version instead. Think about what happens when build has observers or updating components.
 - Aliases for commands to type them faster
 - Change boundinx box color during preview and display version that is being previewed in the label

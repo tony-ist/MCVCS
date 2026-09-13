@@ -1,21 +1,12 @@
 package tony.mcvcs.network;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.block.state.BlockState;
 
+import tony.mcvcs.build.BoxSnapshot;
 import tony.mcvcs.build.Build;
-import tony.mcvcs.build.BuildBox;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.fabric.FabricAdapter;
-import com.sk89q.worldedit.math.BlockVector3;
-import it.unimi.dsi.fastutil.objects.Object2IntMap;
-import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 
 /** Server side of the preview protocol: turns a schematic into {@link PreviewBeginPayload} and {@link PreviewBlocksPayload}s. */
 public final class PreviewSender {
@@ -43,46 +34,23 @@ public final class PreviewSender {
 	/**
 	 * Streams {@code clipboard}, the schematic saved for {@code build}, to {@code player} so the client shows it
 	 * inside the build's region. The clipboard's own coordinates are ignored: its blocks are laid over the build
-	 * region corner to corner.
+	 * region corner to corner, see {@link BoxSnapshot#ofClipboard}.
 	 *
 	 * @throws IllegalArgumentException if the clipboard is not the size of the build's region
 	 */
 	public static void send(ServerPlayer player, Build build, Clipboard clipboard) {
-		BuildBox box = build.box();
-		BlockVector3 dimensions = clipboard.getDimensions();
-		if (dimensions.x() != box.sizeX() || dimensions.y() != box.sizeY() || dimensions.z() != box.sizeZ()) {
-			throw new IllegalArgumentException("Schematic is " + dimensions + " but the build's region is "
-				+ BlockVector3.at(box.sizeX(), box.sizeY(), box.sizeZ()));
-		}
+		BoxSnapshot snapshot = BoxSnapshot.ofClipboard(build.box(), clipboard);
+		ServerPlayNetworking.send(player, new PreviewBeginPayload(build.name(), build.version(), build.dimension(), build.box()));
 
-		ServerPlayNetworking.send(player, new PreviewBeginPayload(build.name(), build.version(), build.dimension(), box));
-
-		FabricAdapter adapter = FabricAdapter.get();
-		BlockVector3 clipboardMin = clipboard.getMinimumPoint();
-		BlockPos boxMin = box.min();
-		int total = Math.toIntExact(box.volume());
-
+		int total = snapshot.size();
 		for (int offset = 0; offset < total; offset += BLOCKS_PER_PACKET) {
 			int count = Math.min(BLOCKS_PER_PACKET, total - offset);
-			List<BlockState> palette = new ArrayList<>();
-			Object2IntMap<BlockState> paletteIndex = new Object2IntOpenHashMap<>();
+			BlockPalette palette = new BlockPalette();
 			int[] indices = new int[count];
-
 			for (int i = 0; i < count; i++) {
-				BlockPos pos = box.pos(offset + i);
-				BlockVector3 clipboardPos = clipboardMin.add(pos.getX() - boxMin.getX(), pos.getY() - boxMin.getY(), pos.getZ() - boxMin.getZ());
-				BlockState state = adapter.toNativeBlockState(clipboard.getBlock(clipboardPos));
-
-				int index = paletteIndex.getOrDefault(state, -1);
-				if (index < 0) {
-					index = palette.size();
-					palette.add(state);
-					paletteIndex.put(state, index);
-				}
-				indices[i] = index;
+				indices[i] = palette.indexOf(snapshot.state(offset + i));
 			}
-
-			ServerPlayNetworking.send(player, new PreviewBlocksPayload(offset, palette, indices, offset + count == total));
+			ServerPlayNetworking.send(player, new PreviewBlocksPayload(offset, palette.states(), indices, offset + count == total));
 		}
 	}
 
