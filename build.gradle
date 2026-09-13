@@ -18,6 +18,14 @@ repositories {
 loom {
 	splitEnvironmentSourceSets()
 
+	runs {
+		client {
+			// Without this the client logs in as a random "Player<n>" each launch, i.e. a different offline UUID every
+			// time, so anything keyed by player (selections in mcvcs/selections.json) is never found again after a restart.
+			programArgs "--username", "Dev"
+		}
+	}
+
 	mods {
 		"mcvcs" {
 			sourceSet sourceSets.main

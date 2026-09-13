@@ -49,12 +49,15 @@ gradlew.bat runClientGameTest  # run game tests (produces screenshots)
 gradlew.bat runClient          # run game client with this mod
 ```
 
+`runClient` logs in as the offline player `Dev` (set in `build.gradle`) so the player's UUID, and with it the selection in `mcvcs/selections.json`, is the same on every launch; without it Minecraft picks a random `Player<n>` each time.
+
 ## License
 
 CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ## TODO
 
+- Rename project(s) to build(s) everywhere
 - Command to load version of the build as schematic to worldedit, so that user can //paste it 
 - `/vcs checkout version` clears current selection and loads selected version instead. Think about what happens when build has observers or updating components.
 - Diff tool that shows which block changed between current version of the build and selected version from VCS.
