@@ -27,7 +27,7 @@ There is no client-only mode: the builds live on the server, so the mod has to b
 | `/vcs create <buildname>` | Turns the bounding box of your current WorldEdit selection into a build and saves it as version 1. The build becomes your selected build for this world. |
 | `/vcs select <buildname>` | Selects an existing build so its bounding box is shown and later commands act on it. |
 | `/vcs builds` | Lists every build in this world with its latest version and size. Each one has a `[Select]` button in chat that runs `/vcs select` for it; the selected build is marked `[selected]` instead. |
-| `/vcs deselect` | Clears your selected build: its bounding box disappears and commands that need a selection refuse until you select one again. |
+| `/vcs deselect` | Clears your selected build: its bounding box, and any preview or diff highlighting of it, disappear and commands that need a selection refuse until you select one again. |
 | `/vcs commit` | Saves the selected build's region again as the next version. The region is the one captured by `create`; your current WorldEdit selection is ignored. |
 | `/vcs preview <version>` | Renders that version in place of the real blocks inside the build's region. Nothing in the world changes. |
 | `/vcs preview off` | Shows the real blocks again. |
@@ -70,6 +70,8 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ## TODO
 
+- Deny creating intersecting builds
+- Command to delete build
 - `/vcs checkout version` clears current selection and loads selected version instead. Think about what happens when build has observers or updating components.
 - Aliases for commands to type them faster
 - Change boundinx box color during preview and display version that is being previewed in the label

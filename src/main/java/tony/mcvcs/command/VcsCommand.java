@@ -63,7 +63,8 @@ import com.sk89q.worldedit.world.World;
  * <li>{@code /vcs builds}: lists every build in the world, each with a chat button that runs
  * {@code /vcs select} for it, see {@link ChatButtons}; the selected one is marked instead.</li>
  * <li>{@code /vcs deselect}: leaves the player with no selected build, so no bounding box is shown and commands
- * that need a selection refuse until one is made again.</li>
+ * that need a selection refuse until one is made again. Any preview or diff highlighting of the build is turned
+ * off with it.</li>
  * <li>{@code /vcs commit}: saves the selected build's box again as its next version. The box is the one
  * captured by {@code /vcs create}; the player's current WorldEdit selection is ignored.</li>
  * <li>{@code /vcs preview <version>}: sends that version's schematic to the player's client, which draws it in place
@@ -284,6 +285,13 @@ public final class VcsCommand {
 			MCVCS.LOGGER.error("Failed to deselect build '{}' for {}", buildName, player.getGameProfile().name(), e);
 			source.sendFailure(Component.literal("Failed to save selection: " + e.getMessage()));
 			return 0;
+		}
+		// A preview or diff shows a version of the build that is no longer selected, so it goes with the selection.
+		if (PreviewSender.canSend(player)) {
+			PreviewSender.clear(player);
+		}
+		if (DiffSender.canSend(player)) {
+			DiffSender.clear(player);
 		}
 		source.sendSuccess(() -> Component.literal("Deselected build '" + buildName + "'"), false);
 		return 1;

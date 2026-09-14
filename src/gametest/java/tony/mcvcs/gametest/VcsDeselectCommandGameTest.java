@@ -9,6 +9,7 @@ import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
 import static tony.mcvcs.gametest.VcsTestSupport.select;
+import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 
 import java.nio.file.Files;
 import java.util.Optional;
@@ -19,6 +20,10 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 import net.minecraft.server.level.ServerPlayer;
 
 import tony.mcvcs.client.build.ClientBuilds;
+import tony.mcvcs.client.diff.ClientDiff;
+import tony.mcvcs.client.diff.DiffManager;
+import tony.mcvcs.client.preview.ClientPreview;
+import tony.mcvcs.client.preview.PreviewManager;
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildRegistry;
@@ -27,8 +32,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * {@code /vcs deselect} leaves the player with no selected build: the client stops drawing the box, the server
- * forgets the selection, and commands that need one refuse until {@code /vcs select} makes one again.
+ * {@code /vcs deselect} leaves the player with no selected build: the client stops drawing the box and any preview
+ * or diff highlighting of the build, the server forgets the selection, and commands that need one refuse until
+ * {@code /vcs select} makes one again.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsDeselectCommandGameTest implements FabricClientGameTest {
@@ -57,9 +63,17 @@ public class VcsDeselectCommandGameTest implements FabricClientGameTest {
 			read(schematic(BUILD_NAME, 1));
 			assertSelected(waitForSelection(context, BUILD_NAME), BUILD_NAME, 1, box);
 
+			// Preview v1 and highlight the diff against it, so both are up when the build is deselected.
+			setBlock(singleplayer, min, Blocks.DIAMOND_BLOCK.defaultBlockState());
+			runCommand(context, "vcs preview 1");
+			context.waitFor(client -> PreviewManager.active() != null);
+			runCommand(context, "vcs diff 1");
+			context.waitFor(client -> DiffManager.active() != null);
+
 			runCommand(context, "vcs deselect");
 			context.waitFor(client -> ClientBuilds.selected() == null);
 			assertNothingSelected(context, singleplayer);
+			assertNoPreviewOrDiff(context);
 
 			lookAt(context, min, max);
 			screenshotLastFrame(context, "mcvcs-vcs-deselect");
@@ -89,6 +103,18 @@ public class VcsDeselectCommandGameTest implements FabricClientGameTest {
 		ClientBuild shown = context.computeOnClient(client -> ClientBuilds.selected());
 		if (shown != null) {
 			throw new AssertionError("Expected no selection on the client but got '" + shown.name() + "' v" + shown.version());
+		}
+	}
+
+	private static void assertNoPreviewOrDiff(ClientGameTestContext context) {
+		context.waitTicks(5);
+		ClientPreview preview = context.computeOnClient(client -> PreviewManager.active());
+		if (preview != null) {
+			throw new AssertionError("Expected no preview after /vcs deselect but '" + preview.name() + "' v" + preview.version() + " is shown");
+		}
+		ClientDiff diff = context.computeOnClient(client -> DiffManager.active());
+		if (diff != null) {
+			throw new AssertionError("Expected no diff after /vcs deselect but '" + diff.name() + "' v" + diff.version() + " is highlighted");
 		}
 	}
 
