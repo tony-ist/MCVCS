@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -161,6 +162,23 @@ public final class BuildStorage {
 	}
 
 	/**
+	 * Removes the build called {@code name} from disk: its folder with every version in it, and every player's
+	 * selection of it in any world, so nothing is left pointing at the build. Nothing happens if there is no such folder.
+	 */
+	public static void delete(String name) throws IOException {
+		Path directory = directory(name);
+		if (Files.exists(directory)) {
+			// Files.delete needs empty folders, so children go first.
+			try (Stream<Path> files = Files.walk(directory)) {
+				for (Path file : files.sorted(Comparator.reverseOrder()).toList()) {
+					Files.delete(file);
+				}
+			}
+		}
+		clearSelectionsOf(name);
+	}
+
+	/**
 	 * Reads the schematic {@link #save} wrote for {@code build} at its version.
 	 *
 	 * @throws NoSuchFileException if no schematic was written for that version
@@ -204,6 +222,25 @@ public final class BuildStorage {
 			selections.remove(world);
 		} else {
 			selections.put(world, inWorld);
+		}
+
+		Files.createDirectories(root());
+		writeJson(selectionsFile(), SELECTIONS_CODEC, selections);
+	}
+
+	/** Forgets every player's selection of the build called {@code name} in every world, leaving every other selection alone. */
+	private static void clearSelectionsOf(String name) throws IOException {
+		Map<String, Map<UUID, String>> selections = new HashMap<>();
+		boolean changed = false;
+		for (Map.Entry<String, Map<UUID, String>> world : selections().entrySet()) {
+			Map<UUID, String> inWorld = new HashMap<>(world.getValue());
+			changed |= inWorld.values().removeIf(name::equals);
+			if (!inWorld.isEmpty()) {
+				selections.put(world.getKey(), inWorld);
+			}
+		}
+		if (!changed) {
+			return;
 		}
 
 		Files.createDirectories(root());

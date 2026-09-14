@@ -3,15 +3,18 @@ package tony.mcvcs.command;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.IntStream;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -20,6 +23,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentUtils;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.PermissionCheck;
@@ -77,6 +81,10 @@ import com.sk89q.worldedit.world.World;
  * <li>{@code /vcs diff [version]}: compares the blocks currently inside the build's box with that version, or the
  * latest one if no version is given, see {@link BuildDiff}, reports how many were added, removed or changed since,
  * and has the player's client highlight them in place. {@code /vcs diff off} stops the highlighting.</li>
+ * <li>{@code /vcs delete <buildname>}: asks the player to confirm deleting the build; nothing is touched yet.
+ * {@code /vcs confirmDelete} then removes the build's folder with every version in it and every player's
+ * selection of it. The confirmation is remembered until it is used, replaced by another {@code /vcs delete}, or
+ * the player leaves.</li>
  * </ul>
  * Builds and selections are looked up through {@link BuildRegistry}, which only shows those belonging to the
  * world being played; a build remembers which world and dimension its box is in.
@@ -101,6 +109,11 @@ public final class VcsCommand {
 	public static final String SELECTED_MARKER = "selected";
 	/** Version number standing for the selected build's latest version, used when {@code /vcs load} or {@code /vcs diff} is given none. */
 	private static final int LATEST = 0;
+	/**
+	 * The build each player's last {@code /vcs delete} asked to delete and {@code /vcs confirmDelete} will act on,
+	 * by player UUID. Only the server thread touches this; a player's entry goes when they leave.
+	 */
+	private static final Map<UUID, Build> PENDING_DELETES = new HashMap<>();
 
 	/** A corner of a cuboid; north is -Z, west is -X, bottom is -Y. */
 	public enum Corner {
@@ -138,6 +151,8 @@ public final class VcsCommand {
 	}
 
 	public static void register() {
+		// A confirmation left behind by a player who logged out must not delete anything when they are back.
+		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> PENDING_DELETES.remove(handler.player.getUUID()));
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
 			dispatcher.register(Commands.literal("vcs")
 				.requires(Commands.hasPermission(PERMISSION))
@@ -171,7 +186,13 @@ public final class VcsCommand {
 						.executes(context -> diffOff(context.getSource())))
 					.then(Commands.argument("version", IntegerArgumentType.integer(1))
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(versions(context.getSource()), builder))
-						.executes(context -> diff(context.getSource(), IntegerArgumentType.getInteger(context, "version")))))));
+						.executes(context -> diff(context.getSource(), IntegerArgumentType.getInteger(context, "version")))))
+				.then(Commands.literal("delete")
+					.then(Commands.argument("buildname", StringArgumentType.word())
+						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))
+						.executes(context -> delete(context.getSource(), StringArgumentType.getString(context, "buildname")))))
+				.then(Commands.literal("confirmDelete")
+					.executes(context -> confirmDelete(context.getSource())))));
 	}
 
 	/** Every version number of the build the source player has selected; nothing if there is no player or selection. */
@@ -495,6 +516,64 @@ public final class VcsCommand {
 
 		DiffSender.clear(player);
 		source.sendSuccess(() -> Component.literal("Diff off"), false);
+		return 1;
+	}
+
+	/** Only asks for confirmation; {@link #confirmDelete} does the deleting. */
+	private static int delete(CommandSourceStack source, String buildName) throws CommandSyntaxException {
+		ServerPlayer player = source.getPlayerOrException();
+		Optional<Build> build = BuildRegistry.find(source.getServer(), buildName);
+		if (build.isEmpty()) {
+			source.sendFailure(Component.literal("No build named '" + buildName + "' in this world"));
+			return 0;
+		}
+
+		PENDING_DELETES.put(player.getUUID(), build.get());
+		source.sendSuccess(() -> Component.literal("Delete build " + buildName + "? This cannot be undone, all versions will be lost! Type `/vcs confirmDelete` to proceed."), false);
+		return 1;
+	}
+
+	private static int confirmDelete(CommandSourceStack source) throws CommandSyntaxException {
+		ServerPlayer player = source.getPlayerOrException();
+		MinecraftServer server = source.getServer();
+		Build build = PENDING_DELETES.remove(player.getUUID());
+		if (build == null) {
+			source.sendFailure(Component.literal("Nothing to confirm; run /vcs delete <buildname> first"));
+			return 0;
+		}
+		// The build may have gone, or the player moved to another world, since they asked.
+		if (!build.isIn(server) || BuildRegistry.find(server, build.name()).isEmpty()) {
+			source.sendFailure(Component.literal("No build named '" + build.name() + "' in this world"));
+			return 0;
+		}
+
+		// Anyone previewing or diffing the build is looking at a version that is about to disappear.
+		for (ServerPlayer other : server.getPlayerList().getPlayers()) {
+			if (BuildRegistry.selected(other).filter(selected -> selected.name().equals(build.name())).isEmpty()) {
+				continue;
+			}
+			if (PreviewSender.canSend(other)) {
+				PreviewSender.clear(other);
+			}
+			if (DiffSender.canSend(other)) {
+				DiffSender.clear(other);
+			}
+		}
+
+		try {
+			BuildStorage.delete(build.name());
+		} catch (IOException e) {
+			MCVCS.LOGGER.error("Failed to delete build '{}' for {}", build.name(), player.getGameProfile().name(), e);
+			source.sendFailure(Component.literal("Failed to delete build: " + e.getMessage()));
+			// Whatever was removed before the failure is gone for everyone, so the clients must hear about it anyway.
+			BuildSync.broadcast(server);
+			return 0;
+		}
+		MCVCS.LOGGER.info("{} deleted build '{}' with {} versions", player.getGameProfile().name(), build.name(), build.version());
+		// The build and any selection of it are gone, so every client's list and possibly its selection changed.
+		BuildSync.broadcast(server);
+
+		source.sendSuccess(() -> Component.literal("Deleted build '" + build.name() + "' and its " + build.version() + (build.version() == 1 ? " version" : " versions")), false);
 		return 1;
 	}
 
