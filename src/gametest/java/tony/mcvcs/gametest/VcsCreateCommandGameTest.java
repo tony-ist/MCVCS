@@ -29,6 +29,8 @@ import net.minecraft.world.level.block.Blocks;
 @SuppressWarnings("UnstableApiUsage")
 public class VcsCreateCommandGameTest implements FabricClientGameTest {
 	private static final String BUILD_NAME = "gametest-build";
+	private static final String OVERLAPPING_NAME = "gametest-overlap";
+	private static final String ADJACENT_NAME = "gametest-adjacent";
 
 	@Override
 	public void runTest(ClientGameTestContext context) {
@@ -36,7 +38,7 @@ public class VcsCreateCommandGameTest implements FabricClientGameTest {
 
 		// /vcs requires op, which in singleplayer means cheats must be on.
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
-		resetBuilds(BUILD_NAME);
+		resetBuilds(BUILD_NAME, OVERLAPPING_NAME, ADJACENT_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 
@@ -79,6 +81,18 @@ public class VcsCreateCommandGameTest implements FabricClientGameTest {
 			// The diagonally opposite corner must be stone.
 			BlockVector3 opposite = adapter.adapt(min).add(adapter.adapt(max)).subtract(originCorner);
 			assertBlock(clipboard, opposite, BlockTypes.STONE);
+
+			// A box that shares even one block with an existing build is refused, so nothing is written for it.
+			select(singleplayer, max, max.offset(2, 2, 2));
+			runCommand(context, "vcs create " + OVERLAPPING_NAME);
+			if (Files.exists(BuildStorage.directory(OVERLAPPING_NAME))) {
+				throw new AssertionError("Create must not write a build whose box overlaps '" + BUILD_NAME + "'");
+			}
+
+			// One that merely touches the existing build's face is fine.
+			select(singleplayer, max.offset(1, 0, 0), max.offset(2, 2, 2));
+			runCommand(context, "vcs create " + ADJACENT_NAME);
+			read(schematic(ADJACENT_NAME, 1));
 
 			context.takeScreenshot("mcvcs-vcs-create");
 		}

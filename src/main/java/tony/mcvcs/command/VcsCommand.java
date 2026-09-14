@@ -57,7 +57,8 @@ import com.sk89q.worldedit.world.World;
  * <ul>
  * <li>{@code /vcs create <buildname>}: copies the bounding box of the player's current WorldEdit selection and saves
  * it as version 1 of the build, in the build's own folder under {@code mcvcs/} in the game directory, see
- * {@link BuildStorage}. The new build becomes the player's selected build.</li>
+ * {@link BuildStorage}. The box may not overlap any existing build in the same dimension. The new build becomes
+ * the player's selected build.</li>
  * <li>{@code /vcs select <buildname>}: makes an existing build the player's selected build, so its bounding
  * box is shown and later commands act on it.</li>
  * <li>{@code /vcs builds}: lists every build in the world, each with a chat button that runs
@@ -205,6 +206,14 @@ public final class VcsCommand {
 		try {
 			// Only the bounding box is kept, so later //pos1, //pos2 or wand clicks cannot move the build's box under us.
 			Build build = new Build(buildName, world, player.level().dimension(), BuildBox.of(session.getSelection(actor.getWorld())), 1);
+			// Every block belongs to at most one build, so a box that overlaps an existing build in this dimension is refused.
+			Optional<Build> overlapping = BuildRegistry.all(source.getServer()).stream()
+				.filter(other -> other.dimension().equals(build.dimension()) && other.box().intersects(build.box()))
+				.findFirst();
+			if (overlapping.isPresent()) {
+				source.sendFailure(Component.literal("Selection overlaps build '" + overlapping.get().name() + "'; builds may not intersect"));
+				return 0;
+			}
 			Path file = save(actor, session, build, player.level());
 			BuildRegistry.select(player, build);
 

@@ -74,6 +74,13 @@ public record BuildBox(BlockPos min, BlockPos max) {
 		return contains(pos.getX(), pos.getY(), pos.getZ());
 	}
 
+	/** Whether the two boxes share at least one block. */
+	public boolean intersects(BuildBox other) {
+		return min.getX() <= other.max.getX() && max.getX() >= other.min.getX()
+			&& min.getY() <= other.max.getY() && max.getY() >= other.min.getY()
+			&& min.getZ() <= other.max.getZ() && max.getZ() >= other.min.getZ();
+	}
+
 	/** Index of the block at world position {@code (x, y, z)}, which must be inside the box. */
 	public int index(int x, int y, int z) {
 		return ((x - min.getX()) * sizeY() + (y - min.getY())) * sizeZ() + (z - min.getZ());
