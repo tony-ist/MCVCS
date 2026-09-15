@@ -35,6 +35,7 @@ import tony.mcvcs.network.ChatButtons;
 import tony.mcvcs.network.DiffSender;
 import tony.mcvcs.network.PreviewSender;
 import tony.mcvcs.network.BuildSync;
+import tony.mcvcs.build.BoxExpansion;
 import tony.mcvcs.build.BoxSnapshot;
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
@@ -81,6 +82,9 @@ import com.sk89q.worldedit.world.World;
  * <li>{@code /vcs diff [version]}: compares the blocks currently inside the build's box with that version, or the
  * latest one if no version is given, see {@link BuildDiff}, reports how many were added, removed or changed since,
  * and has the player's client highlight them in place. {@code /vcs diff off} stops the highlighting.</li>
+ * <li>{@code /vcs expand}: grows the selected build's box until only air surrounds it, see {@link BoxExpansion}, so
+ * whatever was built out past its edges is inside it again, and saves the box as the build's next version, which
+ * keeps the latest schematic the size of the box. Refuses if the grown box would overlap another build.</li>
  * <li>{@code /vcs delete <buildname>}: asks the player to confirm deleting the build; nothing is touched yet.
  * {@code /vcs confirmDelete} then removes the build's folder with every version in it and every player's
  * selection of it. The confirmation is remembered until it is used, replaced by another {@code /vcs delete}, or
@@ -187,6 +191,8 @@ public final class VcsCommand {
 					.then(Commands.argument("version", IntegerArgumentType.integer(1))
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(versions(context.getSource()), builder))
 						.executes(context -> diff(context.getSource(), IntegerArgumentType.getInteger(context, "version")))))
+				.then(Commands.literal("expand")
+					.executes(context -> expand(context.getSource())))
 				.then(Commands.literal("delete")
 					.then(Commands.argument("buildname", StringArgumentType.word())
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))
@@ -517,6 +523,69 @@ public final class VcsCommand {
 		DiffSender.clear(player);
 		source.sendSuccess(() -> Component.literal("Diff off"), false);
 		return 1;
+	}
+
+	/**
+	 * Grows the selected build's box until only air surrounds it and saves the result as the build's next version.
+	 * The commit is part of the expansion: {@code /vcs diff} and {@code /vcs preview} lay a version's schematic over
+	 * the box corner to corner, so the latest version must always be the size of the box.
+	 */
+	private static int expand(CommandSourceStack source) throws CommandSyntaxException {
+		ServerPlayer player = source.getPlayerOrException();
+		Optional<Build> selected = BuildRegistry.selected(player);
+		if (selected.isEmpty()) {
+			source.sendFailure(Component.literal("No build selected in this world; run /vcs create <buildname> first"));
+			return 0;
+		}
+
+		Build build = selected.get();
+		ServerLevel level = source.getServer().getLevel(build.dimension());
+		if (level == null) {
+			source.sendFailure(Component.literal("Build '" + build.name() + "' is in " + build.dimension().identifier() + ", which does not exist here"));
+			return 0;
+		}
+
+		BoxExpansion expansion = BoxExpansion.of(build.box(), level);
+		if (!expansion.grew()) {
+			if (expansion.enclosed()) {
+				source.sendSuccess(() -> Component.literal("Build '" + build.name() + "' is already enclosed by air; nothing to expand"), false);
+			} else {
+				source.sendFailure(Component.literal("Build '" + build.name() + "' touches blocks outside its box but already has "
+					+ build.box().volume() + " blocks, so expanding it would exceed the limit of " + BoxExpansion.MAX_VOLUME + " blocks"));
+			}
+			return 0;
+		}
+		// Every block belongs to at most one build, so a grown box that reaches into another build is refused.
+		Optional<Build> overlapping = BuildRegistry.all(source.getServer()).stream()
+			.filter(other -> !other.name().equals(build.name()) && other.dimension().equals(build.dimension()) && other.box().intersects(expansion.to()))
+			.findFirst();
+		if (overlapping.isPresent()) {
+			source.sendFailure(Component.literal("Expanding build '" + build.name() + "' to " + size(expansion.to()) + " would overlap build '" + overlapping.get().name() + "'; builds may not intersect"));
+			return 0;
+		}
+
+		Build expanded = new Build(build.name(), build.world(), build.dimension(), expansion.to(), build.version() + 1);
+		Player actor = FabricAdapter.get().fromNativePlayer(player);
+		LocalSession session = WorldEdit.getInstance().getSessionManager().get(actor);
+
+		try {
+			Path file = save(actor, session, expanded, level);
+			BuildRegistry.select(player, expanded);
+
+			String limit = expansion.enclosed() ? "" : "; stopped at the limit of " + BoxExpansion.MAX_VOLUME + " blocks, so the build may still stick out";
+			source.sendSuccess(() -> Component.literal("Expanded build '" + expanded.name() + "' from " + size(build.box()) + " (" + build.box().volume() + " blocks) to "
+				+ size(expanded.box()) + " (" + expanded.box().volume() + " blocks) and committed it as v" + expanded.version() + " at " + BuildStorage.root().relativize(file) + limit), false);
+			return 1;
+		} catch (WorldEditException | IOException e) {
+			MCVCS.LOGGER.error("Failed to expand build '{}' to v{} for {}", expanded.name(), expanded.version(), player.getGameProfile().name(), e);
+			source.sendFailure(Component.literal("Failed to save schematic: " + e.getMessage()));
+			return 0;
+		}
+	}
+
+	/** E.g. {@code 3x2x2}. */
+	private static String size(BuildBox box) {
+		return box.sizeX() + "x" + box.sizeY() + "x" + box.sizeZ();
 	}
 
 	/** Only asks for confirmation; {@link #confirmDelete} does the deleting. */

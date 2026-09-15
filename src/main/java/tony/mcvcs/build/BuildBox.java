@@ -81,6 +81,19 @@ public record BuildBox(BlockPos min, BlockPos max) {
 			&& min.getZ() <= other.max.getZ() && max.getZ() >= other.min.getZ();
 	}
 
+	/** The box with {@code blocks} more layers on every side. */
+	public BuildBox grow(int blocks) {
+		return new BuildBox(min.offset(-blocks, -blocks, -blocks), max.offset(blocks, blocks, blocks));
+	}
+
+	/** The smallest box containing both this box and {@code other}. */
+	public BuildBox union(BuildBox other) {
+		return new BuildBox(
+			new BlockPos(Math.min(min.getX(), other.min.getX()), Math.min(min.getY(), other.min.getY()), Math.min(min.getZ(), other.min.getZ())),
+			new BlockPos(Math.max(max.getX(), other.max.getX()), Math.max(max.getY(), other.max.getY()), Math.max(max.getZ(), other.max.getZ()))
+		);
+	}
+
 	/** Index of the block at world position {@code (x, y, z)}, which must be inside the box. */
 	public int index(int x, int y, int z) {
 		return ((x - min.getX()) * sizeY() + (y - min.getY())) * sizeZ() + (z - min.getZ());
