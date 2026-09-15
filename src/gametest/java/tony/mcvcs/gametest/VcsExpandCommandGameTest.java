@@ -178,36 +178,48 @@ public class VcsExpandCommandGameTest extends VcsGameTest {
 	}
 
 	/**
-	 * With the block at the box's corner in place, one step of growth is wanted, but a box that is already at
-	 * {@link BoxExpansion#MAX_VOLUME} cannot take it: the box stays and the expansion reports it is not enclosed.
+	 * A gold block at the box's corner and another one diagonally past it want two steps of growth: the first fits
+	 * within {@link BoxExpansion#MAX_VOLUME}, the second does not. The expansion is given up as a whole, so the box
+	 * stays as it was rather than take the first step, and reports it is not enclosed.
 	 */
 	private static void assertLimit(TestSingleplayerContext singleplayer, BuildBox box) {
-		// The largest cube within MAX_VOLUME, hovering at the same height as the build but well south of everything
-		// the test placed, so nothing but the gold block put at its corner touches it. One more block on every side
-		// would go past the limit.
-		int side = (int) Math.cbrt(BoxExpansion.MAX_VOLUME);
+		// One short of the largest cube within MAX_VOLUME, hovering at the same height as the build but well south of
+		// everything the test placed, so nothing but the gold blocks put at its corner touches it. One more block on
+		// every side still fits the limit, two go past it.
+		int side = (int) Math.cbrt(BoxExpansion.MAX_VOLUME) - 1;
 		BlockPos min = box.min().offset(0, 0, 20);
-		BuildBox atLimit = new BuildBox(min, min.offset(side - 1, side - 1, side - 1));
-		BlockPos corner = atLimit.max().offset(1, 1, 1);
-		if (atLimit.volume() > BoxExpansion.MAX_VOLUME || new BuildBox(min, corner).volume() <= BoxExpansion.MAX_VOLUME) {
-			throw new AssertionError("Test box " + atLimit + " does not sit at the limit");
+		BuildBox below = new BuildBox(min, min.offset(side - 1, side - 1, side - 1));
+		BlockPos corner = below.max().offset(1, 1, 1);
+		BlockPos beyond = below.max().offset(2, 2, 2);
+		if (new BuildBox(min, corner).volume() > BoxExpansion.MAX_VOLUME || new BuildBox(min, beyond).volume() <= BoxExpansion.MAX_VOLUME) {
+			throw new AssertionError("Test box " + below + " does not sit one step below the limit");
 		}
 
 		BoxExpansion expansion = singleplayer.getServer().computeOnServer(server -> {
 			server.overworld().setBlockAndUpdate(corner, Blocks.GOLD_BLOCK.defaultBlockState());
-			return BoxExpansion.of(atLimit, server.overworld());
+			server.overworld().setBlockAndUpdate(beyond, Blocks.GOLD_BLOCK.defaultBlockState());
+			return BoxExpansion.of(below, server.overworld());
 		});
-		if (!expansion.to().equals(atLimit) || expansion.enclosed() || expansion.grew()) {
-			throw new AssertionError("Expected the limit to hold " + atLimit + " but got " + expansion);
+		if (!expansion.to().equals(below) || expansion.enclosed() || expansion.grew()) {
+			throw new AssertionError("Expected the limit to hold " + below + " but got " + expansion);
 		}
 
-		// Without the block the same box is enclosed and stays as well.
+		// With only the first block the single step fits and is taken.
+		BoxExpansion oneStep = singleplayer.getServer().computeOnServer(server -> {
+			server.overworld().setBlockAndUpdate(beyond, Blocks.AIR.defaultBlockState());
+			return BoxExpansion.of(below, server.overworld());
+		});
+		if (!oneStep.to().equals(new BuildBox(min, corner)) || !oneStep.enclosed()) {
+			throw new AssertionError("Expected " + below + " to grow to " + corner + " but got " + oneStep);
+		}
+
+		// Without any block the box is enclosed and stays.
 		BoxExpansion clear = singleplayer.getServer().computeOnServer(server -> {
 			server.overworld().setBlockAndUpdate(corner, Blocks.AIR.defaultBlockState());
-			return BoxExpansion.of(atLimit, server.overworld());
+			return BoxExpansion.of(below, server.overworld());
 		});
-		if (!clear.to().equals(atLimit) || !clear.enclosed()) {
-			throw new AssertionError("Expected " + atLimit + " to be enclosed but got " + clear);
+		if (!clear.to().equals(below) || !clear.enclosed()) {
+			throw new AssertionError("Expected " + below + " to be enclosed but got " + clear);
 		}
 	}
 }

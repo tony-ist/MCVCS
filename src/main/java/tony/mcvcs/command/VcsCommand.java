@@ -90,7 +90,8 @@ import com.sk89q.worldedit.world.block.BlockTypes;
  * player's client highlight them in place. {@code /vcs diff off} stops the highlighting.</li>
  * <li>{@code /vcs expand}: grows the selected build's box until only air surrounds it, see {@link BoxExpansion}, so
  * whatever was built out past its edges is inside it again, and saves the box as the build's next version, which
- * keeps the latest schematic the size of the box. Refuses if the grown box would overlap another build. Earlier
+ * keeps the latest schematic the size of the box. Refuses, and expands nothing, if the grown box would overlap another
+ * build or exceed {@link BoxExpansion#MAX_VOLUME} blocks. Earlier
  * versions keep their smaller size but are placed inside the grown box where they were built, see
  * {@link BoxSnapshot#ofClipboard}.</li>
  * <li>{@code /vcs checkout <version|latest> [-f]}: clears the selected build's box and puts that version, or its
@@ -613,8 +614,8 @@ public final class VcsCommand {
 			if (expansion.enclosed()) {
 				source.sendSuccess(() -> Component.literal("Build ").append(name(build.name())).append(" is already enclosed by air; nothing to expand"), false);
 			} else {
-				source.sendFailure(Component.literal("Build ").append(name(build.name())).append(" touches blocks outside its box but already has "
-					+ build.box().volume() + " blocks, so expanding it would exceed the limit of " + BoxExpansion.MAX_VOLUME + " blocks"));
+				source.sendFailure(Component.literal("Build ").append(name(build.name())).append(" touches blocks outside its box, but taking them in would grow it past the limit of "
+					+ BoxExpansion.MAX_VOLUME + " blocks (it has " + build.box().volume() + " now); nothing was expanded"));
 			}
 			return 0;
 		}
@@ -635,9 +636,8 @@ public final class VcsCommand {
 			Path file = save(actor, session, expanded, level);
 			BuildRegistry.select(player, expanded);
 
-			String limit = expansion.enclosed() ? "" : "; stopped at the limit of " + BoxExpansion.MAX_VOLUME + " blocks, so the build may still stick out";
 			source.sendSuccess(() -> Component.literal("Expanded build ").append(name(expanded.name())).append(" from " + size(build.box()) + " (" + build.box().volume() + " blocks) to "
-				+ size(expanded.box()) + " (" + expanded.box().volume() + " blocks) and committed it as v" + expanded.version() + " at " + BuildStorage.root().relativize(file) + limit), false);
+				+ size(expanded.box()) + " (" + expanded.box().volume() + " blocks) and committed it as v" + expanded.version() + " at " + BuildStorage.root().relativize(file)), false);
 			return 1;
 		} catch (WorldEditException | IOException e) {
 			MCVCS.LOGGER.error("Failed to expand build '{}' to v{} for {}", expanded.name(), expanded.version(), player.getGameProfile().name(), e);

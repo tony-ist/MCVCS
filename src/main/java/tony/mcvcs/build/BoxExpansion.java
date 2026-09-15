@@ -17,18 +17,19 @@ import org.jspecify.annotations.Nullable;
  * hover in the air. A block that is air by {@link net.minecraft.world.level.block.state.BlockState#isAir}, void air
  * outside the world's height included, is the only thing that stops the growth; water, grass and the like do not.
  * <p>
- * Growth stops early rather than exceed {@link #MAX_VOLUME} blocks: a step that would make the box larger than
- * that is not taken, {@link #to()} is the box as it was before the step and {@link #enclosed()} is false. A box that
- * is already over the limit is left as it is. On the server the scan loads any chunk the shell touches.
+ * The growth is all or nothing: rather than let the box exceed {@link #MAX_VOLUME} blocks, it is given up as a
+ * whole, so that a step that would make the box larger than that leaves {@link #to()} equal to {@code from},
+ * however many steps came before it, and {@link #enclosed()} false. A box that is already over the limit is left as
+ * it is. On the server the scan loads any chunk the shell touches.
  *
  * @param from     the box the expansion started from
  * @param to       the box it ended with, {@code from} or larger
- * @param enclosed whether the shell around {@code to} is all air, which is false only when {@link #MAX_VOLUME} stopped
- *                 the growth before it was
+ * @param enclosed whether the shell around {@code to} is all air, which is false only when {@link #MAX_VOLUME} made
+ *                 the expansion give up, in which case {@code to} is {@code from}
  */
 public record BoxExpansion(BuildBox from, BuildBox to, boolean enclosed) {
-	/** The most blocks a box may cover after expansion; a step that would go past this is not taken. */
-	public static final long MAX_VOLUME = 1_000_000;
+	/** The most blocks a box may cover after expansion; an expansion that would go past this is given up. */
+	public static final long MAX_VOLUME = 5_000_000;
 
 	/** Expands {@code box} in {@code level} as described on this class. */
 	public static BoxExpansion of(BuildBox box, Level level) {
@@ -40,7 +41,7 @@ public record BoxExpansion(BuildBox from, BuildBox to, boolean enclosed) {
 			}
 			BuildBox grown = current.union(outside);
 			if (grown.volume() > MAX_VOLUME) {
-				return new BoxExpansion(box, current, false);
+				return new BoxExpansion(box, box, false);
 			}
 			current = grown;
 		}

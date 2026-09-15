@@ -91,3 +91,7 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Display builds and versions on the client in overlay. Also show rotating 3D render of the build. Make buttons in overlay to select, checkout, diff and preview builds.
 - When modifying build, update diff in real time
 - Disable sounds in test client so that I don't get jumpscared. Also make it creative mode and spanw player as flying not falling if he's in midair
+- Render label of the build on the nearest edge to the player. This way labels of the big builds will be seen better.
+- Bug with preview where I create ARPU, commit, delete bug chunk of it, commit, then preview whole version, it does not show chunk
+- Make creation easier: punch the build after issuing `/vcs create buildname`, automatically assigns box to it
+- When making chekcouts, actions are stored in worldedit queue, so //undo undoes mcvcs actions. This is undesired, make mcvcs actions and worldedit actions always separate.
