@@ -74,6 +74,11 @@ public record BuildBox(BlockPos min, BlockPos max) {
 		return contains(pos.getX(), pos.getY(), pos.getZ());
 	}
 
+	/** Whether every block of {@code other} is inside this box. */
+	public boolean contains(BuildBox other) {
+		return contains(other.min) && contains(other.max);
+	}
+
 	/** Whether the two boxes share at least one block. */
 	public boolean intersects(BuildBox other) {
 		return min.getX() <= other.max.getX() && max.getX() >= other.min.getX()

@@ -33,10 +33,10 @@ public final class PreviewSender {
 
 	/**
 	 * Streams {@code clipboard}, the schematic saved for {@code build}, to {@code player} so the client shows it
-	 * inside the build's region. The clipboard's own coordinates are ignored: its blocks are laid over the build
-	 * region corner to corner, see {@link BoxSnapshot#ofClipboard}.
+	 * inside the build's region. The clipboard sits at its own world coordinates inside the box, with air around it
+	 * if it is smaller, see {@link BoxSnapshot#ofClipboard}.
 	 *
-	 * @throws IllegalArgumentException if the clipboard is not the size of the build's region
+	 * @throws IllegalArgumentException if the clipboard reaches outside the build's box
 	 */
 	public static void send(ServerPlayer player, Build build, Clipboard clipboard) {
 		BoxSnapshot snapshot = BoxSnapshot.ofClipboard(build.box(), clipboard);

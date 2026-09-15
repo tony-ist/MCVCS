@@ -179,6 +179,18 @@ public final class BuildStorage {
 	}
 
 	/**
+	 * Records {@code build} as the latest state of the build with its name without writing any schematic, for
+	 * changes such as {@code /vcs checkout} moving its {@link Build#head}. The build's folder must exist already.
+	 */
+	public static void update(Build build) throws IOException {
+		Path file = buildFile(build.name());
+		if (!Files.isRegularFile(file)) {
+			throw new NoSuchFileException(file.toString());
+		}
+		writeJson(file, Build.CODEC, build);
+	}
+
+	/**
 	 * Removes the build called {@code name} from disk: its folder with every version in it, and every player's
 	 * selection of it in any world, so nothing is left pointing at the build. Nothing happens if there is no such folder.
 	 */
@@ -273,7 +285,8 @@ public final class BuildStorage {
 		try (Reader reader = Files.newBufferedReader(file)) {
 			JsonElement json = JsonParser.parseReader(reader);
 			return codec.parse(JsonOps.INSTANCE, json).getOrThrow(message -> new IOException("Malformed " + file + ": " + message));
-		} catch (JsonParseException e) {
+		} catch (JsonParseException | IllegalArgumentException e) {
+			// A record whose fields do not go together, such as a head past the latest version, is refused by its constructor.
 			throw new IOException("Malformed " + file + ": " + e.getMessage(), e);
 		}
 	}
