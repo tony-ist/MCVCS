@@ -10,13 +10,20 @@ import static tony.mcvcs.gametest.VcsTestSupport.read;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.select;
+import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
+import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
+import net.minecraft.network.chat.Component;
 
 import tony.mcvcs.build.BuildStorage;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
@@ -31,6 +38,13 @@ public class VcsCreateCommandGameTest implements FabricClientGameTest {
 	private static final String BUILD_NAME = "gametest-build";
 	private static final String OVERLAPPING_NAME = "gametest-overlap";
 	private static final String ADJACENT_NAME = "gametest-adjacent";
+
+	/** Every game message the client has received, filled on the client thread. */
+	private static final List<Component> RECEIVED = new ArrayList<>();
+
+	static {
+		ClientReceiveMessageEvents.GAME.register((message, overlay) -> RECEIVED.add(message));
+	}
 
 	@Override
 	public void runTest(ClientGameTestContext context) {
@@ -82,6 +96,17 @@ public class VcsCreateCommandGameTest implements FabricClientGameTest {
 			BlockVector3 opposite = adapter.adapt(min).add(adapter.adapt(max)).subtract(originCorner);
 			assertBlock(clipboard, opposite, BlockTypes.STONE);
 
+			// Creating the build again, by its name or by the name in other letters, is refused and leaves v1 as it was;
+			// a diamond put in the box beforehand shows that nothing was rewritten.
+			setBlock(singleplayer, adapter.toBlockPos(opposite), Blocks.DIAMOND_BLOCK.defaultBlockState());
+			List<Component> same = run(context, "vcs create " + BUILD_NAME);
+			assertOnlyMessage(same, "Build '" + BUILD_NAME + "' already exists in this world; select it with /vcs select " + BUILD_NAME);
+			List<Component> otherCase = run(context, "vcs create " + BUILD_NAME.toUpperCase(Locale.ROOT));
+			assertOnlyMessage(otherCase, "Build '" + BUILD_NAME + "' already exists in this world");
+			assertBlock(read(schematic(BUILD_NAME, 1)), opposite, BlockTypes.STONE);
+			assertNoFolderOfItsOwn(BUILD_NAME.toUpperCase(Locale.ROOT), BUILD_NAME);
+			setBlock(singleplayer, adapter.toBlockPos(opposite), Blocks.STONE.defaultBlockState());
+
 			// A box that shares even one block with an existing build is refused, so nothing is written for it.
 			select(singleplayer, max, max.offset(2, 2, 2));
 			runCommand(context, "vcs create " + OVERLAPPING_NAME);
@@ -95,6 +120,35 @@ public class VcsCreateCommandGameTest implements FabricClientGameTest {
 			read(schematic(ADJACENT_NAME, 1));
 
 			context.takeScreenshot("mcvcs-vcs-create");
+		}
+	}
+
+	/** Runs {@code command} and returns every game message it produced, in order. */
+	private static List<Component> run(ClientGameTestContext context, String command) {
+		context.runOnClient(client -> RECEIVED.clear());
+		runCommand(context, command);
+		context.waitTicks(5);
+		return context.computeOnClient(client -> List.copyOf(RECEIVED));
+	}
+
+	private static void assertOnlyMessage(List<Component> messages, String prefix) {
+		if (messages.size() != 1 || !messages.get(0).getString().startsWith(prefix)) {
+			throw new AssertionError("Expected only a message starting with '" + prefix + "' but got " + messages.stream().map(Component::getString).toList());
+		}
+	}
+
+	/**
+	 * No build folder was written for {@code name}. On a file system that ignores case, its path is the folder of
+	 * {@code existing}, which is fine; anywhere else it must not be there at all.
+	 */
+	private static void assertNoFolderOfItsOwn(String name, String existing) {
+		Path folder = BuildStorage.directory(name);
+		try {
+			if (Files.exists(folder) && !Files.isSameFile(folder, BuildStorage.directory(existing))) {
+				throw new AssertionError("Create must not write " + folder + " next to " + BuildStorage.directory(existing));
+			}
+		} catch (IOException e) {
+			throw new AssertionError("Failed to compare " + folder + " with the folder of '" + existing + "'", e);
 		}
 	}
 }

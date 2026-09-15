@@ -62,8 +62,9 @@ import com.sk89q.worldedit.world.World;
  * <ul>
  * <li>{@code /vcs create <buildname>}: copies the bounding box of the player's current WorldEdit selection and saves
  * it as version 1 of the build, in the build's own folder under {@code mcvcs/} in the game directory, see
- * {@link BuildStorage}. The box may not overlap any existing build in the same dimension. The new build becomes
- * the player's selected build.</li>
+ * {@link BuildStorage}. The name may not be that of any existing build in any world, compared without regard to
+ * case, and the box may not overlap any existing build in the same dimension. The new build becomes the player's
+ * selected build.</li>
  * <li>{@code /vcs select <buildname>}: makes an existing build the player's selected build, so its bounding
  * box is shown and later commands act on it.</li>
  * <li>{@code /vcs builds}: lists every build in the world, each with a chat button that runs
@@ -72,7 +73,8 @@ import com.sk89q.worldedit.world.World;
  * that need a selection refuse until one is made again. Any preview or diff highlighting of the build is turned
  * off with it.</li>
  * <li>{@code /vcs commit}: saves the selected build's box again as its next version. The box is the one
- * captured by {@code /vcs create}; the player's current WorldEdit selection is ignored.</li>
+ * captured by {@code /vcs create}; the player's current WorldEdit selection is ignored. If anything other than air
+ * touches the box, the version is saved all the same but a yellow warning points the player at {@code /vcs expand}.</li>
  * <li>{@code /vcs preview <version>}: sends that version's schematic to the player's client, which draws it in place
  * of the real blocks inside the build's box. Nothing in the world changes. {@code /vcs preview off} shows the
  * real blocks again.</li>
@@ -111,6 +113,8 @@ public final class VcsCommand {
 	public static final String SELECT_BUTTON = "Select";
 	/** Marker {@code /vcs builds} puts after the selected build instead of a button. */
 	public static final String SELECTED_MARKER = "selected";
+	/** What {@code /vcs commit} says, in yellow, after committing a build that has blocks touching its box. */
+	public static final String NOT_ENCLOSED_WARNING = "Warning: the build is not enclosed by air, so blocks touching its box were left out; run /vcs expand to expand the build area";
 	/** Version number standing for the selected build's latest version, used when {@code /vcs load} or {@code /vcs diff} is given none. */
 	private static final int LATEST = 0;
 	/**
@@ -219,11 +223,18 @@ public final class VcsCommand {
 			source.sendFailure(Component.literal("Build name '" + buildName + "' may only contain letters, digits, _ + - and dots between them"));
 			return 0;
 		}
-		// Build folders are shared by every world in the game directory, so a name can only belong to one world.
+		// A build is created once and committed to after that; creating it again would throw its versions away. Build
+		// folders are shared by every world in the game directory, so a name can only belong to one world, and the file
+		// system may not tell two names apart by case, so neither does the check.
 		String world = Build.worldOf(source.getServer());
-		Optional<Build> taken = BuildRegistry.findInAnyWorld(buildName).filter(build -> !build.world().equals(world));
+		Optional<Build> taken = BuildRegistry.findInAnyWorldIgnoringCase(buildName);
 		if (taken.isPresent()) {
-			source.sendFailure(Component.literal("Build name '" + buildName + "' is already used by a build in world '" + taken.get().world() + "'"));
+			Build existing = taken.get();
+			if (existing.world().equals(world)) {
+				source.sendFailure(Component.literal("Build '" + existing.name() + "' already exists in this world; select it with /vcs select " + existing.name() + ", or choose another name"));
+			} else {
+				source.sendFailure(Component.literal("Build name '" + existing.name() + "' is already used by a build in world '" + existing.world() + "'"));
+			}
 			return 0;
 		}
 		Player actor = FabricAdapter.get().fromNativePlayer(player);
@@ -349,12 +360,17 @@ public final class VcsCommand {
 		}
 		Player actor = FabricAdapter.get().fromNativePlayer(player);
 		LocalSession session = WorldEdit.getInstance().getSessionManager().get(actor);
+		// Blocks touching the box are probably part of the build and are about to be left out of the version.
+		boolean enclosed = BoxExpansion.isEnclosed(build.box(), level);
 
 		try {
 			Path file = save(actor, session, build, level);
 			BuildRegistry.select(player, build);
 
 			source.sendSuccess(() -> Component.literal("Committed build '" + build.name() + "' v" + build.version() + " (" + build.box().volume() + " blocks) at " + BuildStorage.root().relativize(file)), false);
+			if (!enclosed) {
+				source.sendSuccess(() -> Component.literal(NOT_ENCLOSED_WARNING).withStyle(ChatFormatting.YELLOW), false);
+			}
 			return 1;
 		} catch (WorldEditException | IOException e) {
 			MCVCS.LOGGER.error("Failed to commit build '{}' v{} for {}", build.name(), build.version(), player.getGameProfile().name(), e);

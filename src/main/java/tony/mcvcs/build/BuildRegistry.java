@@ -69,12 +69,12 @@ public final class BuildRegistry {
 		}
 	}
 
-	/** The build called {@code name} in whichever world it belongs to, if one exists. */
-	public static Optional<Build> findInAnyWorld(String name) {
+	/** The build whose name is {@code name} up to letter case, in whichever world it belongs to, if one exists. */
+	public static Optional<Build> findInAnyWorldIgnoringCase(String name) {
 		try {
-			return BuildStorage.findInAnyWorld(name);
+			return BuildStorage.findInAnyWorldIgnoringCase(name);
 		} catch (IOException e) {
-			MCVCS.LOGGER.error("Failed to read build '{}'", name, e);
+			MCVCS.LOGGER.error("Failed to read build named like '{}'", name, e);
 			return Optional.empty();
 		}
 	}

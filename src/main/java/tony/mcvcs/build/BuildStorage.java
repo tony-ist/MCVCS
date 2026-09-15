@@ -99,26 +99,29 @@ public final class BuildStorage {
 
 	/** Every build belonging to {@code world} that has a folder with a {@link #BUILD_FILE} in it, sorted by name. */
 	public static List<Build> all(String world) throws IOException {
-		if (!Files.isDirectory(root())) {
-			return List.of();
-		}
-		List<String> names;
-		try (Stream<Path> folders = Files.list(root())) {
-			names = folders
-				.filter(folder -> Files.isRegularFile(folder.resolve(BUILD_FILE)))
-				.map(folder -> folder.getFileName().toString())
-				.filter(Build::isValidName)
-				.sorted()
-				.toList();
-		}
 		List<Build> inWorld = new ArrayList<>();
-		for (String name : names) {
+		for (String name : folderNames()) {
 			Build build = readJson(buildFile(name), Build.CODEC);
 			if (build.world().equals(world)) {
 				inWorld.add(build);
 			}
 		}
 		return List.copyOf(inWorld);
+	}
+
+	/** The names of every build folder under {@link #ROOT} that has a {@link #BUILD_FILE} in it, sorted. */
+	private static List<String> folderNames() throws IOException {
+		if (!Files.isDirectory(root())) {
+			return List.of();
+		}
+		try (Stream<Path> folders = Files.list(root())) {
+			return folders
+				.filter(folder -> Files.isRegularFile(folder.resolve(BUILD_FILE)))
+				.map(folder -> folder.getFileName().toString())
+				.filter(Build::isValidName)
+				.sorted()
+				.toList();
+		}
 	}
 
 	/** Names of every build belonging to {@code world} that has a folder with a {@link #BUILD_FILE} in it, sorted. */
@@ -136,6 +139,20 @@ public final class BuildStorage {
 			return Optional.empty();
 		}
 		return Optional.of(readJson(file, Build.CODEC));
+	}
+
+	/**
+	 * The build whose name is {@code name} up to letter case, in whichever world it belongs to, if it has a folder with
+	 * a {@link #BUILD_FILE} in it. Build folders sit on file systems that may or may not tell {@code Foo} from
+	 * {@code foo}, so a new name must differ from every existing one by more than case.
+	 */
+	public static Optional<Build> findInAnyWorldIgnoringCase(String name) throws IOException {
+		for (String existing : folderNames()) {
+			if (existing.equalsIgnoreCase(name)) {
+				return Optional.of(readJson(buildFile(existing), Build.CODEC));
+			}
+		}
+		return Optional.empty();
 	}
 
 	/** The build called {@code name}, if it exists and belongs to {@code world}. */
