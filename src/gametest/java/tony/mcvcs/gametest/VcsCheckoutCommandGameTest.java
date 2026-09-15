@@ -37,10 +37,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
 /**
- * {@code /vcs checkout <version>} empties the selected build's box and puts a version back in it without block
- * updates, so hovering sand stays up and an observer watching a block does not fire its piston; refuses while the box
- * holds uncommitted changes; and puts a version committed before {@code /vcs expand} back where it was built, with the
- * rest of the grown box left empty.
+ * {@code /vcs checkout <version|latest> [-f]} empties the selected build's box and puts a version back in it without
+ * block updates, so hovering sand stays up and an observer watching a block does not fire its piston; refuses while
+ * the box holds uncommitted changes unless {@code -f} is given, which overwrites them; and puts a version committed
+ * before {@code /vcs expand} back where it was built, with the rest of the grown box left empty.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsCheckoutCommandGameTest extends VcsGameTest {
@@ -91,7 +91,7 @@ public class VcsCheckoutCommandGameTest extends VcsGameTest {
 
 			runCommand(context, "vcs create " + BUILD_NAME);
 			read(schematic(BUILD_NAME, 1));
-			assertSuggestions(singleplayer, "vcs checkout ", List.of("1"));
+			assertSuggestions(singleplayer, "vcs checkout ", List.of("latest", "1"));
 
 			// v2 differs from v1 in one block and in the barrel's contents: the gold block is dug out and the diamond taken.
 			setBlock(singleplayer, gold, Blocks.AIR.defaultBlockState());
@@ -105,7 +105,7 @@ public class VcsCheckoutCommandGameTest extends VcsGameTest {
 
 			runCommand(context, "vcs commit");
 			read(schematic(BUILD_NAME, 2));
-			assertSuggestions(singleplayer, "vcs checkout ", List.of("1", "2"));
+			assertSuggestions(singleplayer, "vcs checkout ", List.of("latest", "1", "2"));
 
 			// Nothing to check out beyond the latest version.
 			List<Component> beyond = run(context, "vcs checkout 3");
@@ -114,7 +114,7 @@ public class VcsCheckoutCommandGameTest extends VcsGameTest {
 
 			// v1 comes back block for block, barrel contents included, and the sand stays up: no block was updated.
 			List<Component> checkedOut = run(context, "vcs checkout 1");
-			assertOnlyMessage(checkedOut, "Checked out build " + BUILD_NAME + " v1 (27 blocks) into its box without block updates; the box now holds v1 rather than the latest v2, run /vcs checkout 2 to go back to it");
+			assertOnlyMessage(checkedOut, "Checked out build " + BUILD_NAME + " v1 (27 blocks) into its box without block updates; the box now holds v1 rather than the latest v2, run /vcs checkout latest to go back to it");
 			context.waitTicks(FALL_TICKS);
 			assertWorldBlock(singleplayer, gold, Blocks.GOLD_BLOCK);
 			assertWorldBlock(singleplayer, sand, Blocks.SAND);
@@ -128,18 +128,35 @@ public class VcsCheckoutCommandGameTest extends VcsGameTest {
 
 			// The box matches v1 now, not v2, but that is not a modification: checking out v2 is allowed and puts the
 			// world back the way v2 has it. A change made on top of v1 is a modification of v1, though, and blocks that.
-			// The hole is right under the sand, so it is filled and emptied without updates that would make the sand fall.
+			// The hole is right under the sand, so it is filled without an update that would make the sand fall.
 			setBlockWithoutUpdate(singleplayer, hole, Blocks.STONE.defaultBlockState());
 			List<Component> onTop = run(context, "vcs checkout 2");
-			assertOnlyMessage(onTop, "Build " + BUILD_NAME + " is modified: 1 block differs from v1; run /vcs commit before checking out");
+			assertOnlyMessage(onTop, "Build " + BUILD_NAME + " is modified: 1 block differs from v1; run /vcs commit before checking out, /vcs diff to see the changes, or add -f to discard them");
 			assertWorldBlock(singleplayer, gold, Blocks.GOLD_BLOCK);
-			setBlockWithoutUpdate(singleplayer, hole, Blocks.AIR.defaultBlockState());
+			assertWorldBlock(singleplayer, hole, Blocks.STONE);
 
-			List<Component> latest = run(context, "vcs checkout 2");
-			assertOnlyMessage(latest, "Checked out build " + BUILD_NAME + " v2 (27 blocks) into its box without block updates");
+			// -f goes through anyway, says how many blocks it overwrote, and the world is v2 with the hole empty again.
+			// The latest version can be named as such rather than by number.
+			assertSuggestions(singleplayer, "vcs checkout latest ", List.of("-f"));
+			assertSuggestions(singleplayer, "vcs checkout 2 ", List.of("-f"));
+			List<Component> latest = run(context, "vcs checkout latest -f");
+			assertOnlyMessage(latest, "Checked out build " + BUILD_NAME + " v2 (27 blocks) into its box without block updates, overwriting 1 uncommitted block; run //undo to get them back");
+			context.waitTicks(FALL_TICKS);
 			assertWorldBlock(singleplayer, gold, Blocks.AIR);
+			assertWorldBlock(singleplayer, hole, Blocks.AIR);
+			assertWorldBlock(singleplayer, sand, Blocks.SAND);
 			assertBarrel(singleplayer, barrel, ItemStack.EMPTY);
 			assertMatches(context, BUILD_NAME, 2);
+			assertBuild(singleplayer, BUILD_NAME, 2, 2, box);
+
+			// Without uncommitted changes -f changes nothing about the message.
+			List<Component> forcedClean = run(context, "vcs checkout 1 -f");
+			assertOnlyMessage(forcedClean, "Checked out build " + BUILD_NAME + " v1 (27 blocks) into its box without block updates; the box now holds v1 rather than the latest v2, run /vcs checkout latest to go back to it");
+			assertWorldBlock(singleplayer, gold, Blocks.GOLD_BLOCK);
+			assertMatches(context, BUILD_NAME, 1);
+			List<Component> backToLatest = run(context, "vcs checkout latest");
+			assertOnlyMessage(backToLatest, "Checked out build " + BUILD_NAME + " v2 (27 blocks) into its box without block updates");
+			assertWorldBlock(singleplayer, gold, Blocks.AIR);
 			assertBuild(singleplayer, BUILD_NAME, 2, 2, box);
 
 			// A gold block touching the top south-east corner diagonally makes the box grow to 4x4x4 as v3. Checking out
@@ -150,10 +167,10 @@ public class VcsCheckoutCommandGameTest extends VcsGameTest {
 			read(schematic(BUILD_NAME, 3));
 			BuildBox expanded = new BuildBox(min, corner);
 			assertBuild(singleplayer, BUILD_NAME, 3, 3, expanded);
-			assertSuggestions(singleplayer, "vcs checkout ", List.of("1", "2", "3"));
+			assertSuggestions(singleplayer, "vcs checkout ", List.of("latest", "1", "2", "3"));
 
 			List<Component> smaller = run(context, "vcs checkout 1");
-			assertOnlyMessage(smaller, "Checked out build " + BUILD_NAME + " v1 (27 blocks) into its box without block updates; the box now holds v1 rather than the latest v3, run /vcs checkout 3 to go back to it");
+			assertOnlyMessage(smaller, "Checked out build " + BUILD_NAME + " v1 (27 blocks) into its box without block updates; the box now holds v1 rather than the latest v3, run /vcs checkout latest to go back to it");
 			context.waitTicks(FALL_TICKS);
 			assertWorldBlock(singleplayer, corner, Blocks.AIR);
 			assertWorldBlock(singleplayer, max.offset(1, 0, 0), Blocks.AIR);
@@ -169,7 +186,7 @@ public class VcsCheckoutCommandGameTest extends VcsGameTest {
 			lookAt(context, min, corner);
 			screenshotLastFrame(context, "mcvcs-vcs-checkout");
 
-			// And back to the grown version.
+			// And back to the grown version, by number this time.
 			List<Component> grown = run(context, "vcs checkout 3");
 			assertOnlyMessage(grown, "Checked out build " + BUILD_NAME + " v3 (64 blocks) into its box without block updates");
 			assertWorldBlock(singleplayer, corner, Blocks.GOLD_BLOCK);

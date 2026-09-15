@@ -7,6 +7,7 @@ import tony.mcvcs.client.diff.DiffManager;
 import tony.mcvcs.client.label.BuildLabelRenderer;
 import tony.mcvcs.client.preview.PreviewManager;
 import tony.mcvcs.client.build.ClientBuilds;
+import tony.mcvcs.client.selection.SelectHotkey;
 import tony.mcvcs.client.selection.SelectionBoxRenderer;
 
 public class MCVCSClient implements ClientModInitializer {
@@ -16,6 +17,7 @@ public class MCVCSClient implements ClientModInitializer {
 		DiffManager.register();
 		ClientBuilds.register();
 		SelectionBoxRenderer.register();
+		SelectHotkey.register();
 		BuildLabelRenderer.register();
 		DiffHighlightRenderer.register();
 	}

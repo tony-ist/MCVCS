@@ -18,7 +18,7 @@ The preferred way to use builds with this mod is to have them hover in the air, 
 The mod works in two setups:
 
 - **Server only.** Install it on the server (or in the host's single-player game). Players connect with a vanilla Fabric client and get the full command set: `create`, `select`, `builds`, `deselect`, `commit`, `load`, `diff`, `expand`, `checkout` and `delete` all run on the server. Nothing is drawn in their world, though: no build labels and no selection box, `/vcs diff` only reports its counts in chat, and `/vcs preview` refuses with a message saying the client does not have MCVCS installed.
-- **Server and client.** Install it on both. On top of the commands, the client shows every build's name floating above its region, draws the selected build's bounding box, highlights the blocks `/vcs diff` finds, and can render `/vcs preview <version>` in place of the real blocks.
+- **Server and client.** Install it on both. On top of the commands, the client shows every build's name floating above its region, draws the selected build's bounding box, highlights the blocks `/vcs diff` finds, can render `/vcs preview <version>` in place of the real blocks, and adds a hotkey that selects the build under your crosshair (see below).
 
 There is no client-only mode: the builds live on the server, so the mod has to be there for anything to work.
 
@@ -37,9 +37,15 @@ There is no client-only mode: the builds live on the server, so the mod has to b
 | `/vcs diff [version]` | Compares the blocks currently inside the build's region with that version, or with the version the region holds if none is given (the latest one, unless you checked out an earlier one), and reports how many were added (air in the version, a block now), removed (a block in the version, air now) or changed (a different block or block state). The client highlights them in place with see-through boxes: green for added, red for removed, yellow for changed. Block entity data counts too: a barrel, chest, furnace or any other container whose contents changed, or a sign whose text changed, is shown as changed even though the block itself is the same. Everything a block entity saves is compared, so a furnace that is smelting or a hopper passing items also differs from a saved version by its timers. |
 | `/vcs diff off` | Removes the highlights. |
 | `/vcs expand` | Grows the selected build's region until only air surrounds it, so whatever you built out past its edges is inside it again, and commits the grown region as the next version. Anything touching the region, even only at a corner, pulls it out to cover that block, and anything touching that pulls it further, which is why builds should hover in the air (see above). Growth stops rather than exceed 1,000,000 blocks; if it does, the build may still stick out. Refuses if the grown region would overlap another build. Versions committed before an expand keep their smaller size, but every schematic remembers where it was copied from, so `preview`, `diff` and `checkout` place them inside the grown region exactly where they were built and treat the rest of the region as air. |
-| `/vcs checkout <version>` | Empties the build's region and puts that version back into it, exactly where it was committed from: a version committed before an expand lands in its old place and the rest of the grown region stays empty. Every block is placed the way WorldEdit places them with `//perf off`, without lighting, neighbour or block updates, so redstone, observers, pistons and sand come back exactly as they were saved instead of reacting to the blocks appearing around them; only the clients are told. `//undo` reverts it. Refuses while the region has uncommitted changes, that is, differs by any block or block entity data from the version it holds: commit first (or `/vcs diff` to see the changes). The checked-out version becomes the one the region holds, so you can check out another version straight after, and `/vcs commit` from there saves the region as the next version as usual. |
+| `/vcs checkout <version\|latest> [-f]` | Empties the build's region and puts that version, or the latest one, back into it, exactly where it was committed from: a version committed before an expand lands in its old place and the rest of the grown region stays empty. Every block is placed the way WorldEdit places them with `//perf off`, without lighting, neighbour or block updates, so redstone, observers, pistons and sand come back exactly as they were saved instead of reacting to the blocks appearing around them; only the clients are told. `//undo` reverts it. Refuses while the region has uncommitted changes, that is, differs by any block or block entity data from the version it holds: commit first (or `/vcs diff` to see the changes), or add `-f` to overwrite them; the message then says how many blocks were overwritten, and `//undo` brings them back. The checked-out version becomes the one the region holds, so you can check out another version straight after, and `/vcs commit` from there saves the region as the next version as usual. |
 | `/vcs delete <buildname>` | Asks you to confirm deleting the build. Nothing is deleted until you run `/vcs confirmDelete`; the request is forgotten if you leave the server first, and a second `/vcs delete` replaces it. |
 | `/vcs confirmDelete` | Deletes the build your last `/vcs delete` named: its folder with every version in it is removed and anyone who had it selected loses that selection, along with any preview or diff highlighting of it. This cannot be undone. |
+
+## Hotkey
+
+With the mod on your client, pressing `V` selects the build under your crosshair, the same as running `/vcs select` for it. It takes the nearest build whose region your line of sight passes through, or the build you are standing in.
+
+The key can be rebound like any other under Options, Controls, Key Binds, in the MCVCS category.
 
 ## How it works
 
@@ -82,4 +88,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Aliases for commands to type them faster
 - Change boundinx box color during preview and display version that is being previewed in the label
 - Refactor VcsCommand file, split into multiple files, 1 for 1 command
-- Add a hotkey to select the build you look at
+- Display builds and versions on the client in overlay. Also show rotating 3D render of the build. Make buttons in overlay to select, checkout, diff and preview builds.
+- When modifying build, update diff in real time
+- Disable sounds in test client so that I don't get jumpscared. Also make it creative mode and spanw player as flying not falling if he's in midair

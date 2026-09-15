@@ -93,9 +93,10 @@ import com.sk89q.worldedit.world.block.BlockTypes;
  * keeps the latest schematic the size of the box. Refuses if the grown box would overlap another build. Earlier
  * versions keep their smaller size but are placed inside the grown box where they were built, see
  * {@link BoxSnapshot#ofClipboard}.</li>
- * <li>{@code /vcs checkout <version>}: clears the selected build's box and puts that version back in it, exactly
- * where it was committed from, without a single block update, as if {@code //perf off} were on. Refuses while the
- * box differs from the version it holds, since the changes would be lost: they have to be committed first. The
+ * <li>{@code /vcs checkout <version|latest> [-f]}: clears the selected build's box and puts that version, or its
+ * latest one, back in it, exactly where it was committed from, without a single block update, as if {@code //perf off}
+ * were on. Refuses while the box differs from the version it holds, since the changes would be lost: they have to be
+ * committed first, unless {@code -f} is given, which overwrites them ({@code //undo} brings them back). The
  * checked-out version becomes the one the box holds, so checking out another version after it is allowed, and a
  * commit from there saves the box as the next version as usual.</li>
  * <li>{@code /vcs delete <buildname>}: asks the player to confirm deleting the build; nothing is touched yet.
@@ -125,10 +126,13 @@ public final class VcsCommand {
 	/** Marker {@code /vcs builds} puts after the selected build instead of a button. */
 	public static final String SELECTED_MARKER = "selected";
 	/**
-	 * Version number standing for the version {@code /vcs load} or {@code /vcs diff} falls back to when given none:
-	 * the selected build's latest one for {@code load}, the one its box holds for {@code diff}, see {@link Build#head}.
+	 * Version number standing for the version {@code /vcs load} or {@code /vcs diff} falls back to when given none, and
+	 * {@code /vcs checkout latest} asks for: the selected build's latest one for {@code load} and {@code checkout}, the
+	 * one its box holds for {@code diff}, see {@link Build#head}.
 	 */
 	private static final int LATEST = 0;
+	/** Flag after {@code /vcs checkout <version>} that makes it check out over uncommitted changes instead of refusing. */
+	public static final String FORCE = "-f";
 	/**
 	 * The build each player's last {@code /vcs delete} asked to delete and {@code /vcs confirmDelete} will act on,
 	 * by player UUID. Only the server thread touches this; a player's entry goes when they leave.
@@ -210,9 +214,15 @@ public final class VcsCommand {
 				.then(Commands.literal("expand")
 					.executes(context -> expand(context.getSource())))
 				.then(Commands.literal("checkout")
+					.then(Commands.literal("latest")
+						.executes(context -> checkout(context.getSource(), LATEST, false))
+						.then(Commands.literal(FORCE)
+							.executes(context -> checkout(context.getSource(), LATEST, true))))
 					.then(Commands.argument("version", IntegerArgumentType.integer(1))
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(versions(context.getSource()), builder))
-						.executes(context -> checkout(context.getSource(), IntegerArgumentType.getInteger(context, "version")))))
+						.executes(context -> checkout(context.getSource(), IntegerArgumentType.getInteger(context, "version"), false))
+						.then(Commands.literal(FORCE)
+							.executes(context -> checkout(context.getSource(), IntegerArgumentType.getInteger(context, "version"), true)))))
 				.then(Commands.literal("delete")
 					.then(Commands.argument("buildname", StringArgumentType.word())
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))
@@ -653,9 +663,13 @@ public final class VcsCommand {
 	 * <p>
 	 * Checking out throws away whatever is in the box, so it refuses while the box differs from the version it holds,
 	 * see {@link Build#head}, by as much as one block or one block entity's data, the same way {@code /vcs diff} tells
-	 * them apart; the player has to commit first. Once done, the checked-out version is the one the box holds.
+	 * them apart; the player has to commit first, or pass {@link #FORCE} to have the changes overwritten, which
+	 * {@code //undo} still reverts. Once done, the checked-out version is the one the box holds.
+	 *
+	 * @param version the version to check out, or {@link #LATEST} for the selected build's latest one
+	 * @param force   whether to check out over uncommitted changes instead of refusing
 	 */
-	private static int checkout(CommandSourceStack source, int version) throws CommandSyntaxException {
+	private static int checkout(CommandSourceStack source, int version, boolean force) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<Build> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
@@ -668,7 +682,7 @@ public final class VcsCommand {
 			source.sendFailure(Component.literal("Build ").append(name(latest.name())).append(" only has versions 1 to " + latest.version()));
 			return 0;
 		}
-		Build build = latest.atVersion(version);
+		Build build = version == LATEST ? latest : latest.atVersion(version);
 		ServerLevel level = source.getServer().getLevel(build.dimension());
 		if (level == null) {
 			source.sendFailure(Component.literal("Build ").append(name(build.name())).append(" is in " + build.dimension().identifier() + ", which does not exist here"));
@@ -676,16 +690,19 @@ public final class VcsCommand {
 		}
 
 		Clipboard clipboard;
+		// How many blocks the box differs from the version it holds by; forcing overwrites them, and the message says so.
+		int overwritten;
 		try {
 			// Whatever was built since the box last held a version is about to be wiped, so it has to be in a version first.
 			Build head = latest.atHead();
 			BuildDiff uncommitted = BuildDiff.between(BoxSnapshot.ofClipboard(head.box(), BuildStorage.read(head)), BoxSnapshot.ofLevel(head.box(), level));
-			if (!uncommitted.isEmpty()) {
+			if (!uncommitted.isEmpty() && !force) {
 				source.sendFailure(Component.literal("Build ").append(name(head.name())).append(" is modified: " + uncommitted.size()
 					+ (uncommitted.size() == 1 ? " block differs" : " blocks differ") + " from v" + head.version() + "; run ").append(ChatButtons.command("/vcs commit"))
-					.append(" before checking out, or ").append(ChatButtons.command("/vcs diff")).append(" to see the changes"));
+					.append(" before checking out, ").append(ChatButtons.command("/vcs diff")).append(" to see the changes, or add " + FORCE + " to discard them"));
 				return 0;
 			}
+			overwritten = uncommitted.size();
 			clipboard = BuildStorage.read(build);
 		} catch (NoSuchFileException e) {
 			source.sendFailure(Component.literal("No schematic for build ").append(name(build.name())).append(" at " + e.getFile()));
@@ -726,7 +743,7 @@ public final class VcsCommand {
 			source.sendFailure(Component.literal("Failed to place schematic: " + e.getMessage()));
 			return 0;
 		}
-		MCVCS.LOGGER.info("{} checked out build '{}' v{} into its box in {}", player.getGameProfile().name(), build.name(), build.version(), world == null ? "its dimension" : world.getName());
+		MCVCS.LOGGER.info("{} checked out build '{}' v{} into its box in {}, overwriting {} uncommitted blocks", player.getGameProfile().name(), build.name(), build.version(), world == null ? "its dimension" : world.getName(), overwritten);
 		// A diff highlighted before the checkout compared blocks that are gone now.
 		if (DiffSender.canSend(player)) {
 			DiffSender.clear(player);
@@ -743,10 +760,14 @@ public final class VcsCommand {
 
 		source.sendSuccess(() -> {
 			MutableComponent message = Component.literal("Checked out build ").append(name(build.name())).append(" v" + build.version() + " (" + covered.volume() + " blocks) into its box without block updates");
+			if (overwritten > 0) {
+				// Only a forced checkout gets here; the changes are gone from the world but not from WorldEdit's history.
+				message.append(", overwriting " + overwritten + " uncommitted " + (overwritten == 1 ? "block" : "blocks") + "; run ").append(ChatButtons.command("//undo")).append(" to get them back");
+			}
 			if (build.version() == latest.version()) {
 				return message;
 			}
-			return message.append("; the box now holds v" + build.version() + " rather than the latest v" + latest.version() + ", run ").append(ChatButtons.command("/vcs checkout " + latest.version())).append(" to go back to it");
+			return message.append("; the box now holds v" + build.version() + " rather than the latest v" + latest.version() + ", run ").append(ChatButtons.command("/vcs checkout latest")).append(" to go back to it");
 		}, false);
 		return 1;
 	}
