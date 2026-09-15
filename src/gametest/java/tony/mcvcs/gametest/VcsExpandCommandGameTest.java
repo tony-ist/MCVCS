@@ -76,7 +76,7 @@ public class VcsExpandCommandGameTest implements FabricClientGameTest {
 
 			// Nothing touches the box, so there is nothing to expand and no version is written.
 			List<Component> enclosed = run(context, "vcs expand");
-			assertOnlyMessage(enclosed, "Build '" + BUILD_NAME + "' is already enclosed by air; nothing to expand");
+			assertOnlyMessage(enclosed, "Build " + BUILD_NAME + " is already enclosed by air; nothing to expand");
 			assertNoSchematic(BUILD_NAME, 2);
 			assertBox(context, singleplayer, BUILD_NAME, 1, box);
 
@@ -91,7 +91,7 @@ public class VcsExpandCommandGameTest implements FabricClientGameTest {
 			BuildBox expanded = new BuildBox(west, beyond);
 
 			List<Component> grown = run(context, "vcs expand");
-			assertOnlyMessage(grown, "Expanded build '" + BUILD_NAME + "' from 2x2x2 (8 blocks) to 5x4x4 (80 blocks) and committed it as v2");
+			assertOnlyMessage(grown, "Expanded build " + BUILD_NAME + " from 2x2x2 (8 blocks) to 5x4x4 (80 blocks) and committed it as v2");
 			assertBox(context, singleplayer, BUILD_NAME, 2, expanded);
 
 			// v2 is the grown box as the world has it: the stone cube, the three gold blocks and air around them.
@@ -116,7 +116,7 @@ public class VcsExpandCommandGameTest implements FabricClientGameTest {
 
 			// The same again is a no-op: the grown box is enclosed by air.
 			List<Component> again = run(context, "vcs expand");
-			assertOnlyMessage(again, "Build '" + BUILD_NAME + "' is already enclosed by air; nothing to expand");
+			assertOnlyMessage(again, "Build " + BUILD_NAME + " is already enclosed by air; nothing to expand");
 			assertNoSchematic(BUILD_NAME, 3);
 
 			// A second build two blocks east of the first, filled with stone, and a block in the gap between them. The
@@ -133,7 +133,7 @@ public class VcsExpandCommandGameTest implements FabricClientGameTest {
 			runCommand(context, "vcs select " + BUILD_NAME);
 
 			List<Component> refused = run(context, "vcs expand");
-			assertOnlyMessage(refused, "Expanding build '" + BUILD_NAME + "' to 8x4x4 would overlap build '" + NEIGHBOUR_NAME + "'; builds may not intersect");
+			assertOnlyMessage(refused, "Expanding build " + BUILD_NAME + " to 8x4x4 would overlap build " + NEIGHBOUR_NAME + "; builds may not intersect");
 			assertNoSchematic(BUILD_NAME, 3);
 			assertBox(context, singleplayer, BUILD_NAME, 2, expanded);
 

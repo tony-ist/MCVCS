@@ -94,7 +94,7 @@ public class VcsBuildsCommandGameTest implements FabricClientGameTest {
 
 			// Pressing the first build's button selects it.
 			ClickEvent.Custom button = button(listed.get(1)).orElseThrow(() -> new AssertionError("Expected a button on '" + FIRST + "' in " + listed.get(1).getString()));
-			ClickEvent expected = ChatButtons.select(FIRST);
+			ClickEvent expected = ChatButtons.run("/vcs select " + FIRST);
 			if (!button.equals(expected)) {
 				throw new AssertionError("Expected the button to be " + expected + " but got " + button);
 			}

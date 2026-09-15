@@ -89,7 +89,7 @@ public class VcsCommitCommandGameTest implements FabricClientGameTest {
 			assertBlock(v2, originCorner, BlockTypes.GOLD_BLOCK);
 			assertBlock(v2, opposite, BlockTypes.DIAMOND_BLOCK);
 			// Nothing touches the box, so the commit message is all there is.
-			assertMessages(committed, List.of("Committed build '" + BUILD_NAME + "' v2"));
+			assertMessages(committed, List.of("Committed build " + BUILD_NAME + " v2"));
 
 			// Each further commit bumps the version. A block touching the box only at a corner is outside it, so the
 			// version is written without it and a yellow warning says so.
@@ -100,7 +100,7 @@ public class VcsCommitCommandGameTest implements FabricClientGameTest {
 			assertOrigin(v3, expectedOrigin);
 			assertSize(v3, BlockVector3.at(3, 2, 2));
 			assertBlock(v3, opposite, BlockTypes.DIAMOND_BLOCK);
-			assertMessages(warned, List.of("Committed build '" + BUILD_NAME + "' v3", VcsCommand.NOT_ENCLOSED_WARNING));
+			assertMessages(warned, List.of("Committed build " + BUILD_NAME + " v3", VcsCommand.notEnclosedWarning().getString()));
 			if (!TextColor.fromLegacyFormat(ChatFormatting.YELLOW).equals(warned.get(1).getStyle().getColor())) {
 				throw new AssertionError("Expected the warning to be yellow but its style is " + warned.get(1).getStyle());
 			}

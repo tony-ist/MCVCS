@@ -100,9 +100,9 @@ public class VcsCreateCommandGameTest implements FabricClientGameTest {
 			// a diamond put in the box beforehand shows that nothing was rewritten.
 			setBlock(singleplayer, adapter.toBlockPos(opposite), Blocks.DIAMOND_BLOCK.defaultBlockState());
 			List<Component> same = run(context, "vcs create " + BUILD_NAME);
-			assertOnlyMessage(same, "Build '" + BUILD_NAME + "' already exists in this world; select it with /vcs select " + BUILD_NAME);
+			assertOnlyMessage(same, "Build " + BUILD_NAME + " already exists in this world; select it with /vcs select " + BUILD_NAME);
 			List<Component> otherCase = run(context, "vcs create " + BUILD_NAME.toUpperCase(Locale.ROOT));
-			assertOnlyMessage(otherCase, "Build '" + BUILD_NAME + "' already exists in this world");
+			assertOnlyMessage(otherCase, "Build " + BUILD_NAME + " already exists in this world");
 			assertBlock(read(schematic(BUILD_NAME, 1)), opposite, BlockTypes.STONE);
 			assertNoFolderOfItsOwn(BUILD_NAME.toUpperCase(Locale.ROOT), BUILD_NAME);
 			setBlock(singleplayer, adapter.toBlockPos(opposite), Blocks.STONE.defaultBlockState());

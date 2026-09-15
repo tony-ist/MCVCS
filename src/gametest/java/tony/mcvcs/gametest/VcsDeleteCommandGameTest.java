@@ -44,7 +44,7 @@ import net.minecraft.world.level.block.Blocks;
 @SuppressWarnings("UnstableApiUsage")
 public class VcsDeleteCommandGameTest implements FabricClientGameTest {
 	private static final String BUILD_NAME = "gametest-delete";
-	private static final String CONFIRMATION = "Delete build " + BUILD_NAME + "? This cannot be undone, all versions will be lost! Type `/vcs confirmDelete` to proceed.";
+	private static final String CONFIRMATION = "Delete build " + BUILD_NAME + "? This cannot be undone, all versions will be lost! Run /vcs confirmDelete to proceed.";
 
 	/** Every game message the client has received, filled on the client thread. */
 	private static final List<Component> RECEIVED = new ArrayList<>();
@@ -78,7 +78,7 @@ public class VcsDeleteCommandGameTest implements FabricClientGameTest {
 
 			// Asking for a build that does not exist refuses and asks nothing.
 			List<Component> missing = run(context, "vcs delete " + BUILD_NAME + "-missing");
-			assertOnlyMessage(missing, "No build named '" + BUILD_NAME + "-missing'");
+			assertOnlyMessage(missing, "No build named " + BUILD_NAME + "-missing");
 			List<Component> stillUnasked = run(context, "vcs confirmDelete");
 			assertOnlyMessage(stillUnasked, "Nothing to confirm");
 			assertBuildOnDisk();
@@ -98,7 +98,7 @@ public class VcsDeleteCommandGameTest implements FabricClientGameTest {
 
 			// Confirming removes everything and the client hears that the build is gone.
 			List<Component> deleted = run(context, "vcs confirmDelete");
-			assertOnlyMessage(deleted, "Deleted build '" + BUILD_NAME + "' and its 2 versions");
+			assertOnlyMessage(deleted, "Deleted build " + BUILD_NAME + " and its 2 versions");
 			context.waitFor(client -> ClientBuilds.selected() == null && ClientBuilds.all().isEmpty());
 			assertBuildGone();
 			assertNothingSelected(context, singleplayer);

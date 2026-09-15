@@ -21,7 +21,6 @@ import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentUtils;
-import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -113,8 +112,6 @@ public final class VcsCommand {
 	public static final String SELECT_BUTTON = "Select";
 	/** Marker {@code /vcs builds} puts after the selected build instead of a button. */
 	public static final String SELECTED_MARKER = "selected";
-	/** What {@code /vcs commit} says, in yellow, after committing a build that has blocks touching its box. */
-	public static final String NOT_ENCLOSED_WARNING = "Warning: the build is not enclosed by air, so blocks touching its box were left out; run /vcs expand to expand the build area";
 	/** Version number standing for the selected build's latest version, used when {@code /vcs load} or {@code /vcs diff} is given none. */
 	private static final int LATEST = 0;
 	/**
@@ -205,6 +202,24 @@ public final class VcsCommand {
 					.executes(context -> confirmDelete(context.getSource())))));
 	}
 
+	/** What {@code /vcs commit} says, in yellow, after committing a build that has blocks touching its box. */
+	public static MutableComponent notEnclosedWarning() {
+		return Component.literal("Warning: the build is not enclosed by air, so blocks touching its box were left out; run ")
+			.append(ChatButtons.command("/vcs expand"))
+			.append(" to expand the build area")
+			.withStyle(ChatFormatting.YELLOW);
+	}
+
+	/** A build's name as it appears in chat: light blue, so it stands out without quotes around it. */
+	private static MutableComponent name(String name) {
+		return Component.literal(name).withStyle(ChatFormatting.AQUA);
+	}
+
+	/** What a command that needs a selected build says when there is none. */
+	private static MutableComponent noBuildSelected() {
+		return Component.literal("No build selected in this world; run ").append(ChatButtons.template("/vcs create <buildname>")).append(" first");
+	}
+
 	/** Every version number of the build the source player has selected; nothing if there is no player or selection. */
 	private static List<String> versions(CommandSourceStack source) {
 		ServerPlayer player = source.getPlayer();
@@ -220,7 +235,7 @@ public final class VcsCommand {
 		ServerPlayer player = source.getPlayerOrException();
 		// The name becomes a folder on disk, so it has to be checked before anything is written under it.
 		if (!Build.isValidName(buildName)) {
-			source.sendFailure(Component.literal("Build name '" + buildName + "' may only contain letters, digits, _ + - and dots between them"));
+			source.sendFailure(Component.literal("Build name ").append(name(buildName)).append(" may only contain letters, digits, _ + - and dots between them"));
 			return 0;
 		}
 		// A build is created once and committed to after that; creating it again would throw its versions away. Build
@@ -231,9 +246,9 @@ public final class VcsCommand {
 		if (taken.isPresent()) {
 			Build existing = taken.get();
 			if (existing.world().equals(world)) {
-				source.sendFailure(Component.literal("Build '" + existing.name() + "' already exists in this world; select it with /vcs select " + existing.name() + ", or choose another name"));
+				source.sendFailure(Component.literal("Build ").append(name(existing.name())).append(" already exists in this world; select it with ").append(ChatButtons.command("/vcs select " + existing.name())).append(", or choose another name"));
 			} else {
-				source.sendFailure(Component.literal("Build name '" + existing.name() + "' is already used by a build in world '" + existing.world() + "'"));
+				source.sendFailure(Component.literal("Build name ").append(name(existing.name())).append(" is already used by a build in world '" + existing.world() + "'"));
 			}
 			return 0;
 		}
@@ -249,13 +264,13 @@ public final class VcsCommand {
 				.filter(other -> other.dimension().equals(build.dimension()) && other.box().intersects(build.box()))
 				.findFirst();
 			if (overlapping.isPresent()) {
-				source.sendFailure(Component.literal("Selection overlaps build '" + overlapping.get().name() + "'; builds may not intersect"));
+				source.sendFailure(Component.literal("Selection overlaps build ").append(name(overlapping.get().name())).append("; builds may not intersect"));
 				return 0;
 			}
 			Path file = save(actor, session, build, player.level());
 			BuildRegistry.select(player, build);
 
-			source.sendSuccess(() -> Component.literal("Created build '" + buildName + "' (" + build.box().volume() + " blocks) at " + BuildStorage.root().relativize(file)), false);
+			source.sendSuccess(() -> Component.literal("Created build ").append(name(buildName)).append(" (" + build.box().volume() + " blocks) at " + BuildStorage.root().relativize(file)), false);
 			return 1;
 		} catch (IncompleteRegionException e) {
 			source.sendFailure(Component.literal("Make a WorldEdit selection first"));
@@ -271,7 +286,7 @@ public final class VcsCommand {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<Build> build = BuildRegistry.find(source.getServer(), buildName);
 		if (build.isEmpty()) {
-			source.sendFailure(Component.literal("No build named '" + buildName + "' in this world; create it with /vcs create " + buildName));
+			source.sendFailure(Component.literal("No build named ").append(name(buildName)).append(" in this world; create it with ").append(ChatButtons.command("/vcs create " + buildName)));
 			return 0;
 		}
 
@@ -282,7 +297,7 @@ public final class VcsCommand {
 			source.sendFailure(Component.literal("Failed to save selection: " + e.getMessage()));
 			return 0;
 		}
-		source.sendSuccess(() -> Component.literal("Selected build '" + buildName + "' v" + build.get().version() + " (" + build.get().box().volume() + " blocks)"), false);
+		source.sendSuccess(() -> Component.literal("Selected build ").append(name(buildName)).append(" v" + build.get().version() + " (" + build.get().box().volume() + " blocks)"), false);
 		return 1;
 	}
 
@@ -290,7 +305,7 @@ public final class VcsCommand {
 		ServerPlayer player = source.getPlayerOrException();
 		List<Build> builds = BuildRegistry.all(source.getServer());
 		if (builds.isEmpty()) {
-			source.sendFailure(Component.literal("No builds in this world; create one with /vcs create <buildname>"));
+			source.sendFailure(Component.literal("No builds in this world; create one with ").append(ChatButtons.template("/vcs create <buildname>")));
 			return 0;
 		}
 
@@ -307,14 +322,11 @@ public final class VcsCommand {
 	 * {@code [Select]} that runs {@code /vcs select} for it, or a {@code [selected]} marker if it already is.
 	 */
 	private static MutableComponent buildLine(Build build, boolean selected) {
-		MutableComponent line = Component.literal("- " + build.name() + " v" + build.version() + " (" + build.box().volume() + " blocks) ");
+		MutableComponent line = Component.literal("- ").append(name(build.name())).append(" v" + build.version() + " (" + build.box().volume() + " blocks) ");
 		if (selected) {
 			return line.append(ComponentUtils.wrapInSquareBrackets(Component.literal(SELECTED_MARKER)).withStyle(ChatFormatting.GRAY));
 		}
-		return line.append(ComponentUtils.wrapInSquareBrackets(Component.literal(SELECT_BUTTON))
-			.withStyle(style -> style.withColor(ChatFormatting.GREEN)
-				.withClickEvent(ChatButtons.select(build.name()))
-				.withHoverEvent(new HoverEvent.ShowText(Component.literal("Click to run /vcs select " + build.name())))));
+		return line.append(ChatButtons.button(SELECT_BUTTON, "/vcs select " + build.name()));
 	}
 
 	private static int deselect(CommandSourceStack source) throws CommandSyntaxException {
@@ -340,7 +352,7 @@ public final class VcsCommand {
 		if (DiffSender.canSend(player)) {
 			DiffSender.clear(player);
 		}
-		source.sendSuccess(() -> Component.literal("Deselected build '" + buildName + "'"), false);
+		source.sendSuccess(() -> Component.literal("Deselected build ").append(name(buildName)), false);
 		return 1;
 	}
 
@@ -348,14 +360,14 @@ public final class VcsCommand {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<Build> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
-			source.sendFailure(Component.literal("No build selected in this world; run /vcs create <buildname> first"));
+			source.sendFailure(noBuildSelected());
 			return 0;
 		}
 
 		Build build = selected.get().nextVersion();
 		ServerLevel level = source.getServer().getLevel(build.dimension());
 		if (level == null) {
-			source.sendFailure(Component.literal("Build '" + build.name() + "' is in " + build.dimension().identifier() + ", which does not exist here"));
+			source.sendFailure(Component.literal("Build ").append(name(build.name())).append(" is in " + build.dimension().identifier() + ", which does not exist here"));
 			return 0;
 		}
 		Player actor = FabricAdapter.get().fromNativePlayer(player);
@@ -367,9 +379,9 @@ public final class VcsCommand {
 			Path file = save(actor, session, build, level);
 			BuildRegistry.select(player, build);
 
-			source.sendSuccess(() -> Component.literal("Committed build '" + build.name() + "' v" + build.version() + " (" + build.box().volume() + " blocks) at " + BuildStorage.root().relativize(file)), false);
+			source.sendSuccess(() -> Component.literal("Committed build ").append(name(build.name())).append(" v" + build.version() + " (" + build.box().volume() + " blocks) at " + BuildStorage.root().relativize(file)), false);
 			if (!enclosed) {
-				source.sendSuccess(() -> Component.literal(NOT_ENCLOSED_WARNING).withStyle(ChatFormatting.YELLOW), false);
+				source.sendSuccess(VcsCommand::notEnclosedWarning, false);
 			}
 			return 1;
 		} catch (WorldEditException | IOException e) {
@@ -383,7 +395,7 @@ public final class VcsCommand {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<Build> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
-			source.sendFailure(Component.literal("No build selected in this world; run /vcs create <buildname> first"));
+			source.sendFailure(noBuildSelected());
 			return 0;
 		}
 		if (!PreviewSender.canSend(player)) {
@@ -393,7 +405,7 @@ public final class VcsCommand {
 
 		Build latest = selected.get();
 		if (version > latest.version()) {
-			source.sendFailure(Component.literal("Build '" + latest.name() + "' only has versions 1 to " + latest.version()));
+			source.sendFailure(Component.literal("Build ").append(name(latest.name())).append(" only has versions 1 to " + latest.version()));
 			return 0;
 		}
 
@@ -403,10 +415,10 @@ public final class VcsCommand {
 			Clipboard clipboard = BuildStorage.read(build);
 			PreviewSender.send(player, build, clipboard);
 
-			source.sendSuccess(() -> Component.literal("Previewing build '" + build.name() + "' v" + build.version() + " (" + build.box().volume() + " blocks); run /vcs preview off to stop"), false);
+			source.sendSuccess(() -> Component.literal("Previewing build ").append(name(build.name())).append(" v" + build.version() + " (" + build.box().volume() + " blocks); run ").append(ChatButtons.command("/vcs preview off")).append(" to stop"), false);
 			return 1;
 		} catch (NoSuchFileException e) {
-			source.sendFailure(Component.literal("No schematic for build '" + build.name() + "' v" + build.version() + " at " + e.getFile()));
+			source.sendFailure(Component.literal("No schematic for build ").append(name(build.name())).append(" v" + build.version() + " at " + e.getFile()));
 			return 0;
 		} catch (IOException | IllegalArgumentException e) {
 			MCVCS.LOGGER.error("Failed to preview build '{}' v{} for {}", build.name(), build.version(), player.getGameProfile().name(), e);
@@ -432,13 +444,13 @@ public final class VcsCommand {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<Build> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
-			source.sendFailure(Component.literal("No build selected in this world; run /vcs create <buildname> first"));
+			source.sendFailure(noBuildSelected());
 			return 0;
 		}
 
 		Build latest = selected.get();
 		if (version > latest.version()) {
-			source.sendFailure(Component.literal("Build '" + latest.name() + "' only has versions 1 to " + latest.version()));
+			source.sendFailure(Component.literal("Build ").append(name(latest.name())).append(" only has versions 1 to " + latest.version()));
 			return 0;
 		}
 
@@ -452,10 +464,10 @@ public final class VcsCommand {
 			// puts the build at their feet the way ORIGIN_CORNER and ORIGIN_OFFSET arranged it.
 			session.setClipboard(new ClipboardHolder(clipboard));
 
-			source.sendSuccess(() -> Component.literal("Loaded build '" + build.name() + "' v" + build.version() + " (" + build.box().volume() + " blocks) into your clipboard; run //paste to place it"), false);
+			source.sendSuccess(() -> Component.literal("Loaded build ").append(name(build.name())).append(" v" + build.version() + " (" + build.box().volume() + " blocks) into your clipboard; run ").append(ChatButtons.command("//paste")).append(" to place it"), false);
 			return 1;
 		} catch (NoSuchFileException e) {
-			source.sendFailure(Component.literal("No schematic for build '" + build.name() + "' v" + build.version() + " at " + e.getFile()));
+			source.sendFailure(Component.literal("No schematic for build ").append(name(build.name())).append(" v" + build.version() + " at " + e.getFile()));
 			return 0;
 		} catch (IOException | IllegalArgumentException e) {
 			MCVCS.LOGGER.error("Failed to load build '{}' v{} for {}", build.name(), build.version(), player.getGameProfile().name(), e);
@@ -474,19 +486,19 @@ public final class VcsCommand {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<Build> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
-			source.sendFailure(Component.literal("No build selected in this world; run /vcs create <buildname> first"));
+			source.sendFailure(noBuildSelected());
 			return 0;
 		}
 
 		Build latest = selected.get();
 		if (version > latest.version()) {
-			source.sendFailure(Component.literal("Build '" + latest.name() + "' only has versions 1 to " + latest.version()));
+			source.sendFailure(Component.literal("Build ").append(name(latest.name())).append(" only has versions 1 to " + latest.version()));
 			return 0;
 		}
 		Build build = version == LATEST ? latest : latest.atVersion(version);
 		ServerLevel level = source.getServer().getLevel(build.dimension());
 		if (level == null) {
-			source.sendFailure(Component.literal("Build '" + build.name() + "' is in " + build.dimension().identifier() + ", which does not exist here"));
+			source.sendFailure(Component.literal("Build ").append(name(build.name())).append(" is in " + build.dimension().identifier() + ", which does not exist here"));
 			return 0;
 		}
 
@@ -495,7 +507,7 @@ public final class VcsCommand {
 			// The version is the old side and the world the new one, so "added" reads as "built since that version".
 			diff = BuildDiff.between(BoxSnapshot.ofClipboard(build.box(), BuildStorage.read(build)), BoxSnapshot.ofLevel(build.box(), level));
 		} catch (NoSuchFileException e) {
-			source.sendFailure(Component.literal("No schematic for build '" + build.name() + "' v" + build.version() + " at " + e.getFile()));
+			source.sendFailure(Component.literal("No schematic for build ").append(name(build.name())).append(" v" + build.version() + " at " + e.getFile()));
 			return 0;
 		} catch (IOException | IllegalArgumentException e) {
 			MCVCS.LOGGER.error("Failed to diff build '{}' v{} for {}", build.name(), build.version(), player.getGameProfile().name(), e);
@@ -509,24 +521,28 @@ public final class VcsCommand {
 			if (highlight) {
 				DiffSender.clear(player);
 			}
-			source.sendSuccess(() -> Component.literal("Build '" + build.name() + "' matches v" + build.version() + "; nothing to highlight"), false);
+			source.sendSuccess(() -> Component.literal("Build ").append(name(build.name())).append(" matches v" + build.version() + "; nothing to highlight"), false);
 			return 0;
 		}
 
 		if (highlight) {
 			DiffSender.send(player, build, diff);
 		}
-		String tail = highlight ? "; run /vcs diff off to stop highlighting" : "; install MCVCS on your client to see them highlighted";
-		source.sendSuccess(() -> Component.literal(diffSummary(build, diff) + tail), false);
+		source.sendSuccess(() -> {
+			MutableComponent summary = diffSummary(build, diff);
+			return highlight
+				? summary.append("; run ").append(ChatButtons.command("/vcs diff off")).append(" to stop highlighting")
+				: summary.append("; install MCVCS on your client to see them highlighted");
+		}, false);
 		return diff.size();
 	}
 
-	/** E.g. {@code 5 blocks in build 'x' differ from v2 (2 added, 1 removed, 2 changed)}. */
-	private static String diffSummary(Build build, BuildDiff diff) {
+	/** E.g. {@code 5 blocks in build x differ from v2 (2 added, 1 removed, 2 changed)}. */
+	private static MutableComponent diffSummary(Build build, BuildDiff diff) {
 		Map<ChangeKind, Integer> counts = diff.counts();
-		return diff.size() + (diff.size() == 1 ? " block" : " blocks") + " in build '" + build.name() + "' "
+		return Component.literal(diff.size() + (diff.size() == 1 ? " block" : " blocks") + " in build ").append(name(build.name())).append(" "
 			+ (diff.size() == 1 ? "differs" : "differ") + " from v" + build.version()
-			+ " (" + counts.get(ChangeKind.ADDED) + " added, " + counts.get(ChangeKind.REMOVED) + " removed, " + counts.get(ChangeKind.CHANGED) + " changed)";
+			+ " (" + counts.get(ChangeKind.ADDED) + " added, " + counts.get(ChangeKind.REMOVED) + " removed, " + counts.get(ChangeKind.CHANGED) + " changed)");
 	}
 
 	private static int diffOff(CommandSourceStack source) throws CommandSyntaxException {
@@ -550,23 +566,23 @@ public final class VcsCommand {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<Build> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
-			source.sendFailure(Component.literal("No build selected in this world; run /vcs create <buildname> first"));
+			source.sendFailure(noBuildSelected());
 			return 0;
 		}
 
 		Build build = selected.get();
 		ServerLevel level = source.getServer().getLevel(build.dimension());
 		if (level == null) {
-			source.sendFailure(Component.literal("Build '" + build.name() + "' is in " + build.dimension().identifier() + ", which does not exist here"));
+			source.sendFailure(Component.literal("Build ").append(name(build.name())).append(" is in " + build.dimension().identifier() + ", which does not exist here"));
 			return 0;
 		}
 
 		BoxExpansion expansion = BoxExpansion.of(build.box(), level);
 		if (!expansion.grew()) {
 			if (expansion.enclosed()) {
-				source.sendSuccess(() -> Component.literal("Build '" + build.name() + "' is already enclosed by air; nothing to expand"), false);
+				source.sendSuccess(() -> Component.literal("Build ").append(name(build.name())).append(" is already enclosed by air; nothing to expand"), false);
 			} else {
-				source.sendFailure(Component.literal("Build '" + build.name() + "' touches blocks outside its box but already has "
+				source.sendFailure(Component.literal("Build ").append(name(build.name())).append(" touches blocks outside its box but already has "
 					+ build.box().volume() + " blocks, so expanding it would exceed the limit of " + BoxExpansion.MAX_VOLUME + " blocks"));
 			}
 			return 0;
@@ -576,7 +592,7 @@ public final class VcsCommand {
 			.filter(other -> !other.name().equals(build.name()) && other.dimension().equals(build.dimension()) && other.box().intersects(expansion.to()))
 			.findFirst();
 		if (overlapping.isPresent()) {
-			source.sendFailure(Component.literal("Expanding build '" + build.name() + "' to " + size(expansion.to()) + " would overlap build '" + overlapping.get().name() + "'; builds may not intersect"));
+			source.sendFailure(Component.literal("Expanding build ").append(name(build.name())).append(" to " + size(expansion.to()) + " would overlap build ").append(name(overlapping.get().name())).append("; builds may not intersect"));
 			return 0;
 		}
 
@@ -589,7 +605,7 @@ public final class VcsCommand {
 			BuildRegistry.select(player, expanded);
 
 			String limit = expansion.enclosed() ? "" : "; stopped at the limit of " + BoxExpansion.MAX_VOLUME + " blocks, so the build may still stick out";
-			source.sendSuccess(() -> Component.literal("Expanded build '" + expanded.name() + "' from " + size(build.box()) + " (" + build.box().volume() + " blocks) to "
+			source.sendSuccess(() -> Component.literal("Expanded build ").append(name(expanded.name())).append(" from " + size(build.box()) + " (" + build.box().volume() + " blocks) to "
 				+ size(expanded.box()) + " (" + expanded.box().volume() + " blocks) and committed it as v" + expanded.version() + " at " + BuildStorage.root().relativize(file) + limit), false);
 			return 1;
 		} catch (WorldEditException | IOException e) {
@@ -609,12 +625,12 @@ public final class VcsCommand {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<Build> build = BuildRegistry.find(source.getServer(), buildName);
 		if (build.isEmpty()) {
-			source.sendFailure(Component.literal("No build named '" + buildName + "' in this world"));
+			source.sendFailure(Component.literal("No build named ").append(name(buildName)).append(" in this world"));
 			return 0;
 		}
 
 		PENDING_DELETES.put(player.getUUID(), build.get());
-		source.sendSuccess(() -> Component.literal("Delete build " + buildName + "? This cannot be undone, all versions will be lost! Type `/vcs confirmDelete` to proceed."), false);
+		source.sendSuccess(() -> Component.literal("Delete build ").append(name(buildName)).append("? This cannot be undone, all versions will be lost! Run ").append(ChatButtons.command("/vcs confirmDelete")).append(" to proceed."), false);
 		return 1;
 	}
 
@@ -623,12 +639,12 @@ public final class VcsCommand {
 		MinecraftServer server = source.getServer();
 		Build build = PENDING_DELETES.remove(player.getUUID());
 		if (build == null) {
-			source.sendFailure(Component.literal("Nothing to confirm; run /vcs delete <buildname> first"));
+			source.sendFailure(Component.literal("Nothing to confirm; run ").append(ChatButtons.template("/vcs delete <buildname>")).append(" first"));
 			return 0;
 		}
 		// The build may have gone, or the player moved to another world, since they asked.
 		if (!build.isIn(server) || BuildRegistry.find(server, build.name()).isEmpty()) {
-			source.sendFailure(Component.literal("No build named '" + build.name() + "' in this world"));
+			source.sendFailure(Component.literal("No build named ").append(name(build.name())).append(" in this world"));
 			return 0;
 		}
 
@@ -658,7 +674,7 @@ public final class VcsCommand {
 		// The build and any selection of it are gone, so every client's list and possibly its selection changed.
 		BuildSync.broadcast(server);
 
-		source.sendSuccess(() -> Component.literal("Deleted build '" + build.name() + "' and its " + build.version() + (build.version() == 1 ? " version" : " versions")), false);
+		source.sendSuccess(() -> Component.literal("Deleted build ").append(name(build.name())).append(" and its " + build.version() + (build.version() == 1 ? " version" : " versions")), false);
 		return 1;
 	}
 

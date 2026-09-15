@@ -78,4 +78,3 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - `/vcs checkout version` clears current selection and loads selected version instead. Think about what happens when build has observers or updating components.
 - Aliases for commands to type them faster
 - Change boundinx box color during preview and display version that is being previewed in the label
-- Color command names with green color in chat messages, maybe even make commands clickable
