@@ -9,6 +9,13 @@ repositories {
 	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
 	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
 	// for more information about repositories.
+
+	// First so a locally published WorldEdit fork wins over EngineHub. The fabric module's POM depends on the core
+	// modules at the same version, so all of these must be published from the fork:
+	//   gradlew :worldedit-fabric:publishToMavenLocal :worldedit-core:publishToMavenLocal
+	//           :worldedit-core-mc:publishToMavenLocal :worldedit-libs:core:publishToMavenLocal
+	//           :worldedit-libs:core-mc:publishToMavenLocal :worldedit-libs:core:ap:publishToMavenLocal
+	mavenLocal()
 	maven {
 		name = "EngineHub"
 		url = "https://maven.enginehub.org/repo/"
