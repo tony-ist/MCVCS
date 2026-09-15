@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
@@ -34,7 +33,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
 @SuppressWarnings("UnstableApiUsage")
-public class VcsCreateCommandGameTest implements FabricClientGameTest {
+public class VcsCreateCommandGameTest extends VcsGameTest {
 	private static final String BUILD_NAME = "gametest-build";
 	private static final String OVERLAPPING_NAME = "gametest-overlap";
 	private static final String ADJACENT_NAME = "gametest-adjacent";
@@ -47,7 +46,7 @@ public class VcsCreateCommandGameTest implements FabricClientGameTest {
 	}
 
 	@Override
-	public void runTest(ClientGameTestContext context) {
+	protected void run(ClientGameTestContext context) {
 		FabricAdapter adapter = FabricAdapter.get();
 
 		// /vcs requires op, which in singleplayer means cheats must be on.

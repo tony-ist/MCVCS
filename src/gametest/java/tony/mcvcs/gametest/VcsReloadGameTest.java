@@ -22,7 +22,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.fabric.api.client.gametest.v1.world.TestWorldSave;
@@ -48,12 +47,12 @@ import net.minecraft.world.level.storage.LevelResource;
  * commit still covers the box captured at create time.
  */
 @SuppressWarnings("UnstableApiUsage")
-public class VcsReloadGameTest implements FabricClientGameTest {
+public class VcsReloadGameTest extends VcsGameTest {
 	private static final String BUILD_NAME = "gametest-reload";
 	private static final String OTHER = "gametest-reload-other";
 
 	@Override
-	public void runTest(ClientGameTestContext context) {
+	protected void run(ClientGameTestContext context) {
 		FabricAdapter adapter = FabricAdapter.get();
 		TestWorldSave save;
 		String world;

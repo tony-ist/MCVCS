@@ -66,6 +66,7 @@ mcvcs/
 ```
 gradlew.bat build              # build the mod
 gradlew.bat runClientGameTest  # run game tests (produces screenshots)
+gradlew.bat runClientGameTest -Pgametest=VcsCheckoutCommandGameTest  # run only that game test (comma-separate several)
 gradlew.bat runClient          # run game client with this mod
 ```
 
@@ -80,5 +81,5 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Add version tags. To keep track of TickNet versions more easily. Tags could be like '1.5.4' and selectable in checkouts, diffs and previews
 - Aliases for commands to type them faster
 - Change boundinx box color during preview and display version that is being previewed in the label
-- Add test runners to be able to run 1 game test separately
 - Refactor VcsCommand file, split into multiple files, 1 for 1 command
+- Add a hotkey to select the build you look at

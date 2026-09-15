@@ -17,7 +17,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
-import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
@@ -42,11 +41,11 @@ import net.minecraft.world.phys.AABB;
  * them until {@code /vcs diff off}.
  */
 @SuppressWarnings("UnstableApiUsage")
-public class VcsDiffCommandGameTest implements FabricClientGameTest {
+public class VcsDiffCommandGameTest extends VcsGameTest {
 	private static final String BUILD_NAME = "gametest-diff";
 
 	@Override
-	public void runTest(ClientGameTestContext context) {
+	protected void run(ClientGameTestContext context) {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {

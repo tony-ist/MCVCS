@@ -10,7 +10,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
 import static tony.mcvcs.gametest.VcsTestSupport.select;
 
-import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
@@ -23,11 +22,11 @@ import net.minecraft.world.level.block.Blocks;
 
 /** The client learns which build is selected and draws its bounding box. */
 @SuppressWarnings("UnstableApiUsage")
-public class VcsSelectionBoxGameTest implements FabricClientGameTest {
+public class VcsSelectionBoxGameTest extends VcsGameTest {
 	private static final String BUILD_NAME = "gametest-selection";
 
 	@Override
-	public void runTest(ClientGameTestContext context) {
+	protected void run(ClientGameTestContext context) {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {

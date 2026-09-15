@@ -12,7 +12,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.select;
 import java.nio.file.Files;
 import java.util.List;
 
-import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
@@ -29,11 +28,11 @@ import net.minecraft.world.level.block.Blocks;
  * box and cannot reuse its name.
  */
 @SuppressWarnings("UnstableApiUsage")
-public class VcsWorldScopeGameTest implements FabricClientGameTest {
+public class VcsWorldScopeGameTest extends VcsGameTest {
 	private static final String BUILD_NAME = "gametest-scope";
 
 	@Override
-	public void runTest(ClientGameTestContext context) {
+	protected void run(ClientGameTestContext context) {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext first = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {

@@ -18,7 +18,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 
-import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
@@ -44,7 +43,7 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
  * rest of the grown box left empty.
  */
 @SuppressWarnings("UnstableApiUsage")
-public class VcsCheckoutCommandGameTest implements FabricClientGameTest {
+public class VcsCheckoutCommandGameTest extends VcsGameTest {
 	private static final String BUILD_NAME = "gametest-checkout";
 	private static final String REDSTONE_NAME = "gametest-checkout-redstone";
 	/** Ticks a freshly placed sand block takes to start falling, with some to spare: {@code FallingBlock#getDelayAfterPlace} is 2. */
@@ -60,7 +59,7 @@ public class VcsCheckoutCommandGameTest implements FabricClientGameTest {
 	}
 
 	@Override
-	public void runTest(ClientGameTestContext context) {
+	protected void run(ClientGameTestContext context) {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME, REDSTONE_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {

@@ -16,7 +16,6 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
-import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
@@ -37,7 +36,7 @@ import net.minecraft.world.level.block.Blocks;
  * is now, and warns in yellow, without refusing, when blocks outside the box touch it.
  */
 @SuppressWarnings("UnstableApiUsage")
-public class VcsCommitCommandGameTest implements FabricClientGameTest {
+public class VcsCommitCommandGameTest extends VcsGameTest {
 	private static final String BUILD_NAME = "gametest-commit";
 
 	/** Every game message the client has received, filled on the client thread. */
@@ -48,7 +47,7 @@ public class VcsCommitCommandGameTest implements FabricClientGameTest {
 	}
 
 	@Override
-	public void runTest(ClientGameTestContext context) {
+	protected void run(ClientGameTestContext context) {
 		FabricAdapter adapter = FabricAdapter.get();
 
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.

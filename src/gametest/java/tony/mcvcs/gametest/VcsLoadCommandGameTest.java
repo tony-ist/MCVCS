@@ -17,7 +17,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.suggestions;
 import java.util.HashSet;
 import java.util.List;
 
-import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
@@ -34,11 +33,11 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 
 @SuppressWarnings("UnstableApiUsage")
-public class VcsLoadCommandGameTest implements FabricClientGameTest {
+public class VcsLoadCommandGameTest extends VcsGameTest {
 	private static final String BUILD_NAME = "gametest-load";
 
 	@Override
-	public void runTest(ClientGameTestContext context) {
+	protected void run(ClientGameTestContext context) {
 		FabricAdapter adapter = FabricAdapter.get();
 
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.

@@ -12,7 +12,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.select;
 
 import java.nio.file.Files;
 
-import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
@@ -24,12 +23,12 @@ import net.minecraft.world.level.block.Blocks;
 
 /** {@code /vcs select} switches the selected build, so the client draws its box and later commits go to it. */
 @SuppressWarnings("UnstableApiUsage")
-public class VcsSelectCommandGameTest implements FabricClientGameTest {
+public class VcsSelectCommandGameTest extends VcsGameTest {
 	private static final String FIRST = "gametest-select-first";
 	private static final String SECOND = "gametest-select-second";
 
 	@Override
-	public void runTest(ClientGameTestContext context) {
+	protected void run(ClientGameTestContext context) {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(FIRST, SECOND);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {

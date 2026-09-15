@@ -17,7 +17,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
@@ -42,7 +41,7 @@ import net.minecraft.world.level.block.Blocks;
  * preview or diff highlighting, and tells the client the build is gone. Confirming with nothing asked refuses.
  */
 @SuppressWarnings("UnstableApiUsage")
-public class VcsDeleteCommandGameTest implements FabricClientGameTest {
+public class VcsDeleteCommandGameTest extends VcsGameTest {
 	private static final String BUILD_NAME = "gametest-delete";
 	private static final String CONFIRMATION = "Delete build " + BUILD_NAME + "? This cannot be undone, all versions will be lost! Run /vcs confirmDelete to proceed.";
 
@@ -54,7 +53,7 @@ public class VcsDeleteCommandGameTest implements FabricClientGameTest {
 	}
 
 	@Override
-	public void runTest(ClientGameTestContext context) {
+	protected void run(ClientGameTestContext context) {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {

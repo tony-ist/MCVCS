@@ -12,7 +12,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.select;
 
 import java.util.List;
 
-import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
@@ -31,12 +30,12 @@ import net.minecraft.world.phys.Vec3;
  * gets none.
  */
 @SuppressWarnings("UnstableApiUsage")
-public class VcsBuildLabelGameTest implements FabricClientGameTest {
+public class VcsBuildLabelGameTest extends VcsGameTest {
 	private static final String NEAR = "gametest-label-near";
 	private static final String FAR = "gametest-label-far";
 
 	@Override
-	public void runTest(ClientGameTestContext context) {
+	protected void run(ClientGameTestContext context) {
 		// Before the world exists: the player is told the builds on join, so they must be gone by then.
 		resetBuilds(NEAR, FAR);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {

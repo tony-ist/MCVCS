@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
@@ -35,7 +34,7 @@ import net.minecraft.world.level.block.Blocks;
  * marked instead.
  */
 @SuppressWarnings("UnstableApiUsage")
-public class VcsBuildsCommandGameTest implements FabricClientGameTest {
+public class VcsBuildsCommandGameTest extends VcsGameTest {
 	private static final String FIRST = "gametest-builds-first";
 	private static final String SECOND = "gametest-builds-second";
 
@@ -47,7 +46,7 @@ public class VcsBuildsCommandGameTest implements FabricClientGameTest {
 	}
 
 	@Override
-	public void runTest(ClientGameTestContext context) {
+	protected void run(ClientGameTestContext context) {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(FIRST, SECOND);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {

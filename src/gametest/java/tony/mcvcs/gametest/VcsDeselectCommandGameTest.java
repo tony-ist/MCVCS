@@ -14,7 +14,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 import java.nio.file.Files;
 import java.util.Optional;
 
-import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.server.level.ServerPlayer;
@@ -37,11 +36,11 @@ import net.minecraft.world.level.block.Blocks;
  * {@code /vcs select} makes one again.
  */
 @SuppressWarnings("UnstableApiUsage")
-public class VcsDeselectCommandGameTest implements FabricClientGameTest {
+public class VcsDeselectCommandGameTest extends VcsGameTest {
 	private static final String BUILD_NAME = "gametest-deselect";
 
 	@Override
-	public void runTest(ClientGameTestContext context) {
+	protected void run(ClientGameTestContext context) {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {

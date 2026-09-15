@@ -18,7 +18,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
@@ -44,7 +43,7 @@ import net.minecraft.world.level.block.Blocks;
  * air is left alone, and one whose growth would reach into another build is refused.
  */
 @SuppressWarnings("UnstableApiUsage")
-public class VcsExpandCommandGameTest implements FabricClientGameTest {
+public class VcsExpandCommandGameTest extends VcsGameTest {
 	private static final String BUILD_NAME = "gametest-expand";
 	private static final String NEIGHBOUR_NAME = "gametest-expand-neighbour";
 
@@ -56,7 +55,7 @@ public class VcsExpandCommandGameTest implements FabricClientGameTest {
 	}
 
 	@Override
-	public void runTest(ClientGameTestContext context) {
+	protected void run(ClientGameTestContext context) {
 		FabricAdapter adapter = FabricAdapter.get();
 
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.

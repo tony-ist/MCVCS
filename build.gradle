@@ -45,6 +45,14 @@ fabricApi {
 	}
 }
 
+// `gradlew runClientGameTest -Pgametest=VcsCheckoutCommandGameTest` runs just that test (comma-separate for several);
+// VcsGameTest reads the system property and skips the rest.
+tasks.named("runClientGameTest") {
+	if (project.hasProperty("gametest")) {
+		jvmArgs "-Dmcvcs.gametest=${project.property("gametest")}"
+	}
+}
+
 dependencies {
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
