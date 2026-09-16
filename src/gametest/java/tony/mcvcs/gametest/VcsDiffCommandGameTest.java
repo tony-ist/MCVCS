@@ -70,7 +70,7 @@ public class VcsDiffCommandGameTest extends VcsGameTest {
 			read(schematic(BUILD_NAME, 1));
 
 			// Tab completion offers every version of the selected build alongside "off".
-			assertSuggestions(singleplayer, "vcs diff ", List.of("1", "off"));
+			assertSuggestions(singleplayer, "vcs diff ", List.of("-h", "1", "off"));
 
 			// Nothing has changed since v1, so nothing is highlighted.
 			runCommand(context, "vcs diff");
@@ -113,7 +113,7 @@ public class VcsDiffCommandGameTest extends VcsGameTest {
 			// the same four blocks again.
 			runCommand(context, "vcs commit");
 			read(schematic(BUILD_NAME, 2));
-			assertSuggestions(singleplayer, "vcs diff ", List.of("1", "2", "off"));
+			assertSuggestions(singleplayer, "vcs diff ", List.of("-h", "1", "2", "off"));
 
 			runCommand(context, "vcs diff");
 			assertNoDiff(context);

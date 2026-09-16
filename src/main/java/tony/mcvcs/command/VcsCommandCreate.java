@@ -35,6 +35,10 @@ import com.sk89q.worldedit.fabric.FabricAdapter;
  * new build becomes the player's selected build.
  */
 public final class VcsCommandCreate {
+	static final VcsHelp HELP = new VcsHelp("create", "/vcs create <buildname>",
+		"start a build from a punched block or your WorldEdit selection",
+		"Starts a build called <buildname> and saves it as version 1. With no WorldEdit selection, punch any block of the build, or right-click one with an empty hand: the build grows over everything connected to that block, so it should hover in the air, touching nothing that is not part of it. With a WorldEdit selection, its bounding box becomes the build. The name may not belong to an existing build, ignoring case, and the box may not overlap another build. The new build becomes your selected build.");
+
 	private VcsCommandCreate() {
 	}
 

@@ -4,10 +4,10 @@ import java.io.IOException;
 import java.util.Optional;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-
 import tony.mcvcs.MCVCS;
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildRegistry;
@@ -19,6 +19,10 @@ import tony.mcvcs.network.PreviewSender;
  * a selection refuse until one is made again. Any preview or diff highlighting of the build is turned off with it.
  */
 public final class VcsCommandDeselect {
+	static final VcsHelp HELP = new VcsHelp("deselect", "/vcs deselect",
+		"unselect your selected build",
+		"Leaves you with no selected build: its box, and any preview or diff highlighting of it, disappear, and the commands that need a selection refuse until you select one again.");
+
 	private VcsCommandDeselect() {
 	}
 

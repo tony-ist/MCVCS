@@ -19,6 +19,10 @@ import tony.mcvcs.network.ChatButtons;
  * dimension the build is in. Without a name it goes to the selected build.
  */
 public final class VcsCommandTp {
+	static final VcsHelp HELP = new VcsHelp("tp", "/vcs tp [buildname]",
+		"teleport onto a build",
+		"Teleports you onto the top of that build's box, at its centre, in whatever dimension the build is in. Without a name it takes your selected build.");
+
 	private VcsCommandTp() {
 	}
 

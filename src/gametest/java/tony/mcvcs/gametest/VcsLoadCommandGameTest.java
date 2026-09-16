@@ -71,7 +71,7 @@ public class VcsLoadCommandGameTest extends VcsGameTest {
 			read(schematic(BUILD_NAME, 2));
 
 			// Tab completion offers every version of the selected build.
-			assertSuggestions(singleplayer, "vcs load ", List.of("1", "2"));
+			assertSuggestions(singleplayer, "vcs load ", List.of("-h", "1", "2"));
 
 			// Nothing to load beyond the latest version; creating and committing did not touch the clipboard either.
 			runCommand(context, "vcs load 3");

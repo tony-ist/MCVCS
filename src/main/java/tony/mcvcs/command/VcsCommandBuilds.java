@@ -24,6 +24,10 @@ public final class VcsCommandBuilds {
 	/** Marker put after the selected build instead of a button. */
 	public static final String SELECTED_MARKER = "selected";
 
+	static final VcsHelp HELP = new VcsHelp("builds", "/vcs builds",
+		"list the builds in this world",
+		"Lists every build in this world with its latest version and size. Each one has a [Select] button that selects it; the selected build is marked [selected] instead.");
+
 	private VcsCommandBuilds() {
 	}
 

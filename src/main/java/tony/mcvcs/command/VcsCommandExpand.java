@@ -30,6 +30,10 @@ import com.sk89q.worldedit.fabric.FabricAdapter;
  * inside the grown box where they were built, see {@link BoxSnapshot#ofClipboard}.
  */
 public final class VcsCommandExpand {
+	static final VcsHelp HELP = new VcsHelp("expand", "/vcs expand",
+		"grow the box over blocks built past its edges, then commit",
+		"Grows the selected build's box until only air surrounds it, so whatever you built out past its edges is inside it again, and saves the grown box as the next version. Anything touching the box pulls it out to cover that block, which is why builds should hover in the air. Refuses if the grown box would overlap another build or exceed " + BoxExpansion.MAX_VOLUME + " blocks.");
+
 	private VcsCommandExpand() {
 	}
 

@@ -23,7 +23,6 @@ import tony.mcvcs.network.ChatButtons;
 import tony.mcvcs.network.DiffSender;
 import tony.mcvcs.network.PreviewSender;
 import com.sk89q.worldedit.EditSession;
-import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.entity.Player;
@@ -38,15 +37,20 @@ import com.sk89q.worldedit.world.World;
 import com.sk89q.worldedit.world.block.BlockTypes;
 
 /**
- * {@code /vcs checkout <version|latest> [-f]}: clears the selected build's box and puts that version, or its latest
+ * {@code /vcs checkout <version | latest> [-f]}: clears the selected build's box and puts that version, or its latest
  * one, back in it, exactly where it was committed from, without a single block update, as if {@code //perf off} were
  * on. Refuses while the box differs from the version it holds, since the changes would be lost: they have to be
- * committed first, unless {@code -f} is given, which overwrites them ({@code //undo} brings them back). The
- * checked-out version becomes the one the box holds, so checking out another version after it is allowed, and a
- * commit from there saves the box as the next version as usual. Any preview or diff highlighting the player had up
- * is stopped, since both showed the box as it was before.
+ * committed first, unless {@code -f} is given, which overwrites them for good. The checkout is not put in the
+ * player's WorldEdit history, so {@code //undo} never reverts it. The checked-out version becomes the one the box
+ * holds, so checking out another version after it is allowed, and a commit from there saves the box as the next
+ * version as usual. Any preview or diff highlighting the player had up is stopped, since both showed the box as it
+ * was before.
  */
 public final class VcsCommandCheckout {
+	static final VcsHelp HELP = new VcsHelp("checkout", "/vcs checkout <version | latest> [" + VcsCommand.FORCE + "]",
+		"put a version back into the world",
+		"Empties the selected build's box and puts the provided version into it, without block updates. Refuses if the box has uncommitted changes: commit first, or add " + VcsCommand.FORCE + " to overwrite them. /vcs diff starts to compare versions against this checked out version.");
+
 	private VcsCommandCheckout() {
 	}
 
@@ -58,12 +62,14 @@ public final class VcsCommandCheckout {
 	 * The blocks are set without any of the side effects {@code //perf off} turns off, see {@link #sideEffects}, so
 	 * nothing in the version gets a block update while it is put back: redstone components, observers and falling
 	 * blocks are left exactly as they were saved instead of reacting to their neighbours appearing one by one. The
-	 * edit is remembered by the player's WorldEdit session, so {@code //undo} reverts it.
+	 * edit is kept out of the player's WorldEdit history: MCVCS and WorldEdit edits stay separate, so {@code //undo}
+	 * only ever reverts the player's own WorldEdit edits, never a checkout, and a checkout never pushes one of those
+	 * edits out of the history either.
 	 * <p>
 	 * Checking out throws away whatever is in the box, so it refuses while the box differs from the version it holds,
 	 * see {@link Build#head}, by as much as one block or one block entity's data, the same way {@code /vcs diff} tells
 	 * them apart; the player has to commit first, or pass {@link VcsCommand#FORCE} to have the changes overwritten,
-	 * which {@code //undo} still reverts. Once done, the checked-out version is the one the box holds.
+	 * which nothing brings back. Once done, the checked-out version is the one the box holds.
 	 *
 	 * @param version the version to check out, or {@link VcsCommand#LATEST} for the selected build's latest one
 	 * @param force   whether to check out over uncommitted changes instead of refusing
@@ -122,12 +128,12 @@ public final class VcsCommandCheckout {
 		}
 
 		Player actor = FabricAdapter.get().fromNativePlayer(player);
-		LocalSession session = WorldEdit.getInstance().getSessionManager().get(actor);
 		Region region = build.region(level);
 		World world = region.getWorld();
 
-		// Built here rather than by the session so the player's global mask, block bag and block change limit cannot leave
-		// the checkout half done; the session still gets it for //undo.
+		// Built here rather than by the player's WorldEdit session so their global mask, block bag and block change limit
+		// cannot leave the checkout half done. The session is deliberately not given the edit to remember: a checkout is
+		// not one of the player's WorldEdit edits, so //undo skips over it and only ever reverts their own edits.
 		try (EditSession editSession = WorldEdit.getInstance().newEditSessionBuilder().world(world).actor(actor).maxBlocks(-1).build()) {
 			editSession.setSideEffectApplier(sideEffects());
 			editSession.setBlocks(region, Objects.requireNonNull(BlockTypes.AIR).getDefaultState());
@@ -136,7 +142,6 @@ public final class VcsCommandCheckout {
 			paste.setCopyingEntities(BuildSaver.COPY_ENTITIES);
 			paste.setCopyingBiomes(BuildSaver.COPY_BIOMES);
 			Operations.complete(paste);
-			session.remember(editSession);
 		} catch (WorldEditException e) {
 			MCVCS.LOGGER.error("Failed to check out build '{}' v{} for {}", build.name(), build.version(), player.getGameProfile().name(), e);
 			source.sendFailure(Component.literal("Failed to place schematic: " + e.getMessage()));
@@ -164,8 +169,8 @@ public final class VcsCommandCheckout {
 		source.sendSuccess(() -> {
 			MutableComponent message = Component.literal("Checked out build ").append(VcsMessages.name(build.name())).append(" v" + build.version() + " (" + covered.volume() + " blocks) into its box without block updates");
 			if (overwritten > 0) {
-				// Only a forced checkout gets here; the changes are gone from the world but not from WorldEdit's history.
-				message.append(", overwriting " + overwritten + " uncommitted " + (overwritten == 1 ? "block" : "blocks") + "; run ").append(ChatButtons.command("//undo")).append(" to get them back");
+				// Only a forced checkout gets here; the changes are gone, and not into WorldEdit's history either.
+				message.append(", overwriting " + overwritten + " uncommitted " + (overwritten == 1 ? "block" : "blocks"));
 			}
 			if (build.version() == latest.version()) {
 				return message;

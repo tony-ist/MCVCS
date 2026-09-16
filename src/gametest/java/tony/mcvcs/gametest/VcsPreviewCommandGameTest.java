@@ -66,7 +66,7 @@ public class VcsPreviewCommandGameTest extends VcsGameTest {
 			read(schematic(BUILD_NAME, 2));
 
 			// Tab completion offers every version of the selected build alongside "off".
-			assertSuggestions(singleplayer, "vcs preview ", List.of("1", "2", "off"));
+			assertSuggestions(singleplayer, "vcs preview ", List.of("-h", "1", "2", "off"));
 
 			// Nothing to preview beyond the latest version.
 			runCommand(context, "vcs preview 3");

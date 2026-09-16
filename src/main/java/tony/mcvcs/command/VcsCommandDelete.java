@@ -34,6 +34,13 @@ public final class VcsCommandDelete {
 	 */
 	private static final Map<UUID, Build> PENDING_DELETES = new HashMap<>();
 
+	static final VcsHelp HELP = new VcsHelp("delete", "/vcs delete <buildname>",
+		"delete a build, once you confirm",
+		"Asks you to confirm deleting the build. Nothing is deleted until you run /vcs confirmDelete; the request is forgotten if you leave the server first, and a second /vcs delete replaces it.");
+	static final VcsHelp CONFIRM_HELP = new VcsHelp("confirmDelete", "/vcs confirmDelete",
+		"delete the build your last /vcs delete named",
+		"Deletes the build your last /vcs delete named: its folder with every version in it is removed and anyone who had it selected loses that selection. This cannot be undone.");
+
 	private VcsCommandDelete() {
 	}
 

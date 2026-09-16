@@ -30,6 +30,10 @@ import com.sk89q.worldedit.fabric.FabricAdapter;
  * box, the version is saved all the same but a yellow warning points the player at {@code /vcs expand}.
  */
 public final class VcsCommandCommit {
+	static final VcsHelp HELP = new VcsHelp("commit", "/vcs commit",
+		"save the selected build as its next version",
+		"Saves what is inside the selected build's box as its next version. WorldEdit selection does not matter, only build's box is concerned. If anything other than air touches the box, the version is saved all the same but you are warned to run /vcs expand, since those blocks were left out.");
+
 	private VcsCommandCommit() {
 	}
 

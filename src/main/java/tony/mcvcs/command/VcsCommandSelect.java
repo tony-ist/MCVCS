@@ -4,10 +4,10 @@ import java.io.IOException;
 import java.util.Optional;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-
 import tony.mcvcs.MCVCS;
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildRegistry;
@@ -18,6 +18,10 @@ import tony.mcvcs.network.ChatButtons;
  * and later commands act on it.
  */
 public final class VcsCommandSelect {
+	static final VcsHelp HELP = new VcsHelp("select", "/vcs select <buildname>",
+		"pick the build the other commands act on",
+		"Makes an existing build your selected build: its box is drawn around it and commit, preview, load, diff, expand and checkout act on it. Run /vcs builds to see what there is to select.You can use keybind (default V) when looking on the build to select it.");
+
 	private VcsCommandSelect() {
 	}
 

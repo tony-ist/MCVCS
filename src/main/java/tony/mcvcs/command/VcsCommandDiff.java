@@ -6,12 +6,12 @@ import java.util.Map;
 import java.util.Optional;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-
 import tony.mcvcs.MCVCS;
 import tony.mcvcs.build.BoxSnapshot;
 import tony.mcvcs.build.Build;
@@ -29,6 +29,10 @@ import tony.mcvcs.network.DiffSender;
  * them in place. {@code /vcs diff off} stops the highlighting.
  */
 public final class VcsCommandDiff {
+	static final VcsHelp HELP = new VcsHelp("diff", "/vcs diff [version | off]",
+		"highlight what changed in the build since a version",
+		"Compares the provided version (or latest version by default) with the current state of the build. With the mod on your client blocks are highlighted in place: green for added, red for removed, yellow for changed. /vcs diff off removes the highlights.");
+
 	private VcsCommandDiff() {
 	}
 

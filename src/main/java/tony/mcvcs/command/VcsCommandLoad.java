@@ -27,6 +27,10 @@ import com.sk89q.worldedit.session.ClipboardHolder;
  * schematic stays where it is; nothing is written to WorldEdit's own schematic folder.
  */
 public final class VcsCommandLoad {
+	static final VcsHelp HELP = new VcsHelp("load", "/vcs load [version]",
+		"put a version in your WorldEdit clipboard for //paste",
+		"Puts that version of the selected build, or the latest one if none is given, into your WorldEdit clipboard, replacing whatever you had copied, so //paste places it. The origin is one block above the top north-west corner, so //paste puts the build one block below your feet, extending east and south.");
+
 	private VcsCommandLoad() {
 	}
 
