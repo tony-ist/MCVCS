@@ -30,6 +30,7 @@ import tony.mcvcs.build.BuildRegistry;
  * <li>{@code /vcs expand}: {@link VcsCommandExpand}</li>
  * <li>{@code /vcs checkout <version|latest> [-f]}: {@link VcsCommandCheckout}</li>
  * <li>{@code /vcs delete <buildname>} and {@code /vcs confirmDelete}: {@link VcsCommandDelete}</li>
+ * <li>{@code /vcs tp [buildname]}: {@link VcsCommandTp}</li>
  * </ul>
  * Builds and selections are looked up through {@link BuildRegistry}, which only shows those belonging to the
  * world being played; a build remembers which world and dimension its box is in.
@@ -102,7 +103,12 @@ public final class VcsCommand {
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))
 						.executes(context -> VcsCommandDelete.run(context.getSource(), StringArgumentType.getString(context, "buildname")))))
 				.then(Commands.literal("confirmDelete")
-					.executes(context -> VcsCommandDelete.confirm(context.getSource())))));
+					.executes(context -> VcsCommandDelete.confirm(context.getSource())))
+				.then(Commands.literal("tp")
+					.executes(context -> VcsCommandTp.runSelected(context.getSource()))
+					.then(Commands.argument("buildname", StringArgumentType.word())
+						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))
+						.executes(context -> VcsCommandTp.run(context.getSource(), StringArgumentType.getString(context, "buildname")))))));
 	}
 
 	/** Every version number of the build the source player has selected; nothing if there is no player or selection. */
