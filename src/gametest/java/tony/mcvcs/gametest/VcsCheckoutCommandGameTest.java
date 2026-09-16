@@ -26,6 +26,10 @@ import net.minecraft.network.chat.Component;
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildRegistry;
+import tony.mcvcs.client.diff.ClientDiff;
+import tony.mcvcs.client.diff.DiffManager;
+import tony.mcvcs.client.preview.ClientPreview;
+import tony.mcvcs.client.preview.PreviewManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.Container;
@@ -39,8 +43,9 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 /**
  * {@code /vcs checkout <version|latest> [-f]} empties the selected build's box and puts a version back in it without
  * block updates, so hovering sand stays up and an observer watching a block does not fire its piston; refuses while
- * the box holds uncommitted changes unless {@code -f} is given, which overwrites them; and puts a version committed
- * before {@code /vcs expand} back where it was built, with the rest of the grown box left empty.
+ * the box holds uncommitted changes unless {@code -f} is given, which overwrites them; stops any preview and diff
+ * highlighting the player had up; and puts a version committed before {@code /vcs expand} back where it was built,
+ * with the rest of the grown box left empty.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsCheckoutCommandGameTest extends VcsGameTest {
@@ -112,10 +117,18 @@ public class VcsCheckoutCommandGameTest extends VcsGameTest {
 			assertOnlyMessage(beyond, "Build " + BUILD_NAME + " only has versions 1 to 2");
 			assertWorldBlock(singleplayer, gold, Blocks.AIR);
 
+			// Preview v1 and highlight the diff against it, so both are up when v1 is checked out: the preview would hide
+			// the blocks just placed and the diff highlights blocks that are gone, so the checkout stops both.
+			runCommand(context, "vcs preview 1");
+			context.waitFor(client -> PreviewManager.active() != null);
+			runCommand(context, "vcs diff 1");
+			context.waitFor(client -> DiffManager.active() != null);
+
 			// v1 comes back block for block, barrel contents included, and the sand stays up: no block was updated.
 			List<Component> checkedOut = run(context, "vcs checkout 1");
 			assertOnlyMessage(checkedOut, "Checked out build " + BUILD_NAME + " v1 (27 blocks) into its box without block updates; the box now holds v1 rather than the latest v2, run /vcs checkout latest to go back to it");
 			context.waitTicks(FALL_TICKS);
+			assertNoPreviewOrDiff(context);
 			assertWorldBlock(singleplayer, gold, Blocks.GOLD_BLOCK);
 			assertWorldBlock(singleplayer, sand, Blocks.SAND);
 			assertWorldBlock(singleplayer, hole, Blocks.AIR);
@@ -268,6 +281,18 @@ public class VcsCheckoutCommandGameTest extends VcsGameTest {
 	private static void assertOnlyMessage(List<Component> messages, String prefix) {
 		if (messages.size() != 1 || !messages.get(0).getString().startsWith(prefix)) {
 			throw new AssertionError("Expected only a message starting with '" + prefix + "' but got " + messages.stream().map(Component::getString).toList());
+		}
+	}
+
+	/** The client shows no preview and highlights no diff. */
+	private static void assertNoPreviewOrDiff(ClientGameTestContext context) {
+		ClientPreview preview = context.computeOnClient(client -> PreviewManager.active());
+		if (preview != null) {
+			throw new AssertionError("Expected no preview after /vcs checkout but '" + preview.name() + "' v" + preview.version() + " is shown");
+		}
+		ClientDiff diff = context.computeOnClient(client -> DiffManager.active());
+		if (diff != null) {
+			throw new AssertionError("Expected no diff after /vcs checkout but '" + diff.name() + "' v" + diff.version() + " is highlighted");
 		}
 	}
 

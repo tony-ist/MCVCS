@@ -21,6 +21,7 @@ import tony.mcvcs.build.BuildStorage;
 import tony.mcvcs.diff.BuildDiff;
 import tony.mcvcs.network.ChatButtons;
 import tony.mcvcs.network.DiffSender;
+import tony.mcvcs.network.PreviewSender;
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.WorldEdit;
@@ -42,7 +43,8 @@ import com.sk89q.worldedit.world.block.BlockTypes;
  * on. Refuses while the box differs from the version it holds, since the changes would be lost: they have to be
  * committed first, unless {@code -f} is given, which overwrites them ({@code //undo} brings them back). The
  * checked-out version becomes the one the box holds, so checking out another version after it is allowed, and a
- * commit from there saves the box as the next version as usual.
+ * commit from there saves the box as the next version as usual. Any preview or diff highlighting the player had up
+ * is stopped, since both showed the box as it was before.
  */
 public final class VcsCommandCheckout {
 	private VcsCommandCheckout() {
@@ -141,7 +143,11 @@ public final class VcsCommandCheckout {
 			return 0;
 		}
 		MCVCS.LOGGER.info("{} checked out build '{}' v{} into its box in {}, overwriting {} uncommitted blocks", player.getGameProfile().name(), build.name(), build.version(), world == null ? "its dimension" : world.getName(), overwritten);
-		// A diff highlighted before the checkout compared blocks that are gone now.
+		// A preview shown before the checkout would hide the version that was just placed, and a diff highlighted before
+		// it compared blocks that are gone now.
+		if (PreviewSender.canSend(player)) {
+			PreviewSender.clear(player);
+		}
 		if (DiffSender.canSend(player)) {
 			DiffSender.clear(player);
 		}
