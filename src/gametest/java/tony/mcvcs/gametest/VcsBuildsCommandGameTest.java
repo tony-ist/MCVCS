@@ -22,7 +22,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.common.ServerboundCustomClickActionPacket;
 
 import tony.mcvcs.client.build.ClientBuilds;
-import tony.mcvcs.command.VcsCommand;
+import tony.mcvcs.command.VcsCommandBuilds;
 import tony.mcvcs.network.ChatButtons;
 import tony.mcvcs.build.ClientBuild;
 import net.minecraft.core.BlockPos;
@@ -85,8 +85,8 @@ public class VcsBuildsCommandGameTest extends VcsGameTest {
 			if (!listed.get(0).getString().equals("2 builds in this world:")) {
 				throw new AssertionError("Unexpected header '" + listed.get(0).getString() + "'");
 			}
-			assertLine(listed.get(1), FIRST, "[" + VcsCommand.SELECT_BUTTON + "]");
-			assertLine(listed.get(2), SECOND, "[" + VcsCommand.SELECTED_MARKER + "]");
+			assertLine(listed.get(1), FIRST, "[" + VcsCommandBuilds.SELECT_BUTTON + "]");
+			assertLine(listed.get(2), SECOND, "[" + VcsCommandBuilds.SELECTED_MARKER + "]");
 			if (button(listed.get(2)).isPresent()) {
 				throw new AssertionError("The selected build must not get a button but got " + button(listed.get(2)).get());
 			}
@@ -105,8 +105,8 @@ public class VcsBuildsCommandGameTest extends VcsGameTest {
 			if (relisted.size() != 3) {
 				throw new AssertionError("Expected a header and two builds but got " + strings(relisted));
 			}
-			assertLine(relisted.get(1), FIRST, "[" + VcsCommand.SELECTED_MARKER + "]");
-			assertLine(relisted.get(2), SECOND, "[" + VcsCommand.SELECT_BUTTON + "]");
+			assertLine(relisted.get(1), FIRST, "[" + VcsCommandBuilds.SELECTED_MARKER + "]");
+			assertLine(relisted.get(2), SECOND, "[" + VcsCommandBuilds.SELECT_BUTTON + "]");
 		}
 	}
 

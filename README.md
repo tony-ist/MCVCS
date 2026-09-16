@@ -87,7 +87,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Add version tags. To keep track of TickNet versions more easily. Tags could be like '1.5.4' and selectable in checkouts, diffs and previews
 - Aliases for commands to type them faster
 - Change boundinx box color during preview and display version that is being previewed in the label
-- Refactor VcsCommand file, split into multiple files, 1 for 1 command
 - Display builds and versions on the client in overlay. Also show rotating 3D render of the build. Make buttons in overlay to select, checkout, diff and preview builds.
 - When modifying build, update diff in real time
 - Disable sounds in test client so that I don't get jumpscared. Also make it creative mode and spanw player as flying not falling if he's in midair
@@ -95,3 +94,4 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Bug with preview where I create ARPU, commit, delete bug chunk of it, commit, then preview whole version, it does not show chunk
 - When making chekcouts, actions are stored in worldedit queue, so //undo undoes mcvcs actions. This is undesired, make mcvcs actions and worldedit actions always separate.
 - Command to tp to a build
+- Help for commands

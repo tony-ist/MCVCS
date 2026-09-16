@@ -22,7 +22,7 @@ import tony.mcvcs.MCVCS;
 /**
  * {@code /vcs create <buildname>} run without a WorldEdit selection: the build is made from the next block the player
  * clicks instead. The command {@linkplain #arm arms} the player; their next punch of a block, with anything or nothing
- * in hand, or right-click of one with an empty main hand, hands the block to {@link VcsCommand#createFromBlock}, which
+ * in hand, or right-click of one with an empty main hand, hands the block to {@link VcsCommandCreate#createFromBlock}, which
  * grows a box from it over everything connected to it and creates the build from that. The click does nothing else: the
  * block is neither broken nor used, and Fabric has the server tell the client so, in case it already broke or toggled
  * the block on its side.
@@ -75,7 +75,7 @@ public final class CreateOnClick {
 		if (name == null) {
 			return InteractionResult.PASS;
 		}
-		VcsCommand.createFromBlock(serverPlayer, serverLevel, name, pos);
+		VcsCommandCreate.createFromBlock(serverPlayer, serverLevel, name, pos);
 		return InteractionResult.SUCCESS;
 	}
 }

@@ -23,7 +23,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextColor;
 
-import tony.mcvcs.command.VcsCommand;
+import tony.mcvcs.command.VcsCommandCommit;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.fabric.FabricAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -99,7 +99,7 @@ public class VcsCommitCommandGameTest extends VcsGameTest {
 			assertOrigin(v3, expectedOrigin);
 			assertSize(v3, BlockVector3.at(3, 2, 2));
 			assertBlock(v3, opposite, BlockTypes.DIAMOND_BLOCK);
-			assertMessages(warned, List.of("Committed build " + BUILD_NAME + " v3", VcsCommand.notEnclosedWarning().getString()));
+			assertMessages(warned, List.of("Committed build " + BUILD_NAME + " v3", VcsCommandCommit.notEnclosedWarning().getString()));
 			if (!TextColor.fromLegacyFormat(ChatFormatting.YELLOW).equals(warned.get(1).getStyle().getColor())) {
 				throw new AssertionError("Expected the warning to be yellow but its style is " + warned.get(1).getStyle());
 			}
