@@ -7,6 +7,7 @@
 	"entrypoints": {
 		"fabric-client-gametest": [
 			"tony.mcvcs.gametest.VcsCreateCommandGameTest",
+			"tony.mcvcs.gametest.VcsCreateOnClickGameTest",
 			"tony.mcvcs.gametest.VcsCommitCommandGameTest",
 			"tony.mcvcs.gametest.VcsPreviewCommandGameTest",
 			"tony.mcvcs.gametest.VcsLoadCommandGameTest",

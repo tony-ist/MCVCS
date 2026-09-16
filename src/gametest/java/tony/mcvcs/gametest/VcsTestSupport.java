@@ -138,6 +138,22 @@ final class VcsTestSupport {
 		});
 	}
 
+	/** Leaves the player without a WorldEdit selection, as {@code //sel} would. */
+	static void clearSelection(TestSingleplayerContext singleplayer) {
+		singleplayer.getServer().runOnServer(server -> {
+			FabricAdapter adapter = FabricAdapter.get();
+			ServerPlayer player = server.getPlayerList().getPlayers().get(0);
+			World world = adapter.fromNativeWorld(server.overworld());
+			LocalSession session = WorldEdit.getInstance().getSessionManager().get(adapter.fromNativePlayer(player));
+			session.getRegionSelector(world).clear();
+		});
+	}
+
+	/** What the server has at {@code pos} in the overworld. */
+	static BlockState blockAt(TestSingleplayerContext singleplayer, BlockPos pos) {
+		return singleplayer.getServer().computeOnServer(server -> server.overworld().getBlockState(pos));
+	}
+
 	static void runCommand(ClientGameTestContext context, String command) {
 		context.runOnClient(client -> client.player.connection.sendCommand(command));
 		context.waitTicks(2);
