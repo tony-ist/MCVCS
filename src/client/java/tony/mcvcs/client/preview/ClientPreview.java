@@ -6,6 +6,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
 import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.ClientBuild;
 
 /**
  * A fully received preview: the build version's blocks, indexed in {@link BuildBox} order.
@@ -17,6 +18,11 @@ public record ClientPreview(String name, int version, ResourceKey<Level> dimensi
 	/** Whether {@code pos} in the dimension {@code dimension} is drawn from the preview instead of the real world. */
 	public boolean covers(ResourceKey<Level> dimension, BlockPos pos) {
 		return box.contains(pos) && this.dimension.equals(dimension);
+	}
+
+	/** Whether this is a preview of some version of {@code build}. */
+	public boolean isOf(ClientBuild build) {
+		return name.equals(build.name()) && dimension.equals(build.dimension());
 	}
 
 	/** Block to draw at {@code pos}, which must be {@linkplain #covers covered}. */

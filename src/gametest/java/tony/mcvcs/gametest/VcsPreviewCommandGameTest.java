@@ -7,6 +7,7 @@ import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
 import static tony.mcvcs.gametest.VcsTestSupport.read;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
+import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
 import static tony.mcvcs.gametest.VcsTestSupport.sectionHasGeometry;
 import static tony.mcvcs.gametest.VcsTestSupport.select;
 import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
@@ -82,9 +83,11 @@ public class VcsPreviewCommandGameTest extends VcsGameTest {
 			assertWorldBlock(singleplayer, gold, Blocks.DIAMOND_BLOCK);
 			assertWorldBlock(singleplayer, hole, Blocks.DIAMOND_BLOCK);
 
-			lookAt(context, min, max);
+			// Framed with room above the box, so the green preview box and the "(PREVIEW)" label are both in shot; the
+			// gizmos they are drawn with only make it into a shot of the last rendered frame.
+			lookAt(context, min, max.above(2));
 			singleplayer.getClientLevel().waitForChunksRender();
-			context.takeScreenshot("mcvcs-vcs-preview-v1");
+			screenshotLastFrame(context, "mcvcs-vcs-preview-v1");
 
 			runCommand(context, "vcs preview 2");
 			preview = waitForPreview(context, 2);

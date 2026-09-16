@@ -15,6 +15,8 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import tony.mcvcs.client.build.ClientBuilds;
+import tony.mcvcs.client.preview.ClientPreview;
+import tony.mcvcs.client.preview.PreviewManager;
 import tony.mcvcs.client.selection.SelectionBoxRenderer;
 import tony.mcvcs.build.ClientBuild;
 import tony.mcvcs.build.BuildBox;
@@ -25,7 +27,8 @@ import tony.mcvcs.build.BuildBox;
  * Labels are camera-facing text emitted through the gizmo pipeline once per frame, like the selection box, but drawn
  * on top of everything: a name half hidden behind a wall or a tree is unreadable, and seeing a label through the roof
  * is how you tell which build you are standing in. A label fades in over the last few blocks of its range instead of
- * popping into view, and the selected build's label takes the color of its box.
+ * popping into view, and the selected build's label takes the color of its box. While a version of a build is
+ * previewed, its label says so and names the version, in the green of the preview box.
  */
 public final class BuildLabelRenderer {
 	/** How close the camera must be to a build's box, in blocks, for its label to show. */
@@ -62,6 +65,7 @@ public final class BuildLabelRenderer {
 		}
 
 		ClientBuild selected = ClientBuilds.selected();
+		ClientPreview preview = PreviewManager.active();
 		ResourceKey<Level> dimension = context.level().dimension();
 		Vec3 camera = context.camera().position();
 		// The text hangs down from its position, so the position is lifted by the text's own height to keep the gap.
@@ -79,9 +83,20 @@ public final class BuildLabelRenderer {
 			AABB aabb = aabb(build.box());
 			Vec3 center = aabb.getCenter();
 			Vec3 pos = new Vec3(center.x, aabb.maxY + lift, center.z);
-			int color = ARGB.multiplyAlpha(build.equals(selected) ? SelectionBoxRenderer.COLOR : COLOR, opacity);
-			Gizmos.billboardText(build.name(), pos, TextGizmo.Style.forColorAndCentered(color).withScale(SCALE)).setAlwaysOnTop();
+			String text = build.name();
+			int color = build.equals(selected) ? SelectionBoxRenderer.COLOR : COLOR;
+			if (preview != null && preview.isOf(build)) {
+				text = previewLabel(build.name(), preview.version());
+				color = SelectionBoxRenderer.PREVIEW_COLOR;
+			}
+			TextGizmo.Style style = TextGizmo.Style.forColorAndCentered(ARGB.multiplyAlpha(color, opacity)).withScale(SCALE);
+			Gizmos.billboardText(text, pos, style).setAlwaysOnTop();
 		}
+	}
+
+	/** The label of the build {@code name} while its version {@code version} is previewed. */
+	public static String previewLabel(String name, int version) {
+		return name + " v" + version + " (PREVIEW)";
 	}
 
 	private static AABB aabb(BuildBox box) {
