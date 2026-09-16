@@ -2,7 +2,7 @@
 
 A version control system for redstone builds, as a Minecraft Fabric mod.
 
-Select a build with WorldEdit, turn it into a build, and commit snapshots of it as you work. Every commit is saved as a schematic, and any earlier version can be previewed in place, client-side, without touching the world.
+Select a build with WorldEdit, turn it into a MCVCS build, and commit snapshots of it as you work. Every commit is saved as a schematic, and any earlier version can be previewed in place, client-side, without touching the world.
 
 The preferred way to use builds with this mod is to have them hover in the air, not touching the ground or anything else that is not part of them. `/vcs expand` grows a build's region until only air surrounds it, so it can pick up whatever you built out past the edges; a build standing on the ground would take the ground with it.
 
