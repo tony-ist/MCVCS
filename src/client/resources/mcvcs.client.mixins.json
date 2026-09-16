@@ -3,6 +3,7 @@
 	"package": "tony.mcvcs.client.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"client": [
+		"ClientChunkCacheMixin",
 		"ExampleClientMixin",
 		"RenderSectionRegionMixin"
 	],

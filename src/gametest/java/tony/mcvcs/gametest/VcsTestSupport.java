@@ -2,6 +2,8 @@ package tony.mcvcs.gametest;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
@@ -15,7 +17,11 @@ import com.mojang.brigadier.suggestion.Suggestion;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
+import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.ViewArea;
+import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import net.minecraft.commands.CommandSourceStack;
 
 import tony.mcvcs.build.BuildStorage;
@@ -189,6 +195,26 @@ final class VcsTestSupport {
 			client.player.setXRot(pitch);
 		});
 		context.waitTicks(2);
+	}
+
+	/**
+	 * Whether the renderer has built geometry for the chunk section around {@code pos}, i.e. something in it is
+	 * actually drawn. {@code LevelRenderer.isSectionCompiledAndVisible} is not enough: a section the renderer skips
+	 * as empty counts as compiled there while drawing nothing. Reaches into the renderer's view area by reflection,
+	 * as nothing public leads from a position to its section.
+	 */
+	static boolean sectionHasGeometry(Minecraft client, BlockPos pos) {
+		try {
+			Field viewAreaField = LevelRenderer.class.getDeclaredField("viewArea");
+			viewAreaField.setAccessible(true);
+			ViewArea viewArea = (ViewArea) viewAreaField.get(client.levelRenderer);
+			Method getRenderSectionAt = ViewArea.class.getDeclaredMethod("getRenderSectionAt", BlockPos.class);
+			getRenderSectionAt.setAccessible(true);
+			SectionRenderDispatcher.RenderSection section = (SectionRenderDispatcher.RenderSection) getRenderSectionAt.invoke(viewArea, pos);
+			return section != null && section.getSectionMesh().hasRenderableLayers();
+		} catch (ReflectiveOperationException e) {
+			throw new AssertionError("Failed to reach the render section at " + pos, e);
+		}
 	}
 
 	static void assertOrigin(Clipboard clipboard, BlockVector3 expected) {
