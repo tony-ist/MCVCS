@@ -87,6 +87,7 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ## TODO
 
+- /vcs weselect -- selects whole build as worldedit selection. 
 - Add version tags. To keep track of TickNet versions more easily. Tags could be like '1.5.4' and selectable in checkouts, diffs and previews
 - Aliases for commands to type them faster
 - Display builds and versions on the client in overlay. Also show rotating 3D render of the build. Make buttons in overlay to select, checkout, diff and preview builds.
