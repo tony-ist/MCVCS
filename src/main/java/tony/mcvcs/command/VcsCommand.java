@@ -32,6 +32,7 @@ import tony.mcvcs.build.BuildRegistry;
  * <li>{@code /vcs checkout <version | latest> [-f]}: {@link VcsCommandCheckout}</li>
  * <li>{@code /vcs delete <buildname>} and {@code /vcs confirmDelete}: {@link VcsCommandDelete}</li>
  * <li>{@code /vcs tp [buildname]}: {@link VcsCommandTp}</li>
+ * <li>{@code /vcs weselect}: {@link VcsCommandWeselect}</li>
  * <li>{@code /vcs help [command]} and {@code /vcs -h}: {@link VcsCommandHelp}</li>
  * </ul>
  * Every subcommand also takes {@code -h} in place of its arguments, which shows its help instead of running it, see
@@ -118,7 +119,9 @@ public final class VcsCommand {
 					.executes(context -> VcsCommandTp.runSelected(context.getSource()))
 					.then(Commands.argument("buildname", StringArgumentType.word())
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))
-						.executes(context -> VcsCommandTp.run(context.getSource(), StringArgumentType.getString(context, "buildname")))))));
+						.executes(context -> VcsCommandTp.run(context.getSource(), StringArgumentType.getString(context, "buildname")))))
+				.then(sub(VcsCommandWeselect.HELP)
+					.executes(context -> VcsCommandWeselect.run(context.getSource())))));
 	}
 
 	/**

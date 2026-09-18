@@ -17,6 +17,7 @@
 			"tony.mcvcs.gametest.VcsSelectionBoxGameTest",
 			"tony.mcvcs.gametest.VcsBuildLabelGameTest",
 			"tony.mcvcs.gametest.VcsSelectCommandGameTest",
+			"tony.mcvcs.gametest.VcsWeselectCommandGameTest",
 			"tony.mcvcs.gametest.VcsSelectHotkeyGameTest",
 			"tony.mcvcs.gametest.VcsBuildsCommandGameTest",
 			"tony.mcvcs.gametest.VcsDeselectCommandGameTest",

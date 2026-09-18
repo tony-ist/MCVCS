@@ -32,6 +32,7 @@ public final class VcsCommandHelp {
 		VcsCommandDelete.HELP,
 		VcsCommandDelete.CONFIRM_HELP,
 		VcsCommandTp.HELP,
+		VcsCommandWeselect.HELP,
 		HELP);
 
 	private VcsCommandHelp() {

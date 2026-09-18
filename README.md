@@ -17,7 +17,7 @@ The preferred way to use builds with this mod is to have them hover in the air, 
 
 The mod works in two setups:
 
-- **Server only.** Install it on the server (or in the host's single-player game). Players connect with a vanilla Fabric client and get the full command set: `create`, `select`, `builds`, `deselect`, `commit`, `load`, `diff`, `expand`, `checkout`, `delete`, `tp` and `help` all run on the server. Nothing is drawn in their world, though: no build labels and no selection box, `/vcs diff` only reports its counts in chat, and `/vcs preview` refuses with a message saying the client does not have MCVCS installed.
+- **Server only.** Install it on the server (or in the host's single-player game). Players connect with a vanilla Fabric client and get the full command set: `create`, `select`, `builds`, `deselect`, `commit`, `load`, `diff`, `expand`, `checkout`, `delete`, `tp`, `weselect` and `help` all run on the server. Nothing is drawn in their world, though: no build labels and no selection box, `/vcs diff` only reports its counts in chat, and `/vcs preview` refuses with a message saying the client does not have MCVCS installed.
 - **Server and client.** Install it on both. On top of the commands, the client shows every build's name floating above its region, draws the selected build's bounding box, highlights the blocks `/vcs diff` finds, can render `/vcs preview <version>` in place of the real blocks, and adds a hotkey that selects the build under your crosshair (see below).
 
 There is no client-only mode: the builds live on the server, so the mod has to be there for anything to work.
@@ -41,6 +41,7 @@ There is no client-only mode: the builds live on the server, so the mod has to b
 | `/vcs delete <buildname>` | Asks you to confirm deleting the build. Nothing is deleted until you run `/vcs confirmDelete`; the request is forgotten if you leave the server first, and a second `/vcs delete` replaces it. |
 | `/vcs confirmDelete` | Deletes the build your last `/vcs delete` named: its folder with every version in it is removed and anyone who had it selected loses that selection, along with any preview or diff highlighting of it. This cannot be undone. |
 | `/vcs tp [buildname]` | Teleports you on top of that build, or of your selected build if no name is given. |
+| `/vcs weselect` | Sets your WorldEdit selection to the whole box of your selected build, the corners as `//pos1` and `//pos2` would set them, so `//copy`, `//set` and the rest act on exactly the build. Moving the selection afterwards does not move the build: its box only ever changes through `/vcs expand`. WorldEdit keeps one selection per world, so you have to be in the build's dimension; otherwise the command refuses and points you at `/vcs tp`. |
 | `/vcs help [command]` | Without a command: tells how to start a build (run `/vcs create <buildname>`, then punch a block of it) and lists every command with a one-line summary. With one, e.g. `/vcs help commit`: that command's full help. `/vcs -h` is the same as `/vcs help`. |
 | `/vcs <command> -h` | Shows that command's full help instead of running it, e.g. `/vcs checkout -h`. Works for every command above. |
 
@@ -87,7 +88,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ## TODO
 
-- /vcs weselect -- selects whole build as worldedit selection. 
 - Add version tags. To keep track of TickNet versions more easily. Tags could be like '1.5.4' and selectable in checkouts, diffs and previews
 - Aliases for commands to type them faster
 - Display builds and versions on the client in overlay. Also show rotating 3D render of the build. Make buttons in overlay to select, checkout, diff and preview builds.

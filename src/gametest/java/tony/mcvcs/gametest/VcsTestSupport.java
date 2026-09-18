@@ -24,9 +24,12 @@ import net.minecraft.client.renderer.ViewArea;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import net.minecraft.commands.CommandSourceStack;
 
+import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildStorage;
+import com.sk89q.worldedit.IncompleteRegionException;
 import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.WorldEdit;
+import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
 import com.sk89q.worldedit.fabric.FabricAdapter;
@@ -135,6 +138,21 @@ final class VcsTestSupport {
 			World world = adapter.fromNativeWorld(server.overworld());
 			LocalSession session = WorldEdit.getInstance().getSessionManager().get(adapter.fromNativePlayer(player));
 			session.setRegionSelector(world, new CuboidRegionSelector(world, adapter.adapt(min), adapter.adapt(max)));
+		});
+	}
+
+	/** The player's WorldEdit selection as a box, or {@code null} when they have none. */
+	static BuildBox weSelection(TestSingleplayerContext singleplayer) {
+		return singleplayer.getServer().computeOnServer(server -> {
+			FabricAdapter adapter = FabricAdapter.get();
+			ServerPlayer player = server.getPlayerList().getPlayers().get(0);
+			Player actor = adapter.fromNativePlayer(player);
+			LocalSession session = WorldEdit.getInstance().getSessionManager().get(actor);
+			try {
+				return BuildBox.of(session.getSelection(actor.getWorld()));
+			} catch (IncompleteRegionException e) {
+				return null;
+			}
 		});
 	}
 
