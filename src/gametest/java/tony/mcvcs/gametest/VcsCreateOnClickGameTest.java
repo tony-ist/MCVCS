@@ -46,10 +46,10 @@ import net.minecraft.world.level.block.NoteBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * {@code /vcs create} without a WorldEdit selection waits for the player to click a block: a punch with anything in
- * hand or a right-click with an empty hand. The build is grown from that block over everything connected to it, the
- * block itself is neither broken nor used, and a box that would overlap another build is refused. Another
- * {@code /vcs create} replaces the click that is being waited for.
+ * {@code /vcs create} waits for the player to click a block: a punch with anything in hand or a right-click with an
+ * empty hand. The build is grown from that block over everything connected to it, the block itself is neither broken
+ * nor used, and a box that would overlap another build is refused. A WorldEdit selection is ignored unless
+ * {@code -we} is given, and another {@code /vcs create} replaces the click that is being waited for.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsCreateOnClickGameTest extends VcsGameTest {
@@ -74,7 +74,7 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 		resetBuilds(PUNCHED_NAME, USED_NAME, OVERLAPPING_NAME, REPLACED_NAME, SELECTED_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
-			// A selection left by an earlier test would make create use it rather than wait for a click.
+			// A selection left by an earlier test must not change what create does, and -we must find none of its own.
 			clearSelection(singleplayer);
 
 			// A 2x2x2 stone cube hovering one block above the ground in front of and to the right of the player, with a
@@ -86,9 +86,18 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), min, Blocks.STONE.defaultBlockState());
 			setBlock(singleplayer, gold, Blocks.GOLD_BLOCK.defaultBlockState());
 
-			// Without a selection nothing is created yet; the player is asked to click.
+			// With -we and nothing selected, nothing is created and no click is waited for either: a punch afterwards
+			// is an ordinary one, which says nothing and leaves the cube alone.
+			List<Component> noSelection = run(context, "vcs create " + PUNCHED_NAME + " -we");
+			assertOnlyMessage(noSelection, "No WorldEdit selection to create build " + PUNCHED_NAME + " from; make one with the wand, or run /vcs create " + PUNCHED_NAME);
+			assertNoBuild(PUNCHED_NAME);
+			lookAt(context, min, max);
+			assertNoMessage(click(context, options -> options.keyAttack));
+			assertNoBuild(PUNCHED_NAME);
+
+			// Nothing is created yet; the player is asked to click.
 			List<Component> armed = run(context, "vcs create " + PUNCHED_NAME);
-			assertOnlyMessage(armed, "No WorldEdit selection; punch a block of the build, or right-click it with an empty hand, to create build " + PUNCHED_NAME);
+			assertOnlyMessage(armed, "Punch a block of the build, or right-click it with an empty hand, to create build " + PUNCHED_NAME);
 			assertNoBuild(PUNCHED_NAME);
 
 			// Punching the cube creates the build from the whole 3x3x3 it forms with the gold block, and breaks nothing.
@@ -144,14 +153,14 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 			assertState(singleplayer, touching, Blocks.STONE.defaultBlockState());
 			assertNoMessage(click(context, options -> options.keyAttack));
 
-			// A create with a selection replaces the click an earlier one without is waiting for: the earlier build is
-			// never made, however much the player clicks afterwards. The selection is a 2x2x2 cube behind the player's right.
+			// A create with -we replaces the click an earlier one without it is waiting for: the earlier build is never
+			// made, however much the player clicks afterwards. The selection is a 2x2x2 cube behind the player's right.
 			BlockPos selectedMin = playerPos(singleplayer).offset(2, 1, -3);
 			BlockPos selectedMax = selectedMin.offset(1, 1, 1);
 			fillBox(singleplayer, selectedMin, selectedMax, Blocks.STONE.defaultBlockState(), selectedMin, Blocks.STONE.defaultBlockState());
 			runCommand(context, "vcs create " + REPLACED_NAME);
 			select(singleplayer, selectedMin, selectedMax);
-			List<Component> selected = run(context, "vcs create " + SELECTED_NAME);
+			List<Component> selected = run(context, "vcs create " + SELECTED_NAME + " -we");
 			assertOnlyMessage(selected, "Created build " + SELECTED_NAME + " as placement " + Build.MAIN + " (2x2x2, 8 blocks) at");
 			lookAt(context, selectedMin, selectedMax);
 			assertNoMessage(click(context, options -> options.keyAttack));

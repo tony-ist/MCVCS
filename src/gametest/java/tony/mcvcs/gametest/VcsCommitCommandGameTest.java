@@ -74,7 +74,7 @@ public class VcsCommitCommandGameTest extends VcsGameTest {
 				throw new AssertionError("Commit without a selected build must not write " + schematic(BUILD_NAME, 2));
 			}
 
-			runCommand(context, "vcs create " + BUILD_NAME);
+			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
 
 			// Move the WorldEdit selection well away from the box and edit the box itself. Commit must follow the

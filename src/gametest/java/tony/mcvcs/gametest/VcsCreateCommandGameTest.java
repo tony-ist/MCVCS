@@ -75,7 +75,7 @@ public class VcsCreateCommandGameTest extends VcsGameTest {
 				throw new AssertionError("Create with name '..' must not write " + escaped);
 			}
 
-			runCommand(context, "vcs create " + BUILD_NAME);
+			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 
 			Clipboard clipboard = read(schematic(BUILD_NAME, 1));
 			assertOrigin(clipboard, expectedOrigin);
@@ -108,14 +108,14 @@ public class VcsCreateCommandGameTest extends VcsGameTest {
 
 			// A box that shares even one block with an existing build is refused, so nothing is written for it.
 			select(singleplayer, max, max.offset(2, 2, 2));
-			runCommand(context, "vcs create " + OVERLAPPING_NAME);
+			runCommand(context, "vcs create " + OVERLAPPING_NAME + " -we");
 			if (Files.exists(BuildStorage.directory(OVERLAPPING_NAME))) {
 				throw new AssertionError("Create must not write a build whose box overlaps '" + BUILD_NAME + "'");
 			}
 
 			// One that merely touches the existing build's face is fine.
 			select(singleplayer, max.offset(1, 0, 0), max.offset(2, 2, 2));
-			runCommand(context, "vcs create " + ADJACENT_NAME);
+			runCommand(context, "vcs create " + ADJACENT_NAME + " -we");
 			read(schematic(ADJACENT_NAME, 1));
 
 			context.takeScreenshot("mcvcs-vcs-create");

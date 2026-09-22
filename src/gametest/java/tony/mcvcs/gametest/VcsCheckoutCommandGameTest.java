@@ -107,7 +107,7 @@ public class VcsCheckoutCommandGameTest extends VcsGameTest {
 			List<Component> none = run(context, "vcs checkout 1");
 			assertOnlyMessage(none, "Nothing selected in this world");
 
-			runCommand(context, "vcs create " + BUILD_NAME);
+			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
 			assertSuggestions(singleplayer, "vcs checkout ", List.of("-h", "latest", "1"));
 
@@ -273,7 +273,7 @@ public class VcsCheckoutCommandGameTest extends VcsGameTest {
 
 		// v1 is the line with the empty slot; v2 has a stone block in the slot.
 		select(singleplayer, start, end);
-		runCommand(context, "vcs create " + REDSTONE_NAME);
+		runCommand(context, "vcs create " + REDSTONE_NAME + " -we");
 		read(schematic(REDSTONE_NAME, 1));
 		setBlock(singleplayer, end, Blocks.STONE.defaultBlockState());
 		runCommand(context, "vcs commit");

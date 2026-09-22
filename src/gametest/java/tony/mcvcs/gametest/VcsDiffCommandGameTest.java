@@ -67,7 +67,7 @@ public class VcsDiffCommandGameTest extends VcsGameTest {
 			setBlock(singleplayer, hole, Blocks.AIR.defaultBlockState());
 			setBlock(singleplayer, barrel, Blocks.BARREL.defaultBlockState());
 			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME);
+			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
 
 			// Tab completion offers every version of the selected build alongside "off".

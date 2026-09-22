@@ -2,7 +2,7 @@
 
 A version control system for redstone builds, as a Minecraft Fabric mod.
 
-Select a build with WorldEdit, turn it into a MCVCS build, and commit snapshots of it as you work. Every commit is saved as a schematic, and any earlier version can be previewed in place, client-side, without touching the world.
+Punch a block of a build to turn it into a MCVCS build, and commit snapshots of it as you work. Every commit is saved as a schematic, and any earlier version can be previewed in place, client-side, without touching the world.
 
 The preferred way to use builds with this mod is to have them hover in the air, not touching the ground or anything else that is not part of them. `/vcs expand` grows a build's region until only air surrounds it, so it can pick up whatever you built out past the edges; a build standing on the ground would take the ground with it.
 
@@ -36,7 +36,7 @@ There is no client-only mode: the builds live on the server, so the mod has to b
 
 | Command | What it does |
 | --- | --- |
-| `/vcs create <buildname> [placementname]` | Turns the bounding box of your current WorldEdit selection into a build and saves it as version 1. Without a selection, it waits for you to click the build instead: punch any block of it, with anything or nothing in hand, or right-click one with an empty hand, and the build is grown from that block over everything connected to it, the way `/vcs expand` grows a box (so it should hover in the air, see above), then created and committed as version 1. The click neither breaks nor uses the block; the server puts it back if your client already did. WorldEdit tools go first: a wand or brush click does what it always does and the next click is waited for instead. If the connected blocks would reach past 5,000,000, nothing is created and you are asked to select the build with WorldEdit. Running `/vcs create` again, with or without a selection, replaces a click still being waited for. The name must not belong to an existing build, ignoring case (`Foo` and `foo` are the same build), and the box may not overlap any placement in the same dimension. What is created is the build's first placement, called `main` unless you name it, and it becomes your selected placement for this world. |
+| `/vcs create <buildname> [placementname] [-we]` | Waits for you to click the build, then creates it: punch any block of it, with anything or nothing in hand, or right-click one with an empty hand, and the build is grown from that block over everything connected to it, the way `/vcs expand` grows a box (so it should hover in the air, see above), then created and committed as version 1. The click neither breaks nor uses the block; the server puts it back if your client already did. WorldEdit tools go first: a wand or brush click does what it always does and the next click is waited for instead. If the connected blocks would reach past 5,000,000, nothing is created and you are asked to use `-we` instead. With `-we`, the bounding box of your current WorldEdit selection becomes the build and no click is waited for; without a selection the command refuses. Your selection is otherwise ignored. Running `/vcs create` again replaces a click still being waited for. The name must not belong to an existing build, ignoring case (`Foo` and `foo` are the same build), and the box may not overlap any placement in the same dimension. What is created is the build's first placement, called `main` unless you name it, and it becomes your selected placement for this world. |
 | `/vcs place <buildname> [version\|latest] [placementname] [-f]` | Puts another copy of the build into the world where you stand, as a placement of its own: that version, or the latest one if none is given, is pasted with its top north-west corner one block below your feet, so it hangs below you extending east and south, exactly where `/vcs load` and `//paste` would put it. The new placement is named `p2`, `p3` and so on unless you name it, and becomes your selected one. It lives its own life from then on: check it out and modify it on its own, and commits from it become versions of the same build. The blocks are placed without block updates and outside your WorldEdit history, the same way `/vcs checkout` places them. Refuses if the copy would overlap another placement, and refuses if anything is already standing where it goes unless you add `-f`, which overwrites those blocks for good. |
 | `/vcs unplace [-c]` | Asks you to confirm taking your selected placement out of its build. Nothing happens until you run `/vcs confirmUnplace`; the request is forgotten if you leave the server first. The build and every version of it stay on disk, so `/vcs place` can put it back. |
 | `/vcs confirmUnplace` | Removes the placement your last `/vcs unplace` named: it stops being tracked and anyone who had it selected loses that selection. Its blocks are left standing where they are, as ordinary world blocks, unless `-c` was given, in which case its box is emptied as well. |
@@ -120,12 +120,17 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ## TODO
 
+
+### Roadmap
 - Do not use worldedit selection for build create, only punch. Maybe hide worldedit selection usage under flag
 - Show a preview of a placement before `/vcs place` actually puts it in the world, and let it be moved before it is confirmed.
 - A command to move a placement without unplacing and placing it again.
 - Add version tags. To keep track of TickNet versions more easily. Tags could be like '1.5.4' and selectable in checkouts, diffs and previews
 - Aliases for commands to type them faster
 - Display builds and versions on the client in overlay. Also show rotating 3D render of the build. Make buttons in overlay to select, checkout, diff and preview builds.
+- Make automatic releases on github by reading tags
+
+### Nice to have
 - When modifying build, update diff in real time
 - Disable sounds in test client so that I don't get jumpscared. Also make it creative mode and spanw player as flying not falling if he's in midair
 - Render label of the build on the nearest edge to the player. This way labels of the big builds will be seen better.

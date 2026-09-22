@@ -64,7 +64,7 @@ public class VcsDeleteCommandGameTest extends VcsGameTest {
 			BlockPos max = min.offset(2, 1, 1);
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), min, Blocks.STONE.defaultBlockState());
 			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME);
+			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
 			runCommand(context, "vcs commit");
 			read(schematic(BUILD_NAME, 2));
@@ -111,7 +111,7 @@ public class VcsDeleteCommandGameTest extends VcsGameTest {
 			assertOnlyMessage(reconfirmed, "Nothing to confirm");
 
 			// The name is free again and the old versions do not come back with it.
-			runCommand(context, "vcs create " + BUILD_NAME);
+			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
 			waitForSelection(context, BUILD_NAME, 1);
 			if (Files.exists(schematic(BUILD_NAME, 2))) {

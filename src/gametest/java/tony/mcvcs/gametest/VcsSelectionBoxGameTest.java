@@ -45,7 +45,7 @@ public class VcsSelectionBoxGameTest extends VcsGameTest {
 
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), min, Blocks.STONE.defaultBlockState());
 			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME);
+			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
 			assertSelected(waitForSelection(context, 1), BUILD_NAME, 1, box);
 

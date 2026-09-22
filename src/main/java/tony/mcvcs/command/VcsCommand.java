@@ -23,7 +23,7 @@ import tony.mcvcs.build.Placement;
  * {@code /vcs} command tree. Only the syntax lives here: each subcommand is parsed and handed to the class that does
  * the work.
  * <ul>
- * <li>{@code /vcs create <buildname> [placementname]}: {@link VcsCommandCreate}</li>
+ * <li>{@code /vcs create <buildname> [placementname] [-we]}: {@link VcsCommandCreate}</li>
  * <li>{@code /vcs place <buildname> [version | latest] [placementname] [-f]}: {@link VcsCommandPlace}</li>
  * <li>{@code /vcs unplace [-c]} and {@code /vcs confirmUnplace}: {@link VcsCommandUnplace}</li>
  * <li>{@code /vcs select [buildname [placementname]]}: {@link VcsCommandSelect}</li>
@@ -74,9 +74,13 @@ public final class VcsCommand {
 						.executes(context -> VcsCommandHelp.run(context.getSource(), StringArgumentType.getString(context, "command")))))
 				.then(sub(VcsCommandCreate.HELP)
 					.then(Commands.argument("buildname", StringArgumentType.word())
-						.executes(context -> VcsCommandCreate.run(context.getSource(), StringArgumentType.getString(context, "buildname"), Build.MAIN))
+						.executes(context -> create(context, Build.MAIN, false))
+						.then(Commands.literal(VcsCommandCreate.SELECTION)
+							.executes(context -> create(context, Build.MAIN, true)))
 						.then(Commands.argument("placementname", StringArgumentType.word())
-							.executes(context -> VcsCommandCreate.run(context.getSource(), StringArgumentType.getString(context, "buildname"), StringArgumentType.getString(context, "placementname"))))))
+							.executes(context -> create(context, StringArgumentType.getString(context, "placementname"), false))
+							.then(Commands.literal(VcsCommandCreate.SELECTION)
+								.executes(context -> create(context, StringArgumentType.getString(context, "placementname"), true))))))
 				.then(sub(VcsCommandPlace.HELP)
 					.then(Commands.argument("buildname", StringArgumentType.word())
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))
@@ -170,6 +174,10 @@ public final class VcsCommand {
 					help.send(context.getSource());
 					return 1;
 				}));
+	}
+
+	private static int create(CommandContext<CommandSourceStack> context, String placementName, boolean useSelection) throws CommandSyntaxException {
+		return VcsCommandCreate.run(context.getSource(), StringArgumentType.getString(context, "buildname"), placementName, useSelection);
 	}
 
 	/** Where {@code /vcs place} takes the version from, since the same tail hangs under {@code latest} and a number. */

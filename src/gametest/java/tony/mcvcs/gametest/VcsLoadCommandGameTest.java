@@ -62,7 +62,7 @@ public class VcsLoadCommandGameTest extends VcsGameTest {
 			runCommand(context, "vcs load");
 			assertNoClipboard(singleplayer);
 
-			runCommand(context, "vcs create " + BUILD_NAME);
+			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
 
 			// v2: the whole box rebuilt out of diamond, hole included, so v1 and v2 differ in every block.

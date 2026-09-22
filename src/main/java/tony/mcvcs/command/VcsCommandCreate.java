@@ -29,33 +29,43 @@ import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.fabric.FabricAdapter;
 
 /**
- * {@code /vcs create <buildname> [placementname]}: turns the bounding box of the player's WorldEdit selection into a
- * build and saves it as version 1, or, with no selection, the block they click next and everything connected to it,
- * see {@link PendingClick}; the click leaves the block alone. The name may not be that of any existing build in any
- * world, ignoring case, and the box may not overlap any placement of any build.
+ * {@code /vcs create <buildname> [placementname] [-we]}: turns the block the player clicks next, and everything
+ * connected to it, into a build and saves it as version 1, see {@link PendingClick}; the click leaves the block
+ * alone. With {@link #SELECTION} the bounding box of their WorldEdit selection is taken instead, and no click is
+ * waited for. The name may not be that of any existing build in any world, ignoring case, and the box may not overlap
+ * any placement of any build.
  * <p>
  * What is created is a build with one placement in it, called {@link Build#MAIN} unless another name is given. The
  * box becomes version 1's extent in build space, so the placement's origin is that box's minimum corner, and the
  * build's other placements, made later by {@code /vcs place}, measure from the same build space.
  */
 public final class VcsCommandCreate {
-	static final VcsHelp HELP = new VcsHelp("create", "/vcs create <buildname> [placementname]",
-		"start a build from your selection or the block you punch",
-		"Starts a build called <buildname> and saves it as version 1. With no WorldEdit selection, punch any block of the build, or right-click one with an empty hand: the build grows over everything connected to that block, so it should hover in the air, touching nothing that is not part of it. With a WorldEdit selection, its bounding box becomes the build. What is created is the build's first placement, called " + Build.MAIN + " unless you name it. The name may not belong to an existing build, ignoring case, and the box may not overlap another placement. The new placement becomes your selected one.");
+	/** Flag after {@code /vcs create} that takes the player's WorldEdit selection as the box instead of a click. */
+	public static final String SELECTION = "-we";
+
+	static final VcsHelp HELP = new VcsHelp("create", "/vcs create <buildname> [placementname] [" + SELECTION + "]",
+		"start a build from the block you punch",
+		"Starts a build called <buildname> and saves it as version 1. Punch any block of the build: the selection grows over everything connected to that block, so it should hover in the air, touching nothing that is not part of it. Add " + SELECTION + " to use the bounding box of your WorldEdit selection as the build instead.");
 
 	private VcsCommandCreate() {
 	}
 
 	/**
-	 * Creates the build from the bounding box of the player's WorldEdit selection, or, when they have none, from the
-	 * next block they click, see {@link PendingClick}. Either way this command replaces whatever an earlier one left
-	 * waiting for a click.
+	 * Creates the build from the next block the player clicks, see {@link PendingClick}, or, with
+	 * {@code useSelection}, from the bounding box of their WorldEdit selection. Either way this command replaces
+	 * whatever an earlier one left waiting for a click.
 	 */
-	static int run(CommandSourceStack source, String buildName, String placementName) throws CommandSyntaxException {
+	static int run(CommandSourceStack source, String buildName, String placementName, boolean useSelection) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
 		PendingClick.disarm(player);
 		if (!isNameFree(source, buildName) || !isPlacementNameValid(source, placementName)) {
 			return 0;
+		}
+		if (!useSelection) {
+			PendingClick.arm(player, (clicker, level, pos) -> createFromBlock(clicker, level, buildName, placementName, pos));
+			source.sendSuccess(() -> Component.literal("Punch a block of the build, or right-click it with an empty hand, to create build ")
+				.append(VcsMessages.name(buildName)).append(" from it and everything connected to it"), false);
+			return 1;
 		}
 		Player actor = FabricAdapter.get().fromNativePlayer(player);
 		LocalSession session = WorldEdit.getInstance().getSessionManager().get(actor);
@@ -65,10 +75,9 @@ public final class VcsCommandCreate {
 			// Only the bounding box is kept, so later //pos1, //pos2 or wand clicks cannot move the build's box under us.
 			box = BuildBox.of(session.getSelection(actor.getWorld()));
 		} catch (IncompleteRegionException e) {
-			PendingClick.arm(player, (clicker, level, pos) -> createFromBlock(clicker, level, buildName, placementName, pos));
-			source.sendSuccess(() -> Component.literal("No WorldEdit selection; punch a block of the build, or right-click it with an empty hand, to create build ")
-				.append(VcsMessages.name(buildName)).append(" from it and everything connected to it"), false);
-			return 1;
+			source.sendFailure(Component.literal("No WorldEdit selection to create build ").append(VcsMessages.name(buildName))
+				.append(" from; make one with the wand, or run ").append(ChatButtons.command("/vcs create " + buildName)).append(" and punch a block of the build"));
+			return 0;
 		}
 		return create(source, player, buildName, placementName, player.level(), box);
 	}
@@ -88,7 +97,7 @@ public final class VcsCommandCreate {
 		BoxExpansion expansion = BoxExpansion.of(new BuildBox(pos, pos), level);
 		if (!expansion.enclosed()) {
 			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" was not created: the blocks connected to " + pos.toShortString()
-				+ " reach past the limit of " + BoxExpansion.MAX_VOLUME + " blocks; select the build with WorldEdit and run ").append(ChatButtons.command("/vcs create " + buildName)).append(" again"));
+				+ " reach past the limit of " + BoxExpansion.MAX_VOLUME + " blocks; select the build with WorldEdit and run ").append(ChatButtons.command("/vcs create " + buildName + " " + placementName + " " + SELECTION)).append(" instead"));
 			return;
 		}
 		create(source, player, buildName, placementName, level, expansion.to());

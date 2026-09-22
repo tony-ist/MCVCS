@@ -42,7 +42,7 @@ public class VcsWorldScopeGameTest extends VcsGameTest {
 			BlockPos max = min.offset(2, 1, 1);
 			fillBox(first, min, max, Blocks.STONE.defaultBlockState(), min, Blocks.STONE.defaultBlockState());
 			select(first, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME);
+			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
 			context.waitFor(client -> ClientPlacements.selected() != null);
 		}
@@ -79,7 +79,7 @@ public class VcsWorldScopeGameTest extends VcsGameTest {
 			BlockPos max = min.offset(2, 1, 1);
 			fillBox(second, min, max, Blocks.DIAMOND_BLOCK.defaultBlockState(), min, Blocks.DIAMOND_BLOCK.defaultBlockState());
 			select(second, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME);
+			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			context.waitTicks(5);
 			if (context.computeOnClient(client -> ClientPlacements.selected()) != null) {
 				throw new AssertionError("Creating a build with another world's name must fail");

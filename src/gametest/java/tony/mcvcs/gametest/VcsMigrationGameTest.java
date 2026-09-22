@@ -53,7 +53,7 @@ public class VcsMigrationGameTest extends VcsGameTest {
 			BlockPos max = min.offset(1, 1, 1);
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), max, Blocks.GOLD_BLOCK.defaultBlockState());
 			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME);
+			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
 			runCommand(context, "vcs commit");
 			read(schematic(BUILD_NAME, 2));

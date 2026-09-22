@@ -20,11 +20,11 @@ import net.minecraft.world.level.Level;
 import tony.mcvcs.MCVCS;
 
 /**
- * The block a command asks the player to click. {@code /vcs create} without a WorldEdit selection grows a build from
- * it, and {@code /vcs select} takes the placement it belongs to; either way the command {@linkplain #arm arms} the
- * player and their next punch of a block, with anything or nothing in hand, or right-click of one with an empty main
- * hand, hands the block over. The click does nothing else: the block is neither broken nor used, and Fabric has the
- * server tell the client so, in case it already broke or toggled the block on its side.
+ * The block a command asks the player to click. {@code /vcs create} grows a build from it, and {@code /vcs select}
+ * takes the placement it belongs to; either way the command {@linkplain #arm arms} the player and their next punch of
+ * a block, with anything or nothing in hand, or right-click of one with an empty main hand, hands the block over. The
+ * click does nothing else: the block is neither broken nor used, and Fabric has the server tell the client so, in case
+ * it already broke or toggled the block on its side.
  * <p>
  * WorldEdit's own tools go first, see {@link #PHASE}: a click WorldEdit takes, such as the wand setting a position or
  * a brush painting, is not a click here, and the player stays armed for the next one. A player has one armed click at

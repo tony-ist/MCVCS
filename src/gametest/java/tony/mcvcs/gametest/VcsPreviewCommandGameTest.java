@@ -57,7 +57,7 @@ public class VcsPreviewCommandGameTest extends VcsGameTest {
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), gold, Blocks.GOLD_BLOCK.defaultBlockState());
 			setBlock(singleplayer, hole, Blocks.AIR.defaultBlockState());
 			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME);
+			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
 
 			// v2: the whole box rebuilt out of diamond, hole included, so a preview of v1 differs from the world both
@@ -124,7 +124,7 @@ public class VcsPreviewCommandGameTest extends VcsGameTest {
 
 		fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), min, Blocks.STONE.defaultBlockState());
 		select(singleplayer, min, max);
-		runCommand(context, "vcs create " + FLOATING_NAME);
+		runCommand(context, "vcs create " + FLOATING_NAME + " -we");
 		fillBox(singleplayer, min, max, Blocks.AIR.defaultBlockState(), min, Blocks.AIR.defaultBlockState());
 		runCommand(context, "vcs commit");
 		assertWorldBlock(singleplayer, min, Blocks.AIR);

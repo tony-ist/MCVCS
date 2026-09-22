@@ -58,13 +58,13 @@ public class VcsBuildLabelGameTest extends VcsGameTest {
 			// The far build first, so the near one is created last and selected while the far one is not.
 			fillBox(singleplayer, farMin, farMax, Blocks.STONE.defaultBlockState(), farMin, Blocks.STONE.defaultBlockState());
 			select(singleplayer, farMin, farMax);
-			runCommand(context, "vcs create " + FAR);
+			runCommand(context, "vcs create " + FAR + " -we");
 			read(schematic(FAR, 1));
 			assertBuilds(waitForBuilds(context, 1), List.of(FAR), List.of(farBox));
 
 			fillBox(singleplayer, nearMin, nearMax, Blocks.STONE.defaultBlockState(), nearMin, Blocks.STONE.defaultBlockState());
 			select(singleplayer, nearMin, nearMax);
-			runCommand(context, "vcs create " + NEAR);
+			runCommand(context, "vcs create " + NEAR + " -we");
 			read(schematic(NEAR, 1));
 			assertBuilds(waitForBuilds(context, 2), List.of(FAR, NEAR), List.of(farBox, nearBox));
 			assertLabelled(context, nearBox, farBox);

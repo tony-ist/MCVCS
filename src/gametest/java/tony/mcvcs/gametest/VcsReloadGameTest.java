@@ -79,12 +79,12 @@ public class VcsReloadGameTest extends VcsGameTest {
 
 			fillBox(singleplayer, otherMin, otherMax, Blocks.STONE.defaultBlockState(), otherMin, Blocks.STONE.defaultBlockState());
 			select(singleplayer, otherMin, otherMax);
-			runCommand(context, "vcs create " + OTHER);
+			runCommand(context, "vcs create " + OTHER + " -we");
 			read(schematic(OTHER, 1));
 
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), gold, Blocks.GOLD_BLOCK.defaultBlockState());
 			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME);
+			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
 			runCommand(context, "vcs commit");
 			read(schematic(BUILD_NAME, 2));

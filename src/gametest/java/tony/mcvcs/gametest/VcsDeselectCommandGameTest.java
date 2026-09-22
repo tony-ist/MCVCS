@@ -58,7 +58,7 @@ public class VcsDeselectCommandGameTest extends VcsGameTest {
 			assertNothingSelected(context, singleplayer);
 
 			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME);
+			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
 			assertSelected(waitForSelection(context, BUILD_NAME), BUILD_NAME, 1, box);
 

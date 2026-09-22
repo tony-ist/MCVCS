@@ -68,10 +68,10 @@ public class VcsBuildsCommandGameTest extends VcsGameTest {
 			fillBox(singleplayer, secondMin, secondMax, Blocks.STONE.defaultBlockState(), secondMin, Blocks.STONE.defaultBlockState());
 
 			select(singleplayer, firstMin, firstMax);
-			runCommand(context, "vcs create " + FIRST);
+			runCommand(context, "vcs create " + FIRST + " -we");
 			read(schematic(FIRST, 1));
 			select(singleplayer, secondMin, secondMax);
-			runCommand(context, "vcs create " + SECOND);
+			runCommand(context, "vcs create " + SECOND + " -we");
 			read(schematic(SECOND, 1));
 			// Creating selects, so the second build is the selected one now.
 			waitForSelection(context, SECOND);

@@ -67,7 +67,7 @@ public class VcsWeselectCommandGameTest extends VcsGameTest {
 			assertWeSelection(singleplayer, elsewhere);
 
 			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME);
+			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
 			context.waitFor(client -> ClientPlacements.selected() != null && ClientPlacements.selected().build().equals(BUILD_NAME));
 

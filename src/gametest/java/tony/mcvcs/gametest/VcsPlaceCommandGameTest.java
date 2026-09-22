@@ -69,7 +69,7 @@ public class VcsPlaceCommandGameTest extends VcsGameTest {
 			BuildBox box = new BuildBox(min, max);
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), max, Blocks.GOLD_BLOCK.defaultBlockState());
 			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME);
+			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
 
 			// A build that does not exist is refused before anything is pasted.

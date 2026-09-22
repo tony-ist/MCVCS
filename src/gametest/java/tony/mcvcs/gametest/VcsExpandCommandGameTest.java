@@ -71,7 +71,7 @@ public class VcsExpandCommandGameTest extends VcsGameTest {
 			BuildBox box = new BuildBox(min, max);
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), min, Blocks.STONE.defaultBlockState());
 			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME);
+			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
 
 			// Nothing touches the box, so there is nothing to expand and no version is written.
@@ -127,7 +127,7 @@ public class VcsExpandCommandGameTest extends VcsGameTest {
 			BlockPos gap = new BlockPos(beyond.getX() + 1, min.getY(), min.getZ());
 			fillBox(singleplayer, neighbourMin, neighbourMax, Blocks.STONE.defaultBlockState(), neighbourMin, Blocks.STONE.defaultBlockState());
 			select(singleplayer, neighbourMin, neighbourMax);
-			runCommand(context, "vcs create " + NEIGHBOUR_NAME);
+			runCommand(context, "vcs create " + NEIGHBOUR_NAME + " -we");
 			read(schematic(NEIGHBOUR_NAME, 1));
 			setBlock(singleplayer, gap, Blocks.GOLD_BLOCK.defaultBlockState());
 			runCommand(context, "vcs select " + BUILD_NAME);
