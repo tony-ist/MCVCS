@@ -42,7 +42,7 @@ import com.sk89q.worldedit.extent.clipboard.Clipboard;
 public final class VcsCommandPlace {
 	static final VcsHelp HELP = new VcsHelp("place", "/vcs place <buildname> [version | latest] [placementname] [" + VcsCommand.FORCE + "]",
 		"put another copy of a build into the world",
-		"Puts that version of the build, or its latest one, into the world where you stand, as a new placement with its own name (" + Build.PLACEMENT_PREFIX + "2, " + Build.PLACEMENT_PREFIX + "3 and so on unless you name it). It lands one block below your feet, extending east and south, and becomes your selected placement. The new placement lives its own life: check it out and modify it on its own, and commits from it become versions of the same build. Refuses if it would overlap another placement, or if anything is standing in the way unless you add " + VcsCommand.FORCE + ", which overwrites those blocks for good.");
+		"Puts the selected version of the build into the world where you stand. The new placement lives its own life: modification are separate from other placements. However new commits create new versions of the same build. Adding " + VcsCommand.FORCE + " flag will overwrite blocks when placing.");
 
 	private VcsCommandPlace() {
 	}
