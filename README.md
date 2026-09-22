@@ -88,6 +88,7 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ## TODO
 
+- Multiple placements for one build. Add a command to create a new placement, add a preview of placement before actually placing it in the world. The placements can intersect with this or other builds now (if yes, how would we manage commits and checkouts, intersection will make diffs not empty for both builds on modification)? Each placement lives separate life: it can be checked out on any version and modified anyhow. But commit creates a new version for this build, so every placement can then be checked out to this new version.
 - Add version tags. To keep track of TickNet versions more easily. Tags could be like '1.5.4' and selectable in checkouts, diffs and previews
 - Aliases for commands to type them faster
 - Display builds and versions on the client in overlay. Also show rotating 3D render of the build. Make buttons in overlay to select, checkout, diff and preview builds.
