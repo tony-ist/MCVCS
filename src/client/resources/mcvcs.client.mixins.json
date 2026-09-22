@@ -5,6 +5,7 @@
 	"client": [
 		"ClientChunkCacheMixin",
 		"ExampleClientMixin",
+		"MouseHandlerMixin",
 		"RenderSectionRegionMixin"
 	],
 	"injectors": {

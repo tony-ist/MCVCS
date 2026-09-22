@@ -18,7 +18,6 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
-import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.client.place.PlacePreviewStatus.Status;
 import tony.mcvcs.client.preview.PlacePreview;
 import tony.mcvcs.client.preview.PreviewManager;
@@ -40,9 +39,13 @@ import org.jspecify.annotations.Nullable;
  * copy, which needs no face at all. {@code 5} places it, running {@code /vcs confirmPlace} for the player, and says
  * why instead when the copy stands where it cannot be placed.
  * <p>
- * Each press moves one block, or {@link ClientConfig#sprintStep()} of them while the sprint key is held. The client
- * draws the copy in its new place at once and tells the server where it went, see {@link PlacePreviewMovePayload};
- * nothing is put into the world until the placement is confirmed.
+ * {@link #SCROLL} held turns the mouse wheel into {@code 8} and {@code 2}: a notch up pushes the copy away through
+ * the face in sight, a notch down pulls it back. The wheel is taken over only while that key is held and a copy is
+ * being shown, so it goes on changing the held item every other time, see {@code MouseHandlerMixin}.
+ * <p>
+ * Each press, and each notch of the wheel, moves one block. The client draws the copy in its new place at once and
+ * tells the server where it went, see {@link PlacePreviewMovePayload}; nothing is put into the world until the
+ * placement is confirmed.
  */
 public final class PlacePreviewKeys {
 	/** How far ahead, in blocks, the box can be and still be looked at; the same reach the select hotkey has. */
@@ -66,6 +69,11 @@ public final class PlacePreviewKeys {
 	public static final KeyMapping DOWN = key("place_down", GLFW.GLFW_KEY_KP_9);
 	/** Places the copy where it stands, as {@code /vcs confirmPlace} does. */
 	public static final KeyMapping CONFIRM = key("place_confirm", GLFW.GLFW_KEY_KP_5);
+	/**
+	 * Held down, the mouse wheel moves the copy away and back instead of changing the held item; left alt unless
+	 * rebound, which nothing in vanilla uses. This one is held rather than pressed, so it has no action of its own.
+	 */
+	public static final KeyMapping SCROLL = key("place_scroll", GLFW.GLFW_KEY_LEFT_ALT);
 
 	/** Shown when a sideways key is pressed while no side of the box is in sight, since there is nothing to go by. */
 	public static final String HINT = "Look at the build's side face to move it with hotkeys";
@@ -83,7 +91,7 @@ public final class PlacePreviewKeys {
 
 	/** Must run from the client entrypoint: key mappings can only be added before the options are loaded. */
 	public static void register() {
-		for (KeyMapping key : new KeyMapping[] {AWAY, CLOSER, LEFT, RIGHT, UP, DOWN, CONFIRM}) {
+		for (KeyMapping key : new KeyMapping[] {AWAY, CLOSER, LEFT, RIGHT, UP, DOWN, CONFIRM, SCROLL}) {
 			KeyMappingHelper.registerKeyMapping(key);
 		}
 		ClientTickEvents.END_CLIENT_TICK.register(PlacePreviewKeys::tick);
@@ -115,6 +123,22 @@ public final class PlacePreviewKeys {
 	}
 
 	/**
+	 * A turn of the mouse wheel, {@code amount} notches up being positive: moves the copy away through the face in
+	 * sight, or back towards the player turning the other way, exactly as {@code 8} and {@code 2} do.
+	 * <p>
+	 * Answers whether the wheel was taken over, which it is only while {@link #SCROLL} is held over a copy being
+	 * shown with no screen open. A turn that finds no face in sight still counts as taken over, having said why: the
+	 * player asked for the copy to move, so the held item must not change behind their back.
+	 */
+	public static boolean scrolled(Minecraft client, double amount) {
+		if (amount == 0.0 || client.screen != null || !SCROLL.isDown() || PreviewManager.place() == null) {
+			return false;
+		}
+		alongFace(client, amount > 0.0);
+		return true;
+	}
+
+	/**
 	 * {@code 5}: places the copy where it stands. The client knows what the server would refuse, see
 	 * {@link PlacePreviewStatus}, so a copy that cannot go there says why instead of running a command that is bound
 	 * to fail; what the client cannot tell, the server still has the last word on.
@@ -133,6 +157,7 @@ public final class PlacePreviewKeys {
 			return;
 		}
 		// Sent as if typed, so the server checks the permission and answers in chat the way it does for the command.
+		tony.mcvcs.MCVCS.LOGGER.info("TEMPDEBUG client sending confirm, box {} on {}", preview.box().min().toShortString(), Thread.currentThread().getName());
 		player.connection.sendCommand(CONFIRM_COMMAND);
 	}
 
@@ -173,7 +198,7 @@ public final class PlacePreviewKeys {
 		return face;
 	}
 
-	/** Slides the copy {@code direction} by a block, or by {@link ClientConfig#sprintStep()} while sprint is held. */
+	/** Slides the copy one block {@code direction}. */
 	private static void move(Minecraft client, Direction direction) {
 		PlacePreview preview = PreviewManager.place();
 		LocalPlayer player = client.player;
@@ -182,9 +207,9 @@ public final class PlacePreviewKeys {
 			return;
 		}
 
-		int step = client.options.keySprint.isDown() ? ClientConfig.sprintStep() : 1;
-		BlockPos min = preview.box().min().relative(direction, step);
+		BlockPos min = preview.box().min().relative(direction);
 		PreviewManager.movePlace(min, client);
+		tony.mcvcs.MCVCS.LOGGER.info("TEMPDEBUG client sending move to {} on {}", min.toShortString(), Thread.currentThread().getName());
 		ClientPlayNetworking.send(new PlacePreviewMovePayload(min));
 
 		// The move changed what the copy stands over, and the message about to be sent reports it.

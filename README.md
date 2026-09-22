@@ -73,7 +73,9 @@ The numpad moves the copy `/vcs place` is showing, and does nothing while none i
 | `7` / `9` | Raises and lowers it |
 | `5` | Places it where it stands, the same as `/vcs confirmPlace`; where it cannot be placed it says why instead |
 
-Which way the copy goes is read off the box, not off the compass: looking at its north side, `8` pushes it north to south, and looking at its east side, `8` pushes it east to west. Looking at the top or the bottom of the box, or away from it altogether, leaves `8`, `2`, `4` and `6` nothing to go by, so they move nothing and tell you to look at a side of it. `7`, `9` and `5` need no side and always work. Each press moves one block, or ten while your sprint key is held.
+Holding left alt and turning the mouse wheel does the same as `8` and `2`: a notch up pushes the copy away from you, a notch down pulls it back. The wheel changes your held item as usual the rest of the time, so it is only taken over while that key is held and a copy is being shown.
+
+Which way the copy goes is read off the box, not off the compass: looking at its north side, `8` pushes it north to south, and looking at its east side, `8` pushes it east to west. Looking at the top or the bottom of the box, or away from it altogether, leaves `8`, `2`, `4`, `6` and the wheel nothing to go by, so they move nothing and tell you to look at a side of it. `7`, `9` and `5` need no side and always work. Each press, and each notch of the wheel, moves one block.
 
 Every key can be rebound like any other under Options, Controls, Key Binds, in the MCVCS category.
 
@@ -89,7 +91,7 @@ What belongs to neither the key binds screen nor the server lives in `config/mcv
 
 | Setting | What it does |
 | --- | --- |
-| `sprintStep` | How many blocks a numpad press moves a `/vcs place` copy while your sprint key is held. 1 to 1000, 10 by default. |
+| `sprintStep` | Nothing at present. It used to be how many blocks a numpad press moved a `/vcs place` copy while the sprint key was held, which every press and wheel notch now moves one of; the setting is still read and written so it is there to build on. 1 to 1000, 10 by default. |
 
 The file is read again every time you join a world or server, so an edit takes hold without restarting the game. A file that cannot be read is logged and ignored, leaving the settings as they were.
 

@@ -42,7 +42,7 @@ import com.sk89q.worldedit.extent.clipboard.Clipboard;
  * <p>
  * The copy starts where {@code /vcs load} and {@code //paste} would put it: its top north-west corner one block below
  * the player's feet, so the build hangs below them, extending east and south. From there the player slides it about
- * with the numpad keys, which the client's {@code PlacePreviewKeys} handles, and the client tells the server where it
+ * with the numpad keys and the mouse wheel, which the client's {@code PlacePreviewKeys} handles, and the client tells the server where it
  * stands with a {@link PlacePreviewMovePayload}. Nothing in the world is touched until the placement is confirmed,
  * and where it is confirmed fixes the placement's {@link Placement#origin} for good; checking out another version
  * there afterwards grows or shrinks its box around the build rather than moving it.
@@ -75,7 +75,7 @@ public final class VcsCommandPlace {
 
 	static final VcsHelp HELP = new VcsHelp("place", "/vcs place <buildname> [version | latest] [placementname] [" + VcsCommand.FORCE + "]",
 		"show another copy of a build where you stand, ready to be placed",
-		"Shows the selected version of the build where you stand, as a preview only: nothing is put into the world yet. Line it up with the numpad keys (8 and 2 push it away from you and pull it back along the face of the box you look at, 4 and 6 slide it sideways, 7 and 9 raise and lower it, holding sprint moves 10 blocks at a time), then run /vcs confirmPlace to place it, or /vcs cancelPlace to drop it. The new placement lives its own life: modifications are separate from other placements. However new commits create new versions of the same build. Adding " + VcsCommand.FORCE + " flag will overwrite blocks when placing. Without the mod on your client there is nothing to preview with, so the copy is placed where you stand straight away.");
+		"Shows the selected version of the build where you stand, as a preview only: nothing is put into the world yet. Line it up with the numpad keys (8 and 2 push it away from you and pull it back along the face of the box you look at, 4 and 6 slide it sideways, 7 and 9 raise and lower it, and holding left alt lets the mouse wheel push it away and pull it back), then run /vcs confirmPlace to place it, or /vcs cancelPlace to drop it. The new placement lives its own life: modifications are separate from other placements. However new commits create new versions of the same build. Adding " + VcsCommand.FORCE + " flag will overwrite blocks when placing. Without the mod on your client there is nothing to preview with, so the copy is placed where you stand straight away.");
 	static final VcsHelp CONFIRM_HELP = new VcsHelp("confirmPlace", "/vcs confirmPlace [" + VcsCommand.FORCE + "]",
 		"place the copy your last /vcs place is showing",
 		"Puts the copy your last /vcs place is showing into the world where you have moved it, as a placement of its own, and selects it. Refuses if it overlaps another placement, and refuses if anything is already standing where it goes unless you add " + VcsCommand.FORCE + " here or gave it to /vcs place, which overwrites those blocks for good.");
@@ -218,6 +218,7 @@ public final class VcsCommandPlace {
 			return;
 		}
 		PENDING.put(player.getUUID(), pending.movedTo(min));
+		MCVCS.LOGGER.info("TEMPDEBUG server received move to {}", min.toShortString());
 	}
 
 	/** Forgets the player's copy and stops their client drawing it. */

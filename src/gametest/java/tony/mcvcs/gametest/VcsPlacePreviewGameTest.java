@@ -12,13 +12,9 @@ import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
 import static tony.mcvcs.gametest.VcsTestSupport.select;
 import static tony.mcvcs.gametest.VcsTestSupport.teleport;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.client.KeyMapping;
@@ -28,46 +24,39 @@ import net.minecraft.client.gui.screens.options.controls.KeyBindsList;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.Blocks;
 
-import tony.mcvcs.MCVCS;
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.client.build.ClientPlacements;
-import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.client.place.PlacePreviewKeys;
 import tony.mcvcs.client.preview.PlacePreview;
 import tony.mcvcs.client.preview.PreviewManager;
 
 /**
  * {@code /vcs place} shows the copy it is about to put down instead of placing it, and the numpad keys line it up:
- * away and back through the side of the box in sight, sideways along it, up and down, a block at a time or ten with
- * sprint held. Looking at no side of it leaves the sideways keys nothing to go by, so they move nothing and say so.
- * Numpad {@code 5} then places the copy where it was left, as {@code /vcs confirmPlace} does, and says why instead
- * when it stands where it cannot be placed; {@code /vcs cancelPlace} drops it.
- * <p>
- * How far a sprinting press moves it comes from {@code config/mcvcs.json}, which the test writes before joining.
+ * away and back through the side of the box in sight, sideways along it, up and down, a block at a time. Holding the
+ * scroll key turns the mouse wheel into the away and back keys, a block per notch, and leaves the wheel alone the
+ * rest of the time. Looking at no side of it leaves the sideways keys nothing to go by, so they move nothing and say
+ * so. Numpad {@code 5} then places the copy where it was left, as {@code /vcs confirmPlace} does, and says why
+ * instead when it stands where it cannot be placed; {@code /vcs cancelPlace} drops it.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsPlacePreviewGameTest extends VcsGameTest {
 	private static final String BUILD_NAME = "gametest-place-preview";
 	private static final String MOVED = "moved";
 
-	/** What this test puts in the config file, chosen to be neither the default nor a number a bug would land on. */
-	private static final int SPRINT_STEP = 4;
-
 	@Override
 	protected void run(ClientGameTestContext context) {
 		checkKeyBindsScreen(context);
-		configureSprintStep(context);
 
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
-			assertSprintStep(context);
 
 			// A copy is shown below the player's feet, where they would otherwise be standing, so the test player
 			// spectates: they stay where they are put instead of falling onto it once it is placed.
@@ -110,14 +99,20 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 			box = press(context, PlacePreviewKeys.UP, box, 0, 1, 0);
 			box = press(context, PlacePreviewKeys.DOWN, box, 0, -1, 0);
 
-			// Sprint held, a press moves as many blocks as the config file asks for instead of one.
-			box = sprintPress(context, PlacePreviewKeys.AWAY, box, 0, 0, SPRINT_STEP);
-			box = sprintPress(context, PlacePreviewKeys.CLOSER, box, 0, 0, -SPRINT_STEP);
+			// The scroll key held, the wheel does what 8 and 2 do: a notch up pushes the copy away, a notch down
+			// pulls it back, one block each, whichever way round the wheel is turned.
+			box = scroll(context, box, 1.0, 0, 0, 1);
+			box = scroll(context, box, -1.0, 0, 0, -1);
 
-			// The step follows the sprint binding, not the key sprint happens to have out of the box: rebound to
-			// shift, which is what many players do and which sneak is already on, holding shift is what moves ten.
-			box = shiftSprintPress(singleplayer, context, viewpoint, PlacePreviewKeys.AWAY, box, 0, 0, SPRINT_STEP);
-			box = shiftSprintPress(singleplayer, context, viewpoint, PlacePreviewKeys.CLOSER, box, 0, 0, -SPRINT_STEP);
+			// The wheel is left alone while that key is not held, so it goes on doing whatever it usually does.
+			aim(context, box);
+			context.getInput().scroll(1.0);
+			context.waitTicks(5);
+			assertShowing(context, box);
+
+			// Sprint has nothing to do with how far a press moves any more: held or not, it is one block.
+			box = sprintPress(context, PlacePreviewKeys.AWAY, box, 0, 0, 1);
+			box = sprintPress(context, PlacePreviewKeys.CLOSER, box, 0, 0, -1);
 
 			// Looking at the sky there is no side of the box in sight, so the sideways keys move nothing and say why.
 			context.runOnClient(client -> client.player.setXRot(-90.0f));
@@ -127,6 +122,19 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 			assertShowing(context, box);
 			assertOverlay(context, PlacePreviewKeys.HINT);
 			screenshotLastFrame(context, "mcvcs-vcs-place-preview-no-face");
+
+			// The wheel goes by the same side of the box, so with none in sight it too moves nothing and says why.
+			// The action bar is wiped first, since the press just before it left the very message being looked for.
+			context.runOnClient(client -> client.gui.setOverlayMessage(Component.empty(), false));
+			context.getInput().holdKey(PlacePreviewKeys.SCROLL);
+			try {
+				context.getInput().scroll(1.0);
+				context.waitTicks(5);
+			} finally {
+				context.getInput().releaseKey(PlacePreviewKeys.SCROLL);
+			}
+			assertShowing(context, box);
+			assertOverlay(context, PlacePreviewKeys.HINT);
 
 			// A copy standing over blocks would overwrite them, which is refused without -f, and the box says so by
 			// turning red before the command is ever run. A stone slab is laid right below where the copy stands.
@@ -149,7 +157,7 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 			// Left where it is not shown, so that placing it proves the server followed the copy about rather than
 			// putting it back where /vcs place first showed it.
 			box = press(context, PlacePreviewKeys.LEFT, box, 1, 0, 0);
-			box = sprintPress(context, PlacePreviewKeys.AWAY, box, 0, 0, SPRINT_STEP);
+			box = scroll(context, box, 1.0, 0, 0, 1);
 			if (box.equals(shown)) {
 				throw new AssertionError("The copy was meant to end up somewhere other than " + shown);
 			}
@@ -195,30 +203,6 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 	}
 
 	/**
-	 * The sprint step comes from {@code config/mcvcs.json}, which the mod writes with its defaults when it finds
-	 * none and reads again on every join, so writing it here and joining afterwards is all it takes to change.
-	 */
-	private static void configureSprintStep(ClientGameTestContext context) {
-		Path file = ClientConfig.file();
-		if (!Files.isRegularFile(file)) {
-			throw new AssertionError("Expected the client to write its defaults to " + file);
-		}
-		try {
-			Files.writeString(file, "{\"sprintStep\": " + SPRINT_STEP + "}");
-		} catch (IOException e) {
-			throw new AssertionError("Failed to write " + file, e);
-		}
-	}
-
-	/** The config file is read on join, so this runs once the world is up. */
-	private static void assertSprintStep(ClientGameTestContext context) {
-		int step = context.computeOnClient(client -> ClientConfig.sprintStep());
-		if (step != SPRINT_STEP) {
-			throw new AssertionError("Expected a sprint step of " + SPRINT_STEP + " from " + ClientConfig.file() + " but got " + step);
-		}
-	}
-
-	/**
 	 * Every key is one of the game's own key mappings, so they can all be rebound under Options, Controls, Key Binds,
 	 * where they and their category have readable names. Mod categories are listed after vanilla's, so the list is
 	 * scrolled to the end for the screenshot.
@@ -226,7 +210,8 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 	private static void checkKeyBindsScreen(ClientGameTestContext context) {
 		context.runOnClient(client -> {
 			for (KeyMapping key : new KeyMapping[] {PlacePreviewKeys.AWAY, PlacePreviewKeys.CLOSER, PlacePreviewKeys.LEFT,
-				PlacePreviewKeys.RIGHT, PlacePreviewKeys.UP, PlacePreviewKeys.DOWN, PlacePreviewKeys.CONFIRM}) {
+				PlacePreviewKeys.RIGHT, PlacePreviewKeys.UP, PlacePreviewKeys.DOWN, PlacePreviewKeys.CONFIRM,
+				PlacePreviewKeys.SCROLL}) {
 				if (Arrays.stream(client.options.keyMappings).noneMatch(mapping -> mapping == key)) {
 					throw new AssertionError("Expected " + key.getName() + " among the game's key mappings");
 				}
@@ -263,7 +248,24 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 		return moved;
 	}
 
-	/** The same with the sprint key held, which is what makes a press move {@link ClientConfig#sprintStep()} blocks. */
+	/**
+	 * Looks at the copy, turns the mouse wheel by {@code amount} notches with {@link PlacePreviewKeys#SCROLL} held,
+	 * and checks it moved by {@code (x, y, z)} blocks.
+	 */
+	private static BuildBox scroll(ClientGameTestContext context, BuildBox box, double amount, int x, int y, int z) {
+		aim(context, box);
+		context.getInput().holdKey(PlacePreviewKeys.SCROLL);
+		try {
+			context.getInput().scroll(amount);
+			BuildBox moved = new BuildBox(box.min().offset(x, y, z), box.max().offset(x, y, z));
+			assertShowing(context, moved);
+			return moved;
+		} finally {
+			context.getInput().releaseKey(PlacePreviewKeys.SCROLL);
+		}
+	}
+
+	/** The same as {@link #press} with the sprint key held, which no longer makes any difference to how far it goes. */
 	private static BuildBox sprintPress(ClientGameTestContext context, KeyMapping key, BuildBox box, int x, int y, int z) {
 		context.getInput().holdKey(options -> options.keySprint);
 		try {
@@ -271,59 +273,6 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 		} finally {
 			context.getInput().releaseKey(options -> options.keySprint);
 		}
-	}
-
-	/**
-	 * The same again with sprint rebound to left shift and shift itself held down, the way a player who moved the
-	 * binding would press it. Shift already carries sneak, so the copy only moves its whole step if sharing a key
-	 * with another binding leaves sprint counting as held.
-	 * <p>
-	 * Sneaking is what a spectator descends with, so the player sinks for as long as shift is down: they are put
-	 * back at {@code viewpoint} before the press and again after it, and shift is held only over the press itself,
-	 * so what they are looking at is the side of the box both times and not its underside.
-	 */
-	private static BuildBox shiftSprintPress(TestSingleplayerContext singleplayer, ClientGameTestContext context, BlockPos viewpoint,
-			KeyMapping key, BuildBox box, int x, int y, int z) {
-		bindSprintToShift(context);
-		watchFrom(singleplayer, context, viewpoint);
-		aim(context, box);
-		context.getInput().holdShift();
-		try {
-			context.getInput().pressKey(key);
-			BuildBox moved = new BuildBox(box.min().offset(x, y, z), box.max().offset(x, y, z));
-			assertShowing(context, moved);
-			return moved;
-		} finally {
-			context.getInput().releaseShift();
-			// Back to the key it came with, so the rest of this test, and every test after it, presses what it expects.
-			context.runOnClient(client -> {
-				client.options.keySprint.setKey(client.options.keySprint.getDefaultKey());
-				KeyMapping.resetMapping();
-			});
-			watchFrom(singleplayer, context, viewpoint);
-		}
-	}
-
-	/** Puts the player back where they watch the copy from, wherever sneaking has carried them. */
-	private static void watchFrom(TestSingleplayerContext singleplayer, ClientGameTestContext context, BlockPos viewpoint) {
-		teleport(singleplayer, viewpoint);
-		context.waitTicks(2);
-	}
-
-	/** Puts sprint on left shift, as Options, Controls, Key Binds would. */
-	private static void bindSprintToShift(ClientGameTestContext context) {
-		context.runOnClient(client -> {
-			if (!client.options.keySprint.isDefault()) {
-				throw new AssertionError("Expected sprint on its default key before rebinding it");
-			}
-			InputConstants.Key shift = InputConstants.Type.KEYSYM.getOrCreate(InputConstants.KEY_LSHIFT);
-			if (!shift.equals(client.options.keyShift.getDefaultKey())) {
-				throw new AssertionError("Expected sneak on left shift, which is what makes this the conflicting case");
-			}
-			client.options.keySprint.setKey(shift);
-			KeyMapping.resetMapping();
-			MCVCS.LOGGER.info("Sprint rebound to {}, which sneak is on as well", client.options.keySprint.getTranslatedKeyMessage().getString());
-		});
 	}
 
 	/** Turns the player to the middle of the copy, which from where they stand means its north side. */

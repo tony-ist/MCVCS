@@ -7,5 +7,6 @@
 	"key.mcvcs.place_right": "Move Placement Preview Right",
 	"key.mcvcs.place_up": "Move Placement Preview Up",
 	"key.mcvcs.place_down": "Move Placement Preview Down",
-	"key.mcvcs.place_confirm": "Place Placement Preview"
+	"key.mcvcs.place_confirm": "Place Placement Preview",
+	"key.mcvcs.place_scroll": "Move Placement Preview By Wheel"
 }
