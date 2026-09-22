@@ -39,10 +39,12 @@ import tony.mcvcs.client.preview.PreviewManager;
 /**
  * {@code /vcs place} shows the copy it is about to put down instead of placing it, and the numpad keys line it up:
  * away and back through the side of the box in sight, sideways along it, up and down, a block at a time. Holding the
- * scroll key turns the mouse wheel into the away and back keys, a block per notch, and leaves the wheel alone the
- * rest of the time. Looking at no side of it leaves the sideways keys nothing to go by, so they move nothing and say
- * so. Numpad {@code 5} then places the copy where it was left, as {@code /vcs confirmPlace} does, and says why
- * instead when it stands where it cannot be placed; {@code /vcs cancelPlace} drops it.
+ * scroll key turns the mouse wheel into the away and back keys, a block per notch, off any of the six faces: the top
+ * and the bottom included, where away means down and up, which is what the numpad keys will not do. The wheel is left
+ * alone while that key is not held. Looking at no side of it leaves the sideways keys nothing to go by, so they move
+ * nothing and say so, and the wheel does the same with no face at all in sight. Numpad {@code 5} then places the copy
+ * where it was left, as {@code /vcs confirmPlace} does, and says why instead when it stands where it cannot be
+ * placed; {@code /vcs cancelPlace} drops it.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsPlacePreviewGameTest extends VcsGameTest {
@@ -104,6 +106,21 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 			box = scroll(context, box, 1.0, 0, 0, 1);
 			box = scroll(context, box, -1.0, 0, 0, -1);
 
+			// The wheel takes the top and the bottom of the box as well, which the numpad keys leave alone. Looking
+			// down on the copy from above, away from the player is downwards, so a notch up lowers it and a notch
+			// down raises it.
+			watchFrom(singleplayer, context, new BlockPos(box.min().getX() + 1, box.max().getY() + 6, box.min().getZ()));
+			box = scroll(context, box, 1.0, 0, -1, 0);
+			box = scroll(context, box, -1.0, 0, 1, 0);
+
+			// And from underneath, looking up at its bottom face, away is upwards instead.
+			watchFrom(singleplayer, context, new BlockPos(box.min().getX() + 1, box.min().getY() - 6, box.min().getZ()));
+			box = scroll(context, box, 1.0, 0, 1, 0);
+			box = scroll(context, box, -1.0, 0, -1, 0);
+
+			// Back to watching it from the north, where every key has a side of the box to work from again.
+			watchFrom(singleplayer, context, viewpoint);
+
 			// The wheel is left alone while that key is not held, so it goes on doing whatever it usually does.
 			aim(context, box);
 			context.getInput().scroll(1.0);
@@ -123,8 +140,9 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 			assertOverlay(context, PlacePreviewKeys.HINT);
 			screenshotLastFrame(context, "mcvcs-vcs-place-preview-no-face");
 
-			// The wheel goes by the same side of the box, so with none in sight it too moves nothing and says why.
-			// The action bar is wiped first, since the press just before it left the very message being looked for.
+			// The wheel wants a face of the box too, any of the six, so with the box itself out of sight it moves
+			// nothing and says so in its own words. The action bar is wiped first, so what is read back is the
+			// wheel's own message and not the one the press just before it left there.
 			context.runOnClient(client -> client.gui.setOverlayMessage(Component.empty(), false));
 			context.getInput().holdKey(PlacePreviewKeys.SCROLL);
 			try {
@@ -134,7 +152,7 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 				context.getInput().releaseKey(PlacePreviewKeys.SCROLL);
 			}
 			assertShowing(context, box);
-			assertOverlay(context, PlacePreviewKeys.HINT);
+			assertOverlay(context, PlacePreviewKeys.WHEEL_HINT);
 
 			// A copy standing over blocks would overwrite them, which is refused without -f, and the box says so by
 			// turning red before the command is ever run. A stone slab is laid right below where the copy stands.
@@ -162,7 +180,10 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 				throw new AssertionError("The copy was meant to end up somewhere other than " + shown);
 			}
 
-			// Numpad 5 puts the copy where it was left, gold corner and all, and stops showing it.
+			// Numpad 5 puts the copy where it was left, gold corner and all, and stops showing it. The last move is
+			// given a moment to reach the server first: the client draws the copy in its new place before the server
+			// has been told, and confirming inside that window has been seen to place the copy a block short.
+			context.waitTicks(5);
 			BuildBox placed = box;
 			context.getInput().pressKey(PlacePreviewKeys.CONFIRM);
 			context.waitTicks(10);
@@ -263,6 +284,12 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 		} finally {
 			context.getInput().releaseKey(PlacePreviewKeys.SCROLL);
 		}
+	}
+
+	/** Puts the player where they watch the copy from, so the face of the box in sight is the one a step wants. */
+	private static void watchFrom(TestSingleplayerContext singleplayer, ClientGameTestContext context, BlockPos viewpoint) {
+		teleport(singleplayer, viewpoint);
+		context.waitTicks(2);
 	}
 
 	/** The same as {@link #press} with the sprint key held, which no longer makes any difference to how far it goes. */

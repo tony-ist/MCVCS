@@ -73,9 +73,9 @@ The numpad moves the copy `/vcs place` is showing, and does nothing while none i
 | `7` / `9` | Raises and lowers it |
 | `5` | Places it where it stands, the same as `/vcs confirmPlace`; where it cannot be placed it says why instead |
 
-Holding left alt and turning the mouse wheel does the same as `8` and `2`: a notch up pushes the copy away from you, a notch down pulls it back. The wheel changes your held item as usual the rest of the time, so it is only taken over while that key is held and a copy is being shown.
+Holding left alt and turning the mouse wheel does the same as `8` and `2`: a notch up pushes the copy away from you, a notch down pulls it back. Unlike those keys the wheel goes by any of the six faces, so looking down on the copy from above a notch up lowers it and a notch down raises it, and looking up at it from below it is the other way round. The wheel changes your held item as usual the rest of the time, so it is only taken over while that key is held and a copy is being shown.
 
-Which way the copy goes is read off the box, not off the compass: looking at its north side, `8` pushes it north to south, and looking at its east side, `8` pushes it east to west. Looking at the top or the bottom of the box, or away from it altogether, leaves `8`, `2`, `4`, `6` and the wheel nothing to go by, so they move nothing and tell you to look at a side of it. `7`, `9` and `5` need no side and always work. Each press, and each notch of the wheel, moves one block.
+Which way the copy goes is read off the box, not off the compass: looking at its north side, `8` pushes it north to south, and looking at its east side, `8` pushes it east to west. Looking at the top or the bottom of the box, or away from it altogether, leaves `8`, `2`, `4` and `6` nothing to go by, so they move nothing and tell you to look at a side of it; the wheel only needs some face of the box in sight. `7`, `9` and `5` need no side and always work. Each press, and each notch of the wheel, moves one block.
 
 Every key can be rebound like any other under Options, Controls, Key Binds, in the MCVCS category.
 

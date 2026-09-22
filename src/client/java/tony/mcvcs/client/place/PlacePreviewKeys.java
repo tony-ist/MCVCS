@@ -40,8 +40,10 @@ import org.jspecify.annotations.Nullable;
  * why instead when the copy stands where it cannot be placed.
  * <p>
  * {@link #SCROLL} held turns the mouse wheel into {@code 8} and {@code 2}: a notch up pushes the copy away through
- * the face in sight, a notch down pulls it back. The wheel is taken over only while that key is held and a copy is
- * being shown, so it goes on changing the held item every other time, see {@code MouseHandlerMixin}.
+ * the face in sight, a notch down pulls it back. The wheel goes by any of the six faces, the top and the bottom
+ * included, so looking down on the copy it lowers and raises it where those four keys have nothing to go by. The
+ * wheel is taken over only while that key is held and a copy is being shown, so it goes on changing the held item
+ * every other time, see {@code MouseHandlerMixin}.
  * <p>
  * Each press, and each notch of the wheel, moves one block. The client draws the copy in its new place at once and
  * tells the server where it went, see {@link PlacePreviewMovePayload}; nothing is put into the world until the
@@ -54,6 +56,8 @@ public final class PlacePreviewKeys {
 	private static final double TOLERANCE = 1.0e-3;
 	/** The faces {@code 8}, {@code 2}, {@code 4} and {@code 6} work off: the four sides, never the top or bottom. */
 	private static final Direction[] SIDES = {Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST};
+	/** The faces the wheel works off: every one of them, the top and the bottom included, which raise and lower. */
+	private static final Direction[] FACES = Direction.values();
 
 	/** Pushes the copy away from the player, through the side of the box they are looking at. */
 	public static final KeyMapping AWAY = key("place_away", GLFW.GLFW_KEY_KP_8);
@@ -77,6 +81,8 @@ public final class PlacePreviewKeys {
 
 	/** Shown when a sideways key is pressed while no side of the box is in sight, since there is nothing to go by. */
 	public static final String HINT = "Look at the build's side face to move it with hotkeys";
+	/** The same for the wheel, which takes any face of the box and so only wants the box itself to be in sight. */
+	public static final String WHEEL_HINT = "Look at the build to move it with the mouse wheel";
 	/** What {@code 5} says instead of placing when the copy stands where it cannot be placed; the reason follows. */
 	public static final String REFUSED = "Cannot place here - ";
 	/** The command {@code 5} runs, the same one the player would type. */
@@ -123,8 +129,12 @@ public final class PlacePreviewKeys {
 	}
 
 	/**
-	 * A turn of the mouse wheel, {@code amount} notches up being positive: moves the copy away through the face in
-	 * sight, or back towards the player turning the other way, exactly as {@code 8} and {@code 2} do.
+	 * A turn of the mouse wheel, {@code amount} notches up being positive: pushes the copy away from the player
+	 * through the face of the box in sight, or pulls it back towards them turning the other way.
+	 * <p>
+	 * Unlike {@code 8} and {@code 2}, the wheel takes the top and the bottom of the box as readily as its sides, so
+	 * looking down on the copy the wheel lowers and raises it and looking up at it from below does the same. Away is
+	 * always away from the player, whichever face that is.
 	 * <p>
 	 * Answers whether the wheel was taken over, which it is only while {@link #SCROLL} is held over a copy being
 	 * shown with no screen open. A turn that finds no face in sight still counts as taken over, having said why: the
@@ -134,7 +144,12 @@ public final class PlacePreviewKeys {
 		if (amount == 0.0 || client.screen != null || !SCROLL.isDown() || PreviewManager.place() == null) {
 			return false;
 		}
-		alongFace(client, amount > 0.0);
+
+		Direction face = facing(client, FACES, WHEEL_HINT);
+		if (face != null) {
+			// The face in sight looks back at the player, so moving away from them goes the other way.
+			move(client, amount > 0.0 ? face.getOpposite() : face);
+		}
 		return true;
 	}
 
@@ -157,7 +172,6 @@ public final class PlacePreviewKeys {
 			return;
 		}
 		// Sent as if typed, so the server checks the permission and answers in chat the way it does for the command.
-		tony.mcvcs.MCVCS.LOGGER.info("TEMPDEBUG client sending confirm, box {} on {}", preview.box().min().toShortString(), Thread.currentThread().getName());
 		player.connection.sendCommand(CONFIRM_COMMAND);
 	}
 
@@ -180,20 +194,25 @@ public final class PlacePreviewKeys {
 		}
 	}
 
-	/**
-	 * The side of the copy's box the player is looking at, or null, having told them why, when none is: a copy that
-	 * is not being shown, the top or the bottom of the box, or nothing of it at all.
-	 */
+	/** The side of the copy's box the keys work off, {@link #SIDES} only; null, having said {@link #HINT}, when none. */
 	private static @Nullable Direction facing(Minecraft client) {
+		return facing(client, SIDES, HINT);
+	}
+
+	/**
+	 * Which of {@code faces} of the copy's box the player is looking at, or null, having told them {@code hint}, when
+	 * none is: a copy that is not being shown, a face left out of {@code faces}, or nothing of the box at all.
+	 */
+	private static @Nullable Direction facing(Minecraft client, Direction[] faces, String hint) {
 		PlacePreview preview = PreviewManager.place();
 		LocalPlayer player = client.player;
 		if (preview == null || player == null || !preview.blocks().dimension().equals(player.level().dimension())) {
 			return null;
 		}
 
-		Direction face = sideLookedAt(aabb(preview.box()), player.getEyePosition(), player.getViewVector(1.0f));
+		Direction face = faceLookedAt(aabb(preview.box()), player.getEyePosition(), player.getViewVector(1.0f), faces);
 		if (face == null) {
-			player.sendOverlayMessage(Component.literal(HINT));
+			player.sendOverlayMessage(Component.literal(hint));
 		}
 		return face;
 	}
@@ -209,7 +228,6 @@ public final class PlacePreviewKeys {
 
 		BlockPos min = preview.box().min().relative(direction);
 		PreviewManager.movePlace(min, client);
-		tony.mcvcs.MCVCS.LOGGER.info("TEMPDEBUG client sending move to {} on {}", min.toShortString(), Thread.currentThread().getName());
 		ClientPlayNetworking.send(new PlacePreviewMovePayload(min));
 
 		// The move changed what the copy stands over, and the message about to be sent reports it.
@@ -230,13 +248,21 @@ public final class PlacePreviewKeys {
 
 	/**
 	 * Which side of {@code aabb} the ray from {@code eye} along {@code look} hits within {@link #RANGE} blocks, or
-	 * null when it hits the top, the bottom or nothing at all.
-	 * <p>
-	 * The hit is a point on the surface of the box, so the side it belongs to is the one whose plane the point lies
-	 * in; a hit along an edge lies in two, and the nearer plane wins. A player standing inside the box has no side
-	 * in sight, since a ray that starts inside never enters.
+	 * null when it hits the top, the bottom or nothing at all. What the keys go by, see {@link #SIDES}.
 	 */
 	public static @Nullable Direction sideLookedAt(AABB aabb, Vec3 eye, Vec3 look) {
+		return faceLookedAt(aabb, eye, look, SIDES);
+	}
+
+	/**
+	 * Which of {@code faces} of {@code aabb} the ray from {@code eye} along {@code look} hits within {@link #RANGE}
+	 * blocks, or null when it hits a face left out of {@code faces} or nothing at all.
+	 * <p>
+	 * The hit is a point on the surface of the box, so the face it belongs to is the one whose plane the point lies
+	 * in; a hit along an edge lies in two, and the nearer plane wins. A player standing inside the box has no face
+	 * in sight, since a ray that starts inside never enters.
+	 */
+	public static @Nullable Direction faceLookedAt(AABB aabb, Vec3 eye, Vec3 look, Direction[] faces) {
 		Optional<Vec3> hit = aabb.clip(eye, eye.add(look.normalize().scale(RANGE)));
 		if (hit.isEmpty()) {
 			return null;
@@ -245,24 +271,25 @@ public final class PlacePreviewKeys {
 		Vec3 point = hit.get();
 		Direction nearest = null;
 		double nearestDistance = TOLERANCE;
-		for (Direction side : SIDES) {
-			double distance = distanceTo(point, aabb, side);
+		for (Direction face : faces) {
+			double distance = distanceTo(point, aabb, face);
 			if (distance < nearestDistance) {
-				nearest = side;
+				nearest = face;
 				nearestDistance = distance;
 			}
 		}
 		return nearest;
 	}
 
-	/** How far {@code point} is from the plane the {@code side} face of {@code aabb} lies in. */
-	private static double distanceTo(Vec3 point, AABB aabb, Direction side) {
-		return switch (side) {
+	/** How far {@code point} is from the plane the {@code face} of {@code aabb} lies in. */
+	private static double distanceTo(Vec3 point, AABB aabb, Direction face) {
+		return switch (face) {
 			case NORTH -> Math.abs(point.z - aabb.minZ);
 			case SOUTH -> Math.abs(point.z - aabb.maxZ);
 			case WEST -> Math.abs(point.x - aabb.minX);
 			case EAST -> Math.abs(point.x - aabb.maxX);
-			default -> Double.MAX_VALUE;
+			case DOWN -> Math.abs(point.y - aabb.minY);
+			case UP -> Math.abs(point.y - aabb.maxY);
 		};
 	}
 
