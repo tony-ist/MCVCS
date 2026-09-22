@@ -154,7 +154,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
-- A command to move a placement without unplacing and placing it again.
 - Add version tags. To keep track of TickNet versions more easily. Tags could be like '1.5.4' and selectable in checkouts, diffs and previews
 - Aliases for commands to type them faster
 - Display builds and versions on the client in overlay. Also show rotating 3D render of the build. Make buttons in overlay to select, checkout, diff and preview builds.
@@ -164,10 +163,9 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Deny naming builds starting from minus (-)
 - vcs select, vcs select buildname should disarm punch
 - In mcvcs folder name builds as buildname-v2 instead of just v2
-- Allow change build box to new worldedit selection, think about shrinking when blocks get excluded
-- Press numpad 5 to place the build during preview
-- Sprint key should move placement preview it 10 blocks.
+- Allow change build box to new worldedit selection, think about shrinking when blocks get excluded. vcs shrink command
 - Command /vcs move initiates moving preview for current placement allowing to change its position and press 5 moves it physically in the world
+- Submodules for build. One build can have submodules inside its box. Each submodule is itself a build. When we place parent build, all submodule placements appear inside. Bounding box for parent build includes all bounding boxes for submodules.
 
 ### Nice to have
 
