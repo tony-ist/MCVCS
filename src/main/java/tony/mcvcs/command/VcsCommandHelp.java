@@ -22,6 +22,8 @@ public final class VcsCommandHelp {
 		VcsCommandCreate.HELP,
 		VcsCommandCommit.HELP,
 		VcsCommandPlace.HELP,
+		VcsCommandPlace.CONFIRM_HELP,
+		VcsCommandPlace.CANCEL_HELP,
 		VcsCommandUnplace.HELP,
 		VcsCommandUnplace.CONFIRM_HELP,
 		VcsCommandSelect.HELP,

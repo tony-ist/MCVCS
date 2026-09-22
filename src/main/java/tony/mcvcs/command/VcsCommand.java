@@ -24,7 +24,8 @@ import tony.mcvcs.build.Placement;
  * the work.
  * <ul>
  * <li>{@code /vcs create <buildname> [placementname] [-we]}: {@link VcsCommandCreate}</li>
- * <li>{@code /vcs place <buildname> [version | latest] [placementname] [-f]}: {@link VcsCommandPlace}</li>
+ * <li>{@code /vcs place <buildname> [version | latest] [placementname] [-f]}, {@code /vcs confirmPlace [-f]} and
+ * {@code /vcs cancelPlace}: {@link VcsCommandPlace}</li>
  * <li>{@code /vcs unplace [-c]} and {@code /vcs confirmUnplace}: {@link VcsCommandUnplace}</li>
  * <li>{@code /vcs select [buildname [placementname]]}: {@link VcsCommandSelect}</li>
  * <li>{@code /vcs builds}: {@link VcsCommandBuilds}</li>
@@ -62,6 +63,7 @@ public final class VcsCommand {
 	public static void register() {
 		VcsCommandDelete.register();
 		VcsCommandUnplace.register();
+		VcsCommandPlace.register();
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
 			dispatcher.register(Commands.literal("vcs")
 				.requires(Commands.hasPermission(PERMISSION))
@@ -92,6 +94,12 @@ public final class VcsCommand {
 							.suggests((context, builder) -> SharedSuggestionProvider.suggest(versionsOf(context), builder))
 							.executes(context -> place(context, ARGUMENT_VERSION, null, false))
 							.then(placementOf(ARGUMENT_VERSION)))))
+				.then(sub(VcsCommandPlace.CONFIRM_HELP)
+					.executes(context -> VcsCommandPlace.confirm(context.getSource(), false))
+					.then(Commands.literal(FORCE)
+						.executes(context -> VcsCommandPlace.confirm(context.getSource(), true))))
+				.then(sub(VcsCommandPlace.CANCEL_HELP)
+					.executes(context -> VcsCommandPlace.cancel(context.getSource())))
 				.then(sub(VcsCommandUnplace.HELP)
 					.executes(context -> VcsCommandUnplace.run(context.getSource(), false))
 					.then(Commands.literal(VcsCommandUnplace.CLEAR)

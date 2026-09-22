@@ -19,10 +19,12 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
+import net.minecraft.client.gui.Gui;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.ViewArea;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.Component;
 
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
@@ -233,6 +235,21 @@ final class VcsTestSupport {
 		}
 		saved.join();
 		return file;
+	}
+
+	/**
+	 * What the action bar is showing, or {@code null} when it is showing nothing. Reaches into the HUD by reflection,
+	 * as nothing public leads to the message a {@code sendOverlayMessage} left there.
+	 */
+	static String overlayMessage(Minecraft client) {
+		try {
+			Field field = Gui.class.getDeclaredField("overlayMessageString");
+			field.setAccessible(true);
+			Component message = (Component) field.get(client.gui);
+			return message == null ? null : message.getString();
+		} catch (ReflectiveOperationException e) {
+			throw new AssertionError("Failed to read the action bar message", e);
+		}
 	}
 
 	/** Turns the player toward the centre of the box so screenshots show it. */

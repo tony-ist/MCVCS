@@ -37,8 +37,12 @@ import org.jspecify.annotations.Nullable;
 public final class SelectHotkey {
 	/** How far ahead, in blocks, a placement can be and still be selected. Far enough for a build across a large plot. */
 	public static final double RANGE = 128.0;
-	/** Category the key is listed under in the controls screen, named by {@code key.category.mcvcs.main}. */
-	private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(MCVCS.id("main"));
+	/**
+	 * Category every key of the mod is listed under in the controls screen, named by {@code key.category.mcvcs.main};
+	 * the keys that move a {@code /vcs place} preview share it, see
+	 * {@link tony.mcvcs.client.place.PlacePreviewKeys}.
+	 */
+	public static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(MCVCS.id("main"));
 	/** The key itself, named by {@code key.mcvcs.select_looked_at}; {@code V} by default, which nothing in vanilla uses. */
 	public static final KeyMapping KEY = new KeyMapping("key.mcvcs.select_looked_at", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, CATEGORY);
 

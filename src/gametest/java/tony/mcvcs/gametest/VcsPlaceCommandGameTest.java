@@ -32,10 +32,13 @@ import tony.mcvcs.build.ClientPlacement;
 import tony.mcvcs.client.build.ClientPlacements;
 
 /**
- * {@code /vcs place} puts another copy of a build into the world as a placement of its own, where the player stands.
- * The copy lives its own life from then on: it is checked out and committed on its own, but its commits become
- * versions of the same build, which the first placement can then check out. Placements may not overlap, and blocks
- * standing where one would go are refused unless {@code -f} is given.
+ * {@code /vcs place} shows another copy of a build where the player stands and {@code /vcs confirmPlace} puts it into
+ * the world as a placement of its own. The copy lives its own life from then on: it is checked out and committed on
+ * its own, but its commits become versions of the same build, which the first placement can then check out.
+ * Placements may not overlap, and blocks standing where one would go are refused unless {@code -f} is given; both are
+ * only refused when the placement is confirmed, since until then the copy is free to be moved somewhere clear.
+ * <p>
+ * Moving the copy about before confirming it is {@link VcsPlacePreviewGameTest}'s business.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsPlaceCommandGameTest extends VcsGameTest {
@@ -77,11 +80,20 @@ public class VcsPlaceCommandGameTest extends VcsGameTest {
 			// So is a version the build does not have.
 			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME + " 2"), "Build " + BUILD_NAME + " only has versions 1 to 1");
 
-			// Placing where the player stands puts the copy one block below their feet, extending east and south, the
+			// Placing where the player stands shows the copy one block below their feet, extending east and south, the
 			// same spot /vcs load and //paste would use. The player is moved well clear of the first placement first.
 			BlockPos feet = hover(singleplayer, context, start.offset(0, 10, 20));
 			BuildBox second = below(feet);
-			List<Component> placed = run(context, "vcs place " + BUILD_NAME + " latest " + SECOND);
+			List<Component> showing = run(context, "vcs place " + BUILD_NAME + " latest " + SECOND);
+			assertOnlyMessage(showing, "Showing " + BUILD_NAME + "/" + SECOND + " v1 (2x2x2, 8 blocks) at " + second.min().toShortString());
+			// Nothing is in the world yet, and nothing is selected that was not selected before.
+			if (blockAt(singleplayer, second.min()) != Blocks.AIR.defaultBlockState()) {
+				throw new AssertionError("A copy that is only shown must leave the world alone but " + second.min().toShortString()
+					+ " holds " + blockAt(singleplayer, second.min()));
+			}
+			assertPlacements(singleplayer, List.of(Build.MAIN));
+
+			List<Component> placed = run(context, "vcs confirmPlace");
 			assertOnlyMessage(placed, "Placed " + BUILD_NAME + "/" + SECOND + " v1 (2x2x2, 8 blocks) at " + second.min().toShortString());
 
 			// The blocks are really there, gold corner and all, and the placement is selected and drawn.
@@ -94,10 +106,14 @@ public class VcsPlaceCommandGameTest extends VcsGameTest {
 			lookAt(context, second.min(), second.max());
 			screenshotLastFrame(context, "mcvcs-vcs-place");
 
-			// A second placement of the same build on the same spot would overlap the one just made.
-			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME),
+			// A second placement of the same build on the same spot would overlap the one just made, which the copy
+			// only hears about when it is confirmed; it stays up so it can be moved somewhere clear instead.
+			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME), "Showing " + BUILD_NAME + "/" + Build.PLACEMENT_PREFIX + "2");
+			assertOnlyMessage(run(context, "vcs confirmPlace"),
 				"Placing build " + BUILD_NAME + " here would overlap " + BUILD_NAME + "/" + SECOND + "; placements may not intersect");
-			// And a name already taken is refused as well.
+			assertOnlyMessage(run(context, "vcs cancelPlace"), "Dropped the copy of " + BUILD_NAME + "/" + Build.PLACEMENT_PREFIX + "2");
+			assertOnlyMessage(run(context, "vcs confirmPlace"), "Nothing to place");
+			// A name already taken is refused before anything is shown, though.
 			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME + " latest " + SECOND),
 				"Build " + BUILD_NAME + " already has a placement called " + SECOND);
 
@@ -105,12 +121,14 @@ public class VcsPlaceCommandGameTest extends VcsGameTest {
 			// block is put where the copy's north-west corner would land.
 			BuildBox third = below(hover(singleplayer, context, start.offset(0, 10, 40)));
 			setBlock(singleplayer, third.min(), Blocks.DIRT.defaultBlockState());
-			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME), "Placing build " + BUILD_NAME + " here would overwrite 1 block already standing in its 2x2x2 box at " + third.min().toShortString());
+			// Unnamed, so the placement is called p2: the lowest free number, main being the first.
+			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME), "Showing " + BUILD_NAME + "/" + Build.PLACEMENT_PREFIX + "2");
+			assertOnlyMessage(run(context, "vcs confirmPlace"), "Placing build " + BUILD_NAME + " here would overwrite 1 block already standing in its 2x2x2 box at " + third.min().toShortString());
 			if (blockAt(singleplayer, third.min()) != Blocks.DIRT.defaultBlockState()) {
 				throw new AssertionError("A refused placement must leave the blocks alone but " + third.min().toShortString() + " holds " + blockAt(singleplayer, third.min()));
 			}
-			// Unnamed, so the placement is called p2: the lowest free number, main being the first.
-			List<Component> forced = run(context, "vcs place " + BUILD_NAME + " latest " + Build.PLACEMENT_PREFIX + "2 " + "-f");
+			// The copy is still up after that refusal, so -f on the confirmation places it where it already stands.
+			List<Component> forced = run(context, "vcs confirmPlace -f");
 			assertOnlyMessage(forced, "Placed " + BUILD_NAME + "/" + Build.PLACEMENT_PREFIX + "2 v1 (2x2x2, 8 blocks) at " + third.min().toShortString() + ", overwriting 1 block that stood there");
 			if (blockAt(singleplayer, third.min()) != Blocks.STONE.defaultBlockState()) {
 				throw new AssertionError("Expected the forced placement to overwrite " + third.min().toShortString() + " but it holds " + blockAt(singleplayer, third.min()));

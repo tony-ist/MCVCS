@@ -27,8 +27,8 @@ Placements may never overlap, one another's or another build's, whichever build 
 
 The mod works in two setups:
 
-- **Server only.** Install it on the server (or in the host's single-player game). Players connect with a vanilla Fabric client and get the full command set: `create`, `place`, `unplace`, `select`, `builds`, `deselect`, `commit`, `load`, `diff`, `expand`, `checkout`, `delete`, `tp`, `weselect` and `help` all run on the server. Nothing is drawn in their world, though: no placement labels and no selection box, `/vcs diff` only reports its counts in chat, and `/vcs preview` refuses with a message saying the client does not have MCVCS installed.
-- **Server and client.** Install it on both. On top of the commands, the client shows every placement's name floating above its box, draws the selected placement's bounding box, highlights the blocks `/vcs diff` finds, can render `/vcs preview <version>` in place of the real blocks, and adds a hotkey that selects the placement under your crosshair (see below).
+- **Server only.** Install it on the server (or in the host's single-player game). Players connect with a vanilla Fabric client and get the full command set: `create`, `place`, `unplace`, `select`, `builds`, `deselect`, `commit`, `load`, `diff`, `expand`, `checkout`, `delete`, `tp`, `weselect` and `help` all run on the server. Nothing is drawn in their world, though: no placement labels and no selection box, `/vcs diff` only reports its counts in chat, and `/vcs preview` refuses with a message saying the client does not have MCVCS installed. `/vcs place` has nothing to show the copy with either, so it puts it into the world where you stand straight away, with no lining up and nothing to confirm.
+- **Server and client.** Install it on both. On top of the commands, the client shows every placement's name floating above its box, draws the selected placement's bounding box, highlights the blocks `/vcs diff` finds, can render `/vcs preview <version>` in place of the real blocks, shows the copy `/vcs place` is about to put down so it can be lined up before it is confirmed, and adds hotkeys that select the placement under your crosshair and move that copy about (see below).
 
 There is no client-only mode: the builds live on the server, so the mod has to be there for anything to work.
 
@@ -37,7 +37,9 @@ There is no client-only mode: the builds live on the server, so the mod has to b
 | Command | What it does |
 | --- | --- |
 | `/vcs create <buildname> [placementname] [-we]` | Waits for you to click the build, then creates it: punch any block of it, with anything or nothing in hand, or right-click one with an empty hand, and the build is grown from that block over everything connected to it, the way `/vcs expand` grows a box (so it should hover in the air, see above), then created and committed as version 1. The click neither breaks nor uses the block; the server puts it back if your client already did. WorldEdit tools go first: a wand or brush click does what it always does and the next click is waited for instead. If the connected blocks would reach past 5,000,000, nothing is created and you are asked to use `-we` instead. With `-we`, the bounding box of your current WorldEdit selection becomes the build and no click is waited for; without a selection the command refuses. Your selection is otherwise ignored. Running `/vcs create` again replaces a click still being waited for. The name must not belong to an existing build, ignoring case (`Foo` and `foo` are the same build), and the box may not overlap any placement in the same dimension. What is created is the build's first placement, called `main` unless you name it, and it becomes your selected placement for this world. |
-| `/vcs place <buildname> [version\|latest] [placementname] [-f]` | Puts another copy of the build into the world where you stand, as a placement of its own: that version, or the latest one if none is given, is pasted with its top north-west corner one block below your feet, so it hangs below you extending east and south, exactly where `/vcs load` and `//paste` would put it. The new placement is named `p2`, `p3` and so on unless you name it, and becomes your selected one. It lives its own life from then on: check it out and modify it on its own, and commits from it become versions of the same build. The blocks are placed without block updates and outside your WorldEdit history, the same way `/vcs checkout` places them. Refuses if the copy would overlap another placement, and refuses if anything is already standing where it goes unless you add `-f`, which overwrites those blocks for good. |
+| `/vcs place <buildname> [version\|latest] [placementname] [-f]` | Shows another copy of the build where you stand, without touching the world: that version, or the latest one if none is given, is drawn with its top north-west corner one block below your feet, so it hangs below you extending east and south, exactly where `/vcs load` and `//paste` would put it. Only you see it. Line it up with the numpad keys (see [Hotkeys](#hotkeys)) and run `/vcs confirmPlace` to place it, or `/vcs cancelPlace` to drop it; the copy is forgotten if you leave the server first, and a second `/vcs place` replaces it. Its box is green while it can be placed where it stands and red while it cannot, because it overlaps a placement or because blocks are standing in the way and no `-f` was given. The new placement is named `p2`, `p3` and so on unless you name it. Without the mod on your client there is nothing to draw the copy with, so it is placed where you stand straight away. |
+| `/vcs confirmPlace [-f]` | Puts the copy your last `/vcs place` is showing into the world where you have moved it, as a placement of its own, and selects it. It lives its own life from then on: check it out and modify it on its own, and commits from it become versions of the same build. The blocks are placed without block updates and outside your WorldEdit history, the same way `/vcs checkout` places them. Refuses if the copy overlaps another placement, and refuses if anything is already standing where it goes unless you add `-f` here or gave it to `/vcs place`, which overwrites those blocks for good; a refused copy stays up, so you can move it somewhere clear and confirm again. |
+| `/vcs cancelPlace` | Stops showing the copy your last `/vcs place` is showing. Nothing was ever put into the world, so nothing is taken back. |
 | `/vcs unplace [-c]` | Asks you to confirm taking your selected placement out of its build. Nothing happens until you run `/vcs confirmUnplace`; the request is forgotten if you leave the server first. The build and every version of it stay on disk, so `/vcs place` can put it back. |
 | `/vcs confirmUnplace` | Removes the placement your last `/vcs unplace` named: it stops being tracked and anyone who had it selected loses that selection. Its blocks are left standing where they are, as ordinary world blocks, unless `-c` was given, in which case its box is emptied as well. |
 | `/vcs select [buildname [placementname]]` | Selects the placement whose box is shown and that later commands act on. With no arguments it waits for you to punch a block of the placement you want, the same kind of click `/vcs create` waits for: the block is left alone and whichever placement covers it is selected. With a build that has one placement, that one is selected at once; with a build that has several, you are asked to punch one. With a placement name too, that placement is selected outright. |
@@ -58,11 +60,21 @@ There is no client-only mode: the builds live on the server, so the mod has to b
 | `/vcs help [command]` | Without a command: tells how to start a build (run `/vcs create <buildname>`, then punch a block of it) and lists every command with a one-line summary. With one, e.g. `/vcs help commit`: that command's full help. `/vcs -h` is the same as `/vcs help`. |
 | `/vcs <command> -h` | Shows that command's full help instead of running it, e.g. `/vcs checkout -h`. Works for every command above. |
 
-## Hotkey
+## Hotkeys
 
 With the mod on your client, pressing `V` selects the placement under your crosshair, the same as running `/vcs select` for it. It takes the nearest placement whose box your line of sight passes through, or the one you are standing in.
 
-The key can be rebound like any other under Options, Controls, Key Binds, in the MCVCS category.
+The numpad moves the copy `/vcs place` is showing, and does nothing while none is being shown:
+
+| Key | What it does |
+| --- | --- |
+| `8` / `2` | Pushes the copy away from you and pulls it back, through the side of its box you are looking at |
+| `4` / `6` | Slides it left and right along that side, as you see it, without changing its height |
+| `7` / `9` | Raises and lowers it |
+
+Which way the copy goes is read off the box, not off the compass: looking at its north side, `8` pushes it north to south, and looking at its east side, `8` pushes it east to west. Looking at the top or the bottom of the box, or away from it altogether, leaves `8`, `2`, `4` and `6` nothing to go by, so they move nothing and tell you to look at a side of it. `7` and `9` need no side and always work. Each press moves one block, or ten while your sprint key is held.
+
+Every key can be rebound like any other under Options, Controls, Key Binds, in the MCVCS category.
 
 ## How it works
 
@@ -122,18 +134,28 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 
 ### Roadmap
-- Do not use worldedit selection for build create, only punch. Maybe hide worldedit selection usage under flag
-- Show a preview of a placement before `/vcs place` actually puts it in the world, and let it be moved before it is confirmed.
+
 - A command to move a placement without unplacing and placing it again.
 - Add version tags. To keep track of TickNet versions more easily. Tags could be like '1.5.4' and selectable in checkouts, diffs and previews
 - Aliases for commands to type them faster
 - Display builds and versions on the client in overlay. Also show rotating 3D render of the build. Make buttons in overlay to select, checkout, diff and preview builds.
 - Make automatic releases on github by reading tags
+- Make version automatically in format mcvcs-fabric-1.2.0+mc26.1.2
+- Add shrink command to shrink selection to bounding box
+- Deny naming builds starting from minus (-)
+- vcs select, vcs select buildname should disarm punch
+- In mcvcs folder name builds as buildname-v2 instead of just v2
+- Allow change build box to new worldedit selection, think about shrinking when blocks get excluded
+- Press numpad 5 to place the build during preview
 
 ### Nice to have
+
 - When modifying build, update diff in real time
 - Disable sounds in test client so that I don't get jumpscared. Also make it creative mode and spanw player as flying not falling if he's in midair
 - Render label of the build on the nearest edge to the player. This way labels of the big builds will be seen better.
 - Changing selection should stop preview and diff
 - /vcs off command to turn off diff and preview
 - Add clickable tp command in /vcs builds list
+- Add some effect when punching is armed
+- In vcs builds display label Placement before placement name
+- Hm maybe not confirm unplace, annoying and not destructive

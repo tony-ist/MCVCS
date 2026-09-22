@@ -75,10 +75,12 @@ public class VcsUnplaceCommandGameTest extends VcsGameTest {
 			BlockPos keptFeet = hover(singleplayer, context, start.offset(0, 10, 20));
 			BuildBox kept = below(keptFeet);
 			runCommand(context, "vcs place " + BUILD_NAME + " latest " + KEPT);
+			runCommand(context, "vcs confirmPlace");
 			waitForSelection(context, BUILD_NAME + "/" + KEPT);
 
 			BuildBox cleared = below(hover(singleplayer, context, start.offset(0, 10, 40)));
 			runCommand(context, "vcs place " + BUILD_NAME + " latest " + CLEARED);
+			runCommand(context, "vcs confirmPlace");
 			waitForSelection(context, BUILD_NAME + "/" + CLEARED);
 			assertPlacements(singleplayer, List.of(CLEARED, KEPT, Build.MAIN));
 
@@ -114,10 +116,13 @@ public class VcsUnplaceCommandGameTest extends VcsGameTest {
 				throw new AssertionError("Expected the blocks of " + KEPT + " to stay but " + kept.max().toShortString() + " holds " + blockAt(singleplayer, kept.max()));
 			}
 
-			// The blocks left standing belong to nobody now, so placing there again is refused until they are gone.
+			// The blocks left standing belong to nobody now, so placing there again is refused until they are gone:
+			// the copy is shown all the same, since it is only refused once it is confirmed.
 			teleport(singleplayer, keptFeet);
 			context.waitTicks(2);
-			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME), "Placing build " + BUILD_NAME + " here would overwrite 8 blocks already standing");
+			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME), "Showing " + BUILD_NAME + "/" + Build.PLACEMENT_PREFIX + "2");
+			assertOnlyMessage(run(context, "vcs confirmPlace"), "Placing build " + BUILD_NAME + " here would overwrite 8 blocks already standing");
+			runCommand(context, "vcs cancelPlace");
 		}
 	}
 

@@ -1,4 +1,10 @@
 {
 	"key.category.mcvcs.main": "MCVCS",
-	"key.mcvcs.select_looked_at": "Select Build Under Crosshair"
+	"key.mcvcs.select_looked_at": "Select Build Under Crosshair",
+	"key.mcvcs.place_away": "Move Placement Preview Away",
+	"key.mcvcs.place_closer": "Move Placement Preview Closer",
+	"key.mcvcs.place_left": "Move Placement Preview Left",
+	"key.mcvcs.place_right": "Move Placement Preview Right",
+	"key.mcvcs.place_up": "Move Placement Preview Up",
+	"key.mcvcs.place_down": "Move Placement Preview Down"
 }
