@@ -36,6 +36,7 @@ import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardWriter;
 import org.jspecify.annotations.Nullable;
+import tony.mcvcs.MCVCS;
 
 /**
  * Everything the mod keeps on disk, under {@code mcvcs/} in the game directory:
@@ -69,10 +70,19 @@ public final class BuildStorage {
 
 	/** The build and placement a player has selected in one world. */
 	public record Selection(String build, String placement) {
-		public static final Codec<Selection> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+		private static final Codec<Selection> RECORD_CODEC = RecordCodecBuilder.create(instance -> instance.group(
 			Codec.STRING.fieldOf("build").forGetter(Selection::build),
 			Codec.STRING.fieldOf("placement").forGetter(Selection::placement)
 		).apply(instance, Selection::new));
+
+		/**
+		 * Before placements a selection was the selected build's name on its own, so a bare name is read as that
+		 * build's {@link Build#MAIN} placement, the one {@link LegacyBuild} turns such a build's box into.
+		 */
+		private static final Codec<Selection> LEGACY_CODEC =
+			Codec.STRING.xmap(build -> new Selection(build, Build.MAIN), Selection::build);
+
+		public static final Codec<Selection> CODEC = Codec.withAlternative(RECORD_CODEC, LEGACY_CODEC);
 	}
 
 	/** World name to player UUID to what they have selected there. */
@@ -309,9 +319,40 @@ public final class BuildStorage {
 		writeJson(selectionsFile(), SELECTIONS_CODEC, selections);
 	}
 
+	/**
+	 * Every player's selection in every world, as {@link #SELECTIONS_FILE} records it. Selections written before
+	 * placements are converted and written back in the current form as they are read, see {@link Selection#CODEC}.
+	 */
 	private static Map<String, Map<UUID, Selection>> selections() throws IOException {
 		Path file = selectionsFile();
-		return Files.isRegularFile(file) ? parse(file, SELECTIONS_CODEC, readJson(file)) : Map.of();
+		if (!Files.isRegularFile(file)) {
+			return Map.of();
+		}
+		JsonElement json = readJson(file);
+		Map<String, Map<UUID, Selection>> selections = parse(file, SELECTIONS_CODEC, json);
+		if (isLegacySelections(json)) {
+			writeJson(file, SELECTIONS_CODEC, selections);
+			MCVCS.LOGGER.info("Migrated selections written before placements to the '{}' placement of the builds they named", Build.MAIN);
+		}
+		return selections;
+	}
+
+	/** Whether {@code json} holds a selection written before placements, which was the build's name on its own. */
+	private static boolean isLegacySelections(JsonElement json) {
+		if (!json.isJsonObject()) {
+			return false;
+		}
+		for (Map.Entry<String, JsonElement> world : json.getAsJsonObject().entrySet()) {
+			if (!world.getValue().isJsonObject()) {
+				continue;
+			}
+			for (Map.Entry<String, JsonElement> player : world.getValue().getAsJsonObject().entrySet()) {
+				if (player.getValue().isJsonPrimitive()) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	private static JsonElement readJson(Path file) throws IOException {

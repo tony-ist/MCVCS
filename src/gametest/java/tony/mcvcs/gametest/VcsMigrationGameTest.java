@@ -11,7 +11,9 @@ import static tony.mcvcs.gametest.VcsTestSupport.select;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Optional;
+import java.util.UUID;
 
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
@@ -24,11 +26,14 @@ import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
+import tony.mcvcs.build.BuildStorage;
 
 /**
  * A {@code build.json} written before placements existed, with one {@code box} and one {@code head} for the whole
  * build, is converted the first time it is read: its versions keep their schematics, their extents are worked out
- * from them, and the box becomes a placement called {@link Build#MAIN} standing where it stood.
+ * from them, and the box becomes a placement called {@link Build#MAIN} standing where it stood. A
+ * {@code selections.json} from then, which named the selected build alone, is converted the same way: it selects
+ * that build's {@link Build#MAIN} placement.
  * <p>
  * This test goes with the conversion itself and can be deleted with it.
  */
@@ -83,6 +88,38 @@ public class VcsMigrationGameTest extends VcsGameTest {
 			runCommand(context, "vcs select " + BUILD_NAME);
 			runCommand(context, "vcs commit");
 			read(schematic(BUILD_NAME, 3));
+
+			// A selection written before placements was the build's name alone, and stands for its main placement.
+			writeLegacySelection(world, singleplayer.getServer().computeOnServer(server ->
+				server.getPlayerList().getPlayers().get(0).getUUID()));
+			Optional<BuildPlacement> selected = singleplayer.getServer().computeOnServer(server ->
+				BuildRegistry.selected(server.getPlayerList().getPlayers().get(0)));
+			if (selected.isEmpty() || !selected.get().build().name().equals(BUILD_NAME) || !selected.get().name().equals(Build.MAIN)) {
+				throw new AssertionError("Expected the selection before placements to become the " + Build.MAIN
+					+ " placement of '" + BUILD_NAME + "' but got " + selected.orElse(null));
+			}
+
+			// That file was rewritten too, so the conversion happens once and not on every read.
+			String selections = readFile(BuildStorage.selectionsFile());
+			if (!selections.contains("\"placement\"")) {
+				throw new AssertionError("Expected the selections file to have been rewritten with placements but it holds " + selections);
+			}
+		}
+	}
+
+	/** Writes the {@code selections.json} the mod before placements would have written for the build. */
+	private static void writeLegacySelection(String world, UUID player) {
+		String json = """
+			{
+			  "%s": {
+			    "%s": "%s"
+			  }
+			}
+			""".formatted(world, player, BUILD_NAME);
+		try {
+			Files.writeString(BuildStorage.selectionsFile(), json);
+		} catch (IOException e) {
+			throw new AssertionError("Failed to write a selections file before placements at " + BuildStorage.selectionsFile(), e);
 		}
 	}
 
@@ -106,10 +143,14 @@ public class VcsMigrationGameTest extends VcsGameTest {
 	}
 
 	private static String readBuildFile() {
+		return readFile(buildFile(BUILD_NAME));
+	}
+
+	private static String readFile(Path file) {
 		try {
-			return Files.readString(buildFile(BUILD_NAME));
+			return Files.readString(file);
 		} catch (IOException e) {
-			throw new AssertionError("Expected a build file at " + buildFile(BUILD_NAME), e);
+			throw new AssertionError("Expected a file at " + file, e);
 		}
 	}
 }

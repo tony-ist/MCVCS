@@ -131,3 +131,4 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Render label of the build on the nearest edge to the player. This way labels of the big builds will be seen better.
 - Changing selection should stop preview and diff
 - /vcs off command to turn off diff and preview
+- Add clickable tp command in /vcs builds list
