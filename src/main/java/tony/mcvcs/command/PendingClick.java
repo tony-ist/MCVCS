@@ -20,31 +20,35 @@ import net.minecraft.world.level.Level;
 import tony.mcvcs.MCVCS;
 
 /**
- * {@code /vcs create <buildname>} run without a WorldEdit selection: the build is made from the next block the player
- * clicks instead. The command {@linkplain #arm arms} the player; their next punch of a block, with anything or nothing
- * in hand, or right-click of one with an empty main hand, hands the block to {@link VcsCommandCreate#createFromBlock}, which
- * grows a box from it over everything connected to it and creates the build from that. The click does nothing else: the
- * block is neither broken nor used, and Fabric has the server tell the client so, in case it already broke or toggled
- * the block on its side.
+ * The block a command asks the player to click. {@code /vcs create} without a WorldEdit selection grows a build from
+ * it, and {@code /vcs select} takes the placement it belongs to; either way the command {@linkplain #arm arms} the
+ * player and their next punch of a block, with anything or nothing in hand, or right-click of one with an empty main
+ * hand, hands the block over. The click does nothing else: the block is neither broken nor used, and Fabric has the
+ * server tell the client so, in case it already broke or toggled the block on its side.
  * <p>
- * WorldEdit's own tools go first, see {@link #PHASE}: a click WorldEdit takes, such as the wand setting a position or a
- * brush painting, is not a click here, and the player stays armed for the next one. Every {@code /vcs create} replaces
- * whatever an earlier one left armed, so making a selection with the wand and running the command again creates the
- * build from the selection as usual.
+ * WorldEdit's own tools go first, see {@link #PHASE}: a click WorldEdit takes, such as the wand setting a position or
+ * a brush painting, is not a click here, and the player stays armed for the next one. A player has one armed click at
+ * a time, so a second command replaces whatever an earlier one left waiting.
  * <p>
  * Only the server thread touches this; a player's entry goes when they click or leave.
  */
-public final class CreateOnClick {
+public final class PendingClick {
 	/** Event phase the click handlers run in, after the default one WorldEdit's tools listen in. */
-	public static final Identifier PHASE = MCVCS.id("create_on_click");
-	/** The build name each armed player's next click creates, by player UUID. */
-	private static final Map<UUID, String> PENDING = new HashMap<>();
+	public static final Identifier PHASE = MCVCS.id("pending_click");
+	/** What each armed player's next click does, by player UUID. */
+	private static final Map<UUID, Action> PENDING = new HashMap<>();
 
-	private CreateOnClick() {
+	/** What a command does with the block the player clicks. */
+	@FunctionalInterface
+	public interface Action {
+		void onClick(ServerPlayer player, ServerLevel level, BlockPos pos);
+	}
+
+	private PendingClick() {
 	}
 
 	public static void register() {
-		// A click armed by a player who logged out must not create anything when they are back.
+		// A click armed by a player who logged out must not do anything when they are back.
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> PENDING.remove(handler.player.getUUID()));
 		AttackBlockCallback.EVENT.addPhaseOrdering(Event.DEFAULT_PHASE, PHASE);
 		AttackBlockCallback.EVENT.register(PHASE, (player, level, hand, pos, direction) -> onClick(player, level, pos));
@@ -55,9 +59,9 @@ public final class CreateOnClick {
 			hand == InteractionHand.MAIN_HAND && player.getItemInHand(hand).isEmpty() ? onClick(player, level, hit.getBlockPos()) : InteractionResult.PASS);
 	}
 
-	/** Makes {@code player}'s next click create the build called {@code name}, instead of whatever an earlier call asked for. */
-	public static void arm(ServerPlayer player, String name) {
-		PENDING.put(player.getUUID(), name);
+	/** Makes {@code player}'s next click run {@code action}, instead of whatever an earlier call asked for. */
+	public static void arm(ServerPlayer player, Action action) {
+		PENDING.put(player.getUUID(), action);
 	}
 
 	/** Leaves {@code player}'s next click to do what it normally does. */
@@ -66,16 +70,16 @@ public final class CreateOnClick {
 	}
 
 	private static InteractionResult onClick(Player player, Level level, BlockPos pos) {
-		// The client fires the same events for its own player; only the server creates, and it tells the client what
+		// The client fires the same events for its own player; only the server acts, and it tells the client what
 		// became of the block.
 		if (!(player instanceof ServerPlayer serverPlayer) || !(level instanceof ServerLevel serverLevel)) {
 			return InteractionResult.PASS;
 		}
-		String name = PENDING.remove(serverPlayer.getUUID());
-		if (name == null) {
+		Action action = PENDING.remove(serverPlayer.getUUID());
+		if (action == null) {
 			return InteractionResult.PASS;
 		}
-		VcsCommandCreate.createFromBlock(serverPlayer, serverLevel, name, pos);
+		action.onClick(serverPlayer, serverLevel, pos);
 		return InteractionResult.SUCCESS;
 	}
 }

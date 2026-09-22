@@ -2,11 +2,13 @@ package tony.mcvcs.command;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
-import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerLevel;
@@ -16,138 +18,127 @@ import tony.mcvcs.MCVCS;
 import tony.mcvcs.build.BoxSnapshot;
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.BuildStorage;
 import tony.mcvcs.diff.BuildDiff;
+import tony.mcvcs.network.BuildSync;
 import tony.mcvcs.network.ChatButtons;
 import tony.mcvcs.network.DiffSender;
 import tony.mcvcs.network.PreviewSender;
-import com.sk89q.worldedit.EditSession;
-import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
-import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.fabric.FabricAdapter;
-import com.sk89q.worldedit.function.operation.ForwardExtentCopy;
-import com.sk89q.worldedit.function.operation.Operations;
-import com.sk89q.worldedit.regions.Region;
-import com.sk89q.worldedit.util.SideEffect;
-import com.sk89q.worldedit.util.SideEffectSet;
-import com.sk89q.worldedit.world.World;
-import com.sk89q.worldedit.world.block.BlockTypes;
 
 /**
- * {@code /vcs checkout <version | latest> [-f]}: clears the selected build's box and puts that version, or its latest
- * one, back in it, exactly where it was committed from, without a single block update, as if {@code //perf off} were
- * on. Refuses while the box differs from the version it holds, since the changes would be lost: they have to be
- * committed first, unless {@code -f} is given, which overwrites them for good. The checkout is not put in the
- * player's WorldEdit history, so {@code //undo} never reverts it. The checked-out version becomes the one the box
- * holds, so checking out another version after it is allowed, and a commit from there saves the box as the next
- * version as usual. Any preview or diff highlighting the player had up is stopped, since both showed the box as it
- * was before.
+ * {@code /vcs checkout <version | latest> [-f]}: puts a version of the build into the selected placement, exactly
+ * where that placement holds it, without a single block update, as if {@code //perf off} were on.
+ * <p>
+ * Versions may differ in size, so the placement's box changes with the version it holds: it is the version's extent
+ * laid at the placement's origin, which never moves. Both the old box and the new one are emptied before the version
+ * goes down, since both are the placement's own ground; what the new box takes in beyond the old one is not, so
+ * anything standing there refuses the checkout unless {@link VcsCommand#FORCE} is given, and another placement
+ * reaching into it refuses the checkout outright, as placements may never overlap.
+ * <p>
+ * It also refuses while the box differs from the version it holds, since those changes would be lost: they have to
+ * be committed first, unless {@code -f} is given, which overwrites them for good. The checkout is not put in the
+ * player's WorldEdit history, so {@code //undo} never reverts it. The checked-out version becomes the one the
+ * placement holds, so checking out another version after it is allowed, and a commit from there saves the box as the
+ * build's next version as usual. Any preview or diff highlighting the player had up is stopped, since both showed the
+ * box as it was before.
  */
 public final class VcsCommandCheckout {
 	static final VcsHelp HELP = new VcsHelp("checkout", "/vcs checkout <version | latest> [" + VcsCommand.FORCE + "]",
-		"put a version back into the world",
-		"Empties the selected build's box and puts the provided version into it, without block updates. Refuses if the box has uncommitted changes: commit first, or add " + VcsCommand.FORCE + " to overwrite them. /vcs diff starts to compare versions against this checked out version.");
+		"put a version back into the selected placement",
+		"Empties the selected placement's box and puts the provided version into it, without block updates. The box becomes that version's size around the same origin. Refuses if the box has uncommitted changes, or if anything stands where a bigger version would reach: commit first, or add " + VcsCommand.FORCE + " to overwrite both. A placement in the way is always refused. /vcs diff starts to compare versions against this checked out version.");
 
 	private VcsCommandCheckout() {
 	}
 
 	/**
-	 * Replaces whatever is inside the selected build's box with one of its versions: the whole box is set to air and
-	 * the version's schematic put back at the world position it was committed from, so a version committed before
-	 * the box grew lands where it was built and the rest of the grown box stays empty. The box itself does not change.
-	 * <p>
-	 * The blocks are set without any of the side effects {@code //perf off} turns off, see {@link #sideEffects}, so
-	 * nothing in the version gets a block update while it is put back: redstone components, observers and falling
-	 * blocks are left exactly as they were saved instead of reacting to their neighbours appearing one by one. The
-	 * edit is kept out of the player's WorldEdit history: MCVCS and WorldEdit edits stay separate, so {@code //undo}
-	 * only ever reverts the player's own WorldEdit edits, never a checkout, and a checkout never pushes one of those
-	 * edits out of the history either.
-	 * <p>
-	 * Checking out throws away whatever is in the box, so it refuses while the box differs from the version it holds,
-	 * see {@link Build#head}, by as much as one block or one block entity's data, the same way {@code /vcs diff} tells
-	 * them apart; the player has to commit first, or pass {@link VcsCommand#FORCE} to have the changes overwritten,
-	 * which nothing brings back. Once done, the checked-out version is the one the box holds.
-	 *
-	 * @param version the version to check out, or {@link VcsCommand#LATEST} for the selected build's latest one
-	 * @param force   whether to check out over uncommitted changes instead of refusing
+	 * @param version the version to check out, or {@link VcsCommand#LATEST} for the build's latest one
+	 * @param force   whether to check out over uncommitted changes and blocks in the way instead of refusing
 	 */
 	static int run(CommandSourceStack source, int version, boolean force) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
-		Optional<Build> selected = BuildRegistry.selected(player);
+		Optional<BuildPlacement> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
-			source.sendFailure(VcsMessages.noBuildSelected());
+			source.sendFailure(VcsMessages.noPlacementSelected());
 			return 0;
 		}
 
-		Build latest = selected.get();
-		if (version > latest.version()) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(latest.name())).append(" only has versions 1 to " + latest.version()));
+		BuildPlacement placement = selected.get();
+		Build build = placement.build();
+		if (version > build.version()) {
+			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(build.name())).append(" only has versions 1 to " + build.version()));
 			return 0;
 		}
-		Build build = version == VcsCommand.LATEST ? latest : latest.atVersion(version);
-		ServerLevel level = source.getServer().getLevel(build.dimension());
+		int checkedOut = version == VcsCommand.LATEST ? build.version() : version;
+		ServerLevel level = source.getServer().getLevel(placement.dimension());
 		if (level == null) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(build.name())).append(" is in " + build.dimension().identifier() + ", which does not exist here"));
+			source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is in " + placement.dimension().identifier() + ", which does not exist here"));
+			return 0;
+		}
+
+		BuildBox from = placement.box();
+		BuildBox to = placement.boxOf(checkedOut);
+		// The new box may reach past the old one; those blocks belong to nobody yet, so nothing else may be there.
+		Optional<BuildPlacement> overlapping = BuildRegistry.overlapping(source.getServer(), placement.dimension(), to, placement);
+		if (overlapping.isPresent()) {
+			source.sendFailure(Component.literal("Checking out v" + checkedOut + " would grow ").append(VcsMessages.placement(placement))
+				.append(" to " + VcsMessages.size(to) + ", overlapping ").append(VcsMessages.placement(overlapping.get()))
+				.append("; placements may not intersect, so move one of them out of the way first"));
 			return 0;
 		}
 
 		Clipboard clipboard;
-		// How many blocks the box differs from the version it holds by; forcing overwrites them, and the message says so.
-		int overwritten;
+		// How many blocks are overwritten by the checkout: uncommitted work inside the old box, and anything standing
+		// where the new box reaches past it. Forcing overwrites both, and the message says so.
+		int uncommitted;
+		int inTheWay;
 		try {
 			// Whatever was built since the box last held a version is about to be wiped, so it has to be in a version first.
-			Build head = latest.atHead();
-			BuildDiff uncommitted = BuildDiff.between(BoxSnapshot.ofClipboard(head.box(), BuildStorage.read(head)), BoxSnapshot.ofLevel(head.box(), level));
-			if (!uncommitted.isEmpty() && !force) {
-				source.sendFailure(Component.literal("Build ").append(VcsMessages.name(head.name())).append(" is modified: " + uncommitted.size()
-					+ (uncommitted.size() == 1 ? " block differs" : " blocks differ") + " from v" + head.version() + "; run ").append(ChatButtons.command("/vcs commit"))
+			BuildDiff changes = BuildDiff.between(
+				BoxSnapshot.ofClipboard(from, BuildStorage.readSchematic(build.name(), placement.head()), from),
+				BoxSnapshot.ofLevel(from, level));
+			uncommitted = changes.size();
+			inTheWay = nonAirOutside(to, from, level);
+			if (uncommitted > 0 && !force) {
+				source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is modified: " + uncommitted
+					+ (uncommitted == 1 ? " block differs" : " blocks differ") + " from v" + placement.head() + "; run ").append(ChatButtons.command("/vcs commit"))
 					.append(" before checking out, ").append(ChatButtons.command("/vcs diff")).append(" to see the changes, or add " + VcsCommand.FORCE + " to discard them"));
 				return 0;
 			}
-			overwritten = uncommitted.size();
-			clipboard = BuildStorage.read(build);
+			if (inTheWay > 0 && !force) {
+				source.sendFailure(Component.literal("Checking out v" + checkedOut + " would grow ").append(VcsMessages.placement(placement))
+					.append(" from " + VcsMessages.size(from) + " to " + VcsMessages.size(to) + ", overwriting " + inTheWay
+						+ (inTheWay == 1 ? " block" : " blocks") + " standing in the way; clear them or add " + VcsCommand.FORCE + " to overwrite them"));
+				return 0;
+			}
+			clipboard = BuildStorage.readSchematic(build.name(), checkedOut);
 		} catch (NoSuchFileException e) {
 			source.sendFailure(Component.literal("No schematic for build ").append(VcsMessages.name(build.name())).append(" at " + e.getFile()));
 			return 0;
 		} catch (IOException | IllegalArgumentException e) {
-			MCVCS.LOGGER.error("Failed to check out build '{}' v{} for {}", build.name(), build.version(), player.getGameProfile().name(), e);
+			MCVCS.LOGGER.error("Failed to check out '{}' v{} for {}", placement.label(), checkedOut, player.getGameProfile().name(), e);
 			source.sendFailure(Component.literal("Failed to load schematic: " + e.getMessage()));
 			return 0;
 		}
 
-		// The schematic keeps the region it was copied from; that is where it goes back, and it has to be inside the box
-		// for the box to be the only thing the checkout touches.
-		BuildBox covered = BuildBox.of(clipboard.getRegion());
-		if (!build.box().contains(covered)) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(build.name())).append(" v" + build.version() + " covers " + VcsMessages.size(covered) + " at " + covered.min().toShortString()
-				+ ", which is not inside the build's box " + VcsMessages.size(build.box()) + " at " + build.box().min().toShortString()));
-			return 0;
+		// Both boxes are the placement's own ground, so both are emptied; the version then goes back where this
+		// placement holds it, which is not where the schematic was copied from unless it was this placement.
+		List<BuildBox> clear = new ArrayList<>(List.of(to));
+		if (!from.equals(to)) {
+			clear.add(from);
 		}
-
-		Player actor = FabricAdapter.get().fromNativePlayer(player);
-		Region region = build.region(level);
-		World world = region.getWorld();
-
-		// Built here rather than by the player's WorldEdit session so their global mask, block bag and block change limit
-		// cannot leave the checkout half done. The session is deliberately not given the edit to remember: a checkout is
-		// not one of the player's WorldEdit edits, so //undo skips over it and only ever reverts their own edits.
-		try (EditSession editSession = WorldEdit.getInstance().newEditSessionBuilder().world(world).actor(actor).maxBlocks(-1).build()) {
-			editSession.setSideEffectApplier(sideEffects());
-			editSession.setBlocks(region, Objects.requireNonNull(BlockTypes.AIR).getDefaultState());
-			// Same source and target coordinates: the copy is a paste back to where the schematic came from.
-			ForwardExtentCopy paste = new ForwardExtentCopy(clipboard, clipboard.getRegion(), editSession, clipboard.getMinimumPoint());
-			paste.setCopyingEntities(BuildSaver.COPY_ENTITIES);
-			paste.setCopyingBiomes(BuildSaver.COPY_BIOMES);
-			Operations.complete(paste);
+		try {
+			BuildPlacer.place(player, level, clear, clipboard, to);
 		} catch (WorldEditException e) {
-			MCVCS.LOGGER.error("Failed to check out build '{}' v{} for {}", build.name(), build.version(), player.getGameProfile().name(), e);
+			MCVCS.LOGGER.error("Failed to check out '{}' v{} for {}", placement.label(), checkedOut, player.getGameProfile().name(), e);
 			source.sendFailure(Component.literal("Failed to place schematic: " + e.getMessage()));
 			return 0;
 		}
-		MCVCS.LOGGER.info("{} checked out build '{}' v{} into its box in {}, overwriting {} uncommitted blocks", player.getGameProfile().name(), build.name(), build.version(), world == null ? "its dimension" : world.getName(), overwritten);
+		MCVCS.LOGGER.info("{} checked out '{}' v{} into {} in {}, overwriting {} uncommitted and {} foreign blocks",
+			player.getGameProfile().name(), placement.label(), checkedOut, to.min().toShortString(), level.dimension().identifier(), uncommitted, inTheWay);
 		// A preview shown before the checkout would hide the version that was just placed, and a diff highlighted before
 		// it compared blocks that are gone now.
 		if (PreviewSender.canSend(player)) {
@@ -157,42 +148,47 @@ public final class VcsCommandCheckout {
 			DiffSender.clear(player);
 		}
 
-		// The box holds this version now; the next checkout, and /vcs diff without a version, measure changes against it.
+		// The placement holds this version now; the next checkout, and /vcs diff without a version, measure against it.
 		try {
-			BuildStorage.update(latest.withHead(build.version()));
+			BuildStorage.update(build.withPlacement(placement.name(), placement.placement().withHead(checkedOut)));
+			// The box has changed size with the version, so every client's picture of it has to change too.
+			BuildSync.broadcast(source.getServer());
 		} catch (IOException e) {
-			MCVCS.LOGGER.error("Failed to record v{} as checked out for build '{}' for {}", build.version(), build.name(), player.getGameProfile().name(), e);
-			source.sendFailure(Component.literal("Checked out build ").append(VcsMessages.name(build.name())).append(" v" + build.version() + " but failed to record it: " + e.getMessage()));
+			MCVCS.LOGGER.error("Failed to record v{} as checked out for '{}' for {}", checkedOut, placement.label(), player.getGameProfile().name(), e);
+			source.sendFailure(Component.literal("Checked out ").append(VcsMessages.placement(placement)).append(" v" + checkedOut + " but failed to record it: " + e.getMessage()));
 			return 0;
 		}
 
 		source.sendSuccess(() -> {
-			MutableComponent message = Component.literal("Checked out build ").append(VcsMessages.name(build.name())).append(" v" + build.version() + " (" + covered.volume() + " blocks) into its box without block updates");
-			if (overwritten > 0) {
-				// Only a forced checkout gets here; the changes are gone, and not into WorldEdit's history either.
-				message.append(", overwriting " + overwritten + " uncommitted " + (overwritten == 1 ? "block" : "blocks"));
+			MutableComponent message = Component.literal("Checked out ").append(VcsMessages.placement(placement))
+				.append(" v" + checkedOut + " (" + VcsMessages.size(to) + ", " + to.volume() + " blocks) without block updates");
+			if (uncommitted > 0 || inTheWay > 0) {
+				// Only a forced checkout gets here; those blocks are gone, and not into WorldEdit's history either.
+				message.append(", overwriting " + (uncommitted + inTheWay) + " " + (uncommitted + inTheWay == 1 ? "block" : "blocks"));
 			}
-			if (build.version() == latest.version()) {
+			if (checkedOut == build.version()) {
 				return message;
 			}
-			return message.append("; the box now holds v" + build.version() + " rather than the latest v" + latest.version() + ", run ").append(ChatButtons.command("/vcs checkout latest")).append(" to go back to it");
+			return message.append("; it now holds v" + checkedOut + " rather than the latest v" + build.version() + ", run ")
+				.append(ChatButtons.command("/vcs checkout latest")).append(" to go back to it");
 		}, false);
 		return 1;
 	}
 
 	/**
-	 * The side effects of setting a block that the checkout keeps: what {@code //perf off} leaves on, which is only
-	 * sending the change to clients and updating points of interest. Everything that command can turn off is off:
-	 * lighting, neighbour notifications, block updates, validation against neighbours, entity AI and events, so
-	 * placing a block has no consequence beyond the block being there.
+	 * How many blocks inside {@code to} but outside {@code from} are not air: what a checkout that grows the
+	 * placement's box would overwrite, none of which belongs to the build.
 	 */
-	private static SideEffectSet sideEffects() {
-		SideEffectSet sideEffects = SideEffectSet.defaults();
-		for (SideEffect sideEffect : WorldEdit.getInstance().getPlatformManager().getSupportedSideEffects()) {
-			if (sideEffect.isExposed()) {
-				sideEffects = sideEffects.with(sideEffect, SideEffect.State.OFF);
+	private static int nonAirOutside(BuildBox to, BuildBox from, ServerLevel level) {
+		if (from.contains(to)) {
+			return 0;
+		}
+		int count = 0;
+		for (BlockPos pos : BlockPos.betweenClosed(to.min(), to.max())) {
+			if (!from.contains(pos) && !level.getBlockState(pos).isAir()) {
+				count++;
 			}
 		}
-		return sideEffects;
+		return count;
 	}
 }

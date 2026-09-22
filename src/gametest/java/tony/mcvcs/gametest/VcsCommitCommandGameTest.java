@@ -23,6 +23,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextColor;
 
+import tony.mcvcs.build.Build;
 import tony.mcvcs.command.VcsCommandCommit;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.fabric.FabricAdapter;
@@ -88,7 +89,7 @@ public class VcsCommitCommandGameTest extends VcsGameTest {
 			assertBlock(v2, originCorner, BlockTypes.GOLD_BLOCK);
 			assertBlock(v2, opposite, BlockTypes.DIAMOND_BLOCK);
 			// Nothing touches the box, so the commit message is all there is.
-			assertMessages(committed, List.of("Committed build " + BUILD_NAME + " v2"));
+			assertMessages(committed, List.of("Committed " + BUILD_NAME + "/" + Build.MAIN + " as build " + BUILD_NAME + " v2"));
 
 			// Each further commit bumps the version. A block touching the box only at a corner is outside it, so the
 			// version is written without it and a yellow warning says so.
@@ -99,7 +100,7 @@ public class VcsCommitCommandGameTest extends VcsGameTest {
 			assertOrigin(v3, expectedOrigin);
 			assertSize(v3, BlockVector3.at(3, 2, 2));
 			assertBlock(v3, opposite, BlockTypes.DIAMOND_BLOCK);
-			assertMessages(warned, List.of("Committed build " + BUILD_NAME + " v3", VcsCommandCommit.notEnclosedWarning().getString()));
+			assertMessages(warned, List.of("Committed " + BUILD_NAME + "/" + Build.MAIN + " as build " + BUILD_NAME + " v3", VcsCommandCommit.notEnclosedWarning().getString()));
 			if (!TextColor.fromLegacyFormat(ChatFormatting.YELLOW).equals(warned.get(1).getStyle().getColor())) {
 				throw new AssertionError("Expected the warning to be yellow but its style is " + warned.get(1).getStyle());
 			}

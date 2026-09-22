@@ -11,6 +11,7 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
@@ -18,23 +19,23 @@ import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
 import tony.mcvcs.MCVCS;
-import tony.mcvcs.client.build.ClientBuilds;
-import tony.mcvcs.build.ClientBuild;
+import tony.mcvcs.client.build.ClientPlacements;
+import tony.mcvcs.build.ClientPlacement;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A key that selects the build under the crosshair, as {@code /vcs select} would, so a build can be picked by looking
- * at it instead of typing its name.
+ * A key that selects the placement under the crosshair, as {@code /vcs select} would, so a copy of a build can be
+ * picked by looking at it instead of typing its name.
  * <p>
  * The key is a normal key mapping, {@code V} unless rebound under Options, Controls, Key Binds in the MCVCS category.
- * Each press casts a ray from the player's eyes along their line of sight and takes the nearest build whose box it
- * passes through, or the build the player is standing in, which is nearer than anything else could be. The box is
- * what counts, not the blocks in it: looking through a doorway or over the wall of a build still hits its box, and an
- * empty region of the box is as good as a solid one. The selection itself is made by the server, so the client only
+ * Each press casts a ray from the player's eyes along their line of sight and takes the nearest placement whose box
+ * it passes through, or the placement the player is standing in, which is nearer than anything else could be. The box
+ * is what counts, not the blocks in it: looking through a doorway or over the wall of a build still hits its box, and
+ * an empty region of the box is as good as a solid one. The selection itself is made by the server, so the client only
  * sends it the command; the reply, and the box being drawn, come back the same way as after typing the command.
  */
 public final class SelectHotkey {
-	/** How far ahead, in blocks, a build can be and still be selected. Far enough for a build across a large plot. */
+	/** How far ahead, in blocks, a placement can be and still be selected. Far enough for a build across a large plot. */
 	public static final double RANGE = 128.0;
 	/** Category the key is listed under in the controls screen, named by {@code key.category.mcvcs.main}. */
 	private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(MCVCS.id("main"));
@@ -63,34 +64,34 @@ public final class SelectHotkey {
 			return;
 		}
 
-		ClientBuild build = lookedAt(ClientBuilds.all(), player.level().dimension(), player.getEyePosition(), player.getViewVector(1.0f), RANGE);
-		if (build == null) {
+		ClientPlacement placement = lookedAt(ClientPlacements.all(), player.level().dimension(), player.getEyePosition(), player.getViewVector(1.0f), RANGE);
+		if (placement == null) {
 			player.sendOverlayMessage(Component.literal("No build in sight"));
 			return;
 		}
-		if (build.equals(ClientBuilds.selected())) {
-			player.sendOverlayMessage(Component.literal("Build ").append(name(build)).append(" is already selected"));
+		if (placement.equals(ClientPlacements.selected())) {
+			player.sendOverlayMessage(name(placement).append(" is already selected"));
 			return;
 		}
 		// Sent as if typed, so the server checks the permission and answers in chat the way it does for the command.
-		player.connection.sendCommand("vcs select " + build.name());
+		player.connection.sendCommand("vcs select " + placement.build() + " " + placement.placement());
 	}
 
 	/**
-	 * The nearest of {@code builds} whose box in {@code dimension} the ray from {@code eye} along {@code look} passes
-	 * through within {@code range} blocks, or the build whose box {@code eye} is inside; {@code null} if there is none.
-	 * Builds cannot overlap, so at most one box contains the eye.
+	 * The nearest of {@code placements} whose box in {@code dimension} the ray from {@code eye} along {@code look} passes
+	 * through within {@code range} blocks, or the one whose box {@code eye} is inside; {@code null} if there is none.
+	 * Placements cannot overlap, so at most one box contains the eye.
 	 */
-	public static @Nullable ClientBuild lookedAt(List<ClientBuild> builds, ResourceKey<Level> dimension, Vec3 eye, Vec3 look, double range) {
+	public static @Nullable ClientPlacement lookedAt(List<ClientPlacement> placements, ResourceKey<Level> dimension, Vec3 eye, Vec3 look, double range) {
 		Vec3 end = eye.add(look.normalize().scale(range));
-		ClientBuild nearest = null;
+		ClientPlacement nearest = null;
 		double nearestDistance = Double.MAX_VALUE;
 
-		for (ClientBuild build : builds) {
-			if (!build.dimension().equals(dimension)) {
+		for (ClientPlacement placement : placements) {
+			if (!placement.dimension().equals(dimension)) {
 				continue;
 			}
-			AABB aabb = AABB.encapsulatingFullBlocks(build.box().min(), build.box().max());
+			AABB aabb = AABB.encapsulatingFullBlocks(placement.box().min(), placement.box().max());
 			double distance;
 			if (aabb.contains(eye)) {
 				// A ray starting inside a box never enters it, so clip would miss the box the player is standing in.
@@ -103,15 +104,15 @@ public final class SelectHotkey {
 				distance = hit.get().distanceToSqr(eye);
 			}
 			if (distance < nearestDistance) {
-				nearest = build;
+				nearest = placement;
 				nearestDistance = distance;
 			}
 		}
 		return nearest;
 	}
 
-	/** A build's name as it appears in chat: light blue, the same as the server's messages show it. */
-	private static Component name(ClientBuild build) {
-		return Component.literal(build.name()).withStyle(ChatFormatting.AQUA);
+	/** A placement as it appears in chat: light blue, the same as the server's messages show it. */
+	private static MutableComponent name(ClientPlacement placement) {
+		return Component.literal(placement.label()).withStyle(ChatFormatting.AQUA);
 	}
 }

@@ -15,9 +15,9 @@ import java.util.Arrays;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
-import tony.mcvcs.client.build.ClientBuilds;
+import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.selection.SelectHotkey;
-import tony.mcvcs.build.ClientBuild;
+import tony.mcvcs.build.ClientPlacement;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsList;
@@ -132,18 +132,18 @@ public class VcsSelectHotkeyGameTest extends VcsGameTest {
 
 	private static void waitForSelection(ClientGameTestContext context, String name) {
 		context.waitFor(client -> {
-			ClientBuild selected = ClientBuilds.selected();
-			return selected != null && selected.name().equals(name);
+			ClientPlacement selected = ClientPlacements.selected();
+			return selected != null && selected.build().equals(name);
 		});
 	}
 
 	private static void assertSelected(ClientGameTestContext context, String name) {
-		ClientBuild selected = context.computeOnClient(client -> ClientBuilds.selected());
+		ClientPlacement selected = context.computeOnClient(client -> ClientPlacements.selected());
 		if (selected == null) {
 			throw new AssertionError("Expected selection '" + name + "' but nothing is selected");
 		}
-		if (!selected.name().equals(name)) {
-			throw new AssertionError("Expected selection '" + name + "' but got '" + selected.name() + "'");
+		if (!selected.build().equals(name)) {
+			throw new AssertionError("Expected selection '" + name + "' but got '" + selected.label() + "'");
 		}
 	}
 }

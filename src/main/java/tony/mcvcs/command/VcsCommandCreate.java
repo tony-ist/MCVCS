@@ -2,6 +2,7 @@ package tony.mcvcs.command;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Optional;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -15,8 +16,10 @@ import tony.mcvcs.MCVCS;
 import tony.mcvcs.build.BoxExpansion;
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.BuildStorage;
+import tony.mcvcs.build.Placement;
 import tony.mcvcs.network.ChatButtons;
 import com.sk89q.worldedit.IncompleteRegionException;
 import com.sk89q.worldedit.LocalSession;
@@ -26,31 +29,32 @@ import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.fabric.FabricAdapter;
 
 /**
- * {@code /vcs create <buildname>}: copies the bounding box of the player's current WorldEdit selection and saves it as
- * version 1 of the build, in the build's own folder under {@code mcvcs/} in the game directory, see
- * {@link BuildStorage}. Without a selection, the build is made from the next block the player punches or right-clicks
- * with an empty hand, grown over everything connected to it as {@code /vcs expand} would grow it, see
- * {@link CreateOnClick}; the click leaves the block alone. The name may not be that of any existing build in any
- * world, compared without regard to case, and the box may not overlap any existing build in the same dimension. The
- * new build becomes the player's selected build.
+ * {@code /vcs create <buildname> [placementname]}: turns the bounding box of the player's WorldEdit selection into a
+ * build and saves it as version 1, or, with no selection, the block they click next and everything connected to it,
+ * see {@link PendingClick}; the click leaves the block alone. The name may not be that of any existing build in any
+ * world, ignoring case, and the box may not overlap any placement of any build.
+ * <p>
+ * What is created is a build with one placement in it, called {@link Build#MAIN} unless another name is given. The
+ * box becomes version 1's extent in build space, so the placement's origin is that box's minimum corner, and the
+ * build's other placements, made later by {@code /vcs place}, measure from the same build space.
  */
 public final class VcsCommandCreate {
-	static final VcsHelp HELP = new VcsHelp("create", "/vcs create <buildname>",
-		"start a build from a punched block or your WorldEdit selection",
-		"Starts a build called <buildname> and saves it as version 1. With no WorldEdit selection, punch any block of the build, or right-click one with an empty hand: the build grows over everything connected to that block, so it should hover in the air, touching nothing that is not part of it. With a WorldEdit selection, its bounding box becomes the build. The name may not belong to an existing build, ignoring case, and the box may not overlap another build. The new build becomes your selected build.");
+	static final VcsHelp HELP = new VcsHelp("create", "/vcs create <buildname> [placementname]",
+		"start a build from your selection or the block you punch",
+		"Starts a build called <buildname> and saves it as version 1. With no WorldEdit selection, punch any block of the build, or right-click one with an empty hand: the build grows over everything connected to that block, so it should hover in the air, touching nothing that is not part of it. With a WorldEdit selection, its bounding box becomes the build. What is created is the build's first placement, called " + Build.MAIN + " unless you name it. The name may not belong to an existing build, ignoring case, and the box may not overlap another placement. The new placement becomes your selected one.");
 
 	private VcsCommandCreate() {
 	}
 
 	/**
 	 * Creates the build from the bounding box of the player's WorldEdit selection, or, when they have none, from the
-	 * next block they click, see {@link CreateOnClick}. Either way this command replaces whatever an earlier one left
+	 * next block they click, see {@link PendingClick}. Either way this command replaces whatever an earlier one left
 	 * waiting for a click.
 	 */
-	static int run(CommandSourceStack source, String buildName) throws CommandSyntaxException {
+	static int run(CommandSourceStack source, String buildName, String placementName) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
-		CreateOnClick.disarm(player);
-		if (!isNameFree(source, buildName)) {
+		PendingClick.disarm(player);
+		if (!isNameFree(source, buildName) || !isPlacementNameValid(source, placementName)) {
 			return 0;
 		}
 		Player actor = FabricAdapter.get().fromNativePlayer(player);
@@ -61,12 +65,12 @@ public final class VcsCommandCreate {
 			// Only the bounding box is kept, so later //pos1, //pos2 or wand clicks cannot move the build's box under us.
 			box = BuildBox.of(session.getSelection(actor.getWorld()));
 		} catch (IncompleteRegionException e) {
-			CreateOnClick.arm(player, buildName);
+			PendingClick.arm(player, (clicker, level, pos) -> createFromBlock(clicker, level, buildName, placementName, pos));
 			source.sendSuccess(() -> Component.literal("No WorldEdit selection; punch a block of the build, or right-click it with an empty hand, to create build ")
 				.append(VcsMessages.name(buildName)).append(" from it and everything connected to it"), false);
 			return 1;
 		}
-		return create(source, player, buildName, player.level(), box);
+		return create(source, player, buildName, placementName, player.level(), box);
 	}
 
 	/**
@@ -76,7 +80,7 @@ public final class VcsCommandCreate {
 	 * would go past {@link BoxExpansion#MAX_VOLUME} blocks; the player is told to select the build with WorldEdit instead.
 	 * The name is checked again here, since another player may have used it while the click was waited for.
 	 */
-	static void createFromBlock(ServerPlayer player, ServerLevel level, String buildName, BlockPos pos) {
+	static void createFromBlock(ServerPlayer player, ServerLevel level, String buildName, String placementName, BlockPos pos) {
 		CommandSourceStack source = player.createCommandSourceStack();
 		if (!isNameFree(source, buildName)) {
 			return;
@@ -87,7 +91,7 @@ public final class VcsCommandCreate {
 				+ " reach past the limit of " + BoxExpansion.MAX_VOLUME + " blocks; select the build with WorldEdit and run ").append(ChatButtons.command("/vcs create " + buildName)).append(" again"));
 			return;
 		}
-		create(source, player, buildName, level, expansion.to());
+		create(source, player, buildName, placementName, level, expansion.to());
 	}
 
 	/**
@@ -116,28 +120,40 @@ public final class VcsCommandCreate {
 		return true;
 	}
 
+	/** Whether {@code placementName} is well-formed; the source is told why otherwise. */
+	static boolean isPlacementNameValid(CommandSourceStack source, String placementName) {
+		if (!Build.isValidName(placementName)) {
+			source.sendFailure(Component.literal("Placement name ").append(VcsMessages.name(placementName)).append(" may only contain letters, digits, _ + - and dots between them"));
+			return false;
+		}
+		return true;
+	}
+
 	/**
-	 * Creates the build called {@code buildName}, whose name {@link #isNameFree} has passed, covering {@code box} in
-	 * {@code level}, saves the box as its version 1 and makes it the player's selected build.
+	 * Creates the build called {@code buildName}, whose name {@link #isNameFree} has passed, with one placement
+	 * covering {@code box} in {@code level}, saves the box as its version 1 and makes it the player's selected placement.
 	 */
-	private static int create(CommandSourceStack source, ServerPlayer player, String buildName, ServerLevel level, BuildBox box) {
-		Build build = new Build(buildName, Build.worldOf(source.getServer()), level.dimension(), box, 1);
-		// Every block belongs to at most one build, so a box that overlaps an existing build in this dimension is refused.
-		Optional<Build> overlapping = BuildRegistry.all(source.getServer()).stream()
-			.filter(other -> other.dimension().equals(build.dimension()) && other.box().intersects(build.box()))
-			.findFirst();
+	private static int create(CommandSourceStack source, ServerPlayer player, String buildName, String placementName, ServerLevel level, BuildBox box) {
+		// Build space starts at version 1's minimum corner, so the first placement's origin is where that corner sits.
+		BuildPlacement placement = new BuildPlacement(
+			new Build(buildName, Build.worldOf(source.getServer()), 1, Map.of(1, box.relativeTo(box.min())), Map.of()),
+			placementName, new Placement(level.dimension(), box.min(), 1));
+		// Every block belongs to at most one placement, so a box that overlaps one in this dimension is refused.
+		Optional<BuildPlacement> overlapping = BuildRegistry.overlapping(source.getServer(), placement.dimension(), box, null);
 		if (overlapping.isPresent()) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" would overlap build ").append(VcsMessages.name(overlapping.get().name())).append("; builds may not intersect"));
+			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" would overlap ").append(VcsMessages.placement(overlapping.get())).append("; placements may not intersect"));
 			return 0;
 		}
+		Build build = placement.applied();
 		Player actor = FabricAdapter.get().fromNativePlayer(player);
 		LocalSession session = WorldEdit.getInstance().getSessionManager().get(actor);
 
 		try {
-			Path file = BuildSaver.save(actor, session, build, level);
-			BuildRegistry.select(player, build);
+			Path file = BuildSaver.save(actor, session, build, 1, box, level);
+			BuildRegistry.select(player, build, placementName);
 
-			source.sendSuccess(() -> Component.literal("Created build ").append(VcsMessages.name(buildName)).append(" (" + VcsMessages.size(box) + ", " + box.volume() + " blocks) at " + BuildStorage.root().relativize(file)), false);
+			source.sendSuccess(() -> Component.literal("Created build ").append(VcsMessages.name(buildName)).append(" as placement ").append(VcsMessages.name(placementName))
+				.append(" (" + VcsMessages.size(box) + ", " + box.volume() + " blocks) at " + BuildStorage.root().relativize(file)), false);
 			return 1;
 		} catch (WorldEditException | IOException e) {
 			MCVCS.LOGGER.error("Failed to create build '{}' from {} for {}", buildName, box, player.getGameProfile().name(), e);

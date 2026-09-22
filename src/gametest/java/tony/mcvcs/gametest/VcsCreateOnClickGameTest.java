@@ -6,6 +6,7 @@ import static tony.mcvcs.gametest.VcsTestSupport.blockAt;
 import static tony.mcvcs.gametest.VcsTestSupport.clearSelection;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
+import static tony.mcvcs.gametest.VcsTestSupport.mainBox;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
 import static tony.mcvcs.gametest.VcsTestSupport.read;
 import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
@@ -30,10 +31,11 @@ import net.minecraft.network.chat.Component;
 
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.BuildStorage;
-import tony.mcvcs.build.ClientBuild;
-import tony.mcvcs.client.build.ClientBuilds;
+import tony.mcvcs.build.ClientPlacement;
+import tony.mcvcs.client.build.ClientPlacements;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.fabric.FabricAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -92,7 +94,7 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 			// Punching the cube creates the build from the whole 3x3x3 it forms with the gold block, and breaks nothing.
 			lookAt(context, min, max);
 			List<Component> created = click(context, options -> options.keyAttack);
-			assertOnlyMessage(created, "Created build " + PUNCHED_NAME + " (3x3x3, 27 blocks) at");
+			assertOnlyMessage(created, "Created build " + PUNCHED_NAME + " as placement " + Build.MAIN + " (3x3x3, 27 blocks) at");
 			assertBox(context, singleplayer, PUNCHED_NAME, punched);
 			assertState(singleplayer, min, Blocks.STONE.defaultBlockState());
 			assertState(singleplayer, gold, Blocks.GOLD_BLOCK.defaultBlockState());
@@ -117,7 +119,7 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 			runCommand(context, "vcs create " + USED_NAME);
 			lookAt(context, note, note);
 			List<Component> used = click(context, options -> options.keyUse);
-			assertOnlyMessage(used, "Created build " + USED_NAME + " (1x1x1, 1 blocks) at");
+			assertOnlyMessage(used, "Created build " + USED_NAME + " as placement " + Build.MAIN + " (1x1x1, 1 blocks) at");
 			assertBox(context, singleplayer, USED_NAME, new BuildBox(note, note));
 			assertState(singleplayer, note, silent);
 			if (silent.getValue(NoteBlock.NOTE) != 0) {
@@ -137,7 +139,7 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 			runCommand(context, "vcs create " + OVERLAPPING_NAME);
 			lookAt(context, touching, touching);
 			List<Component> refused = click(context, options -> options.keyAttack);
-			assertOnlyMessage(refused, "Build " + OVERLAPPING_NAME + " would overlap build " + PUNCHED_NAME + "; builds may not intersect");
+			assertOnlyMessage(refused, "Build " + OVERLAPPING_NAME + " would overlap " + PUNCHED_NAME + "/" + Build.MAIN + "; placements may not intersect");
 			assertNoBuild(OVERLAPPING_NAME);
 			assertState(singleplayer, touching, Blocks.STONE.defaultBlockState());
 			assertNoMessage(click(context, options -> options.keyAttack));
@@ -150,7 +152,7 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 			runCommand(context, "vcs create " + REPLACED_NAME);
 			select(singleplayer, selectedMin, selectedMax);
 			List<Component> selected = run(context, "vcs create " + SELECTED_NAME);
-			assertOnlyMessage(selected, "Created build " + SELECTED_NAME + " (2x2x2, 8 blocks) at");
+			assertOnlyMessage(selected, "Created build " + SELECTED_NAME + " as placement " + Build.MAIN + " (2x2x2, 8 blocks) at");
 			lookAt(context, selectedMin, selectedMax);
 			assertNoMessage(click(context, options -> options.keyAttack));
 			assertNoBuild(REPLACED_NAME);
@@ -202,14 +204,14 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 	/** The build on disk is at v1 with the given box and, once the server has told it, the client has it selected. */
 	private static void assertBox(ClientGameTestContext context, TestSingleplayerContext singleplayer, String name, BuildBox box) {
 		Optional<Build> build = singleplayer.getServer().computeOnServer(server -> BuildRegistry.find(server, name));
-		if (build.isEmpty() || build.get().version() != 1 || !build.get().box().equals(box)) {
+		if (build.isEmpty() || build.get().version() != 1 || !mainBox(build.get()).equals(box)) {
 			throw new AssertionError("Expected build '" + name + "' v1 with box " + box + " but got " + build.orElse(null));
 		}
 		context.waitFor(client -> {
-			ClientBuild selected = ClientBuilds.selected();
-			return selected != null && selected.name().equals(name);
+			ClientPlacement selected = ClientPlacements.selected();
+			return selected != null && selected.build().equals(name);
 		});
-		ClientBuild shown = context.computeOnClient(client -> ClientBuilds.selected());
+		ClientPlacement shown = context.computeOnClient(client -> ClientPlacements.selected());
 		if (!shown.box().equals(box)) {
 			throw new AssertionError("Expected the client to show box " + box + " for '" + name + "' but got " + shown.box());
 		}

@@ -20,6 +20,7 @@ import java.util.Map;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
+import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.client.diff.ClientDiff;
 import tony.mcvcs.client.diff.DiffHighlights;
@@ -90,7 +91,7 @@ public class VcsDiffCommandGameTest extends VcsGameTest {
 			// With no version given the world is compared against the latest version, v1 for now.
 			runCommand(context, "vcs diff");
 			ClientDiff diff = waitForDiff(context, 1);
-			assertDiff(diff, BUILD_NAME, 1, box);
+			assertDiff(diff, BUILD_NAME + "/" + Build.MAIN, 1, box);
 			assertChanges(diff.diff(), Map.of(
 				hole, new Expected(ChangeKind.ADDED, Blocks.AIR, Blocks.DIAMOND_BLOCK, false),
 				gold, new Expected(ChangeKind.REMOVED, Blocks.GOLD_BLOCK, Blocks.AIR, false),
@@ -119,7 +120,7 @@ public class VcsDiffCommandGameTest extends VcsGameTest {
 			assertNoDiff(context);
 			runCommand(context, "vcs diff 1");
 			diff = waitForDiff(context, 1);
-			assertDiff(diff, BUILD_NAME, 1, box);
+			assertDiff(diff, BUILD_NAME + "/" + Build.MAIN, 1, box);
 			if (diff.diff().size() != 4) {
 				throw new AssertionError("Expected 4 changes against v1 but got " + diff.diff().changes());
 			}
@@ -165,9 +166,9 @@ public class VcsDiffCommandGameTest extends VcsGameTest {
 		}
 	}
 
-	private static void assertDiff(ClientDiff diff, String name, int version, BuildBox box) {
-		if (!diff.name().equals(name) || diff.version() != version) {
-			throw new AssertionError("Expected diff of '" + name + "' v" + version + " but got '" + diff.name() + "' v" + diff.version());
+	private static void assertDiff(ClientDiff diff, String label, int version, BuildBox box) {
+		if (!diff.name().equals(label) || diff.version() != version) {
+			throw new AssertionError("Expected diff of '" + label + "' v" + version + " but got '" + diff.name() + "' v" + diff.version());
 		}
 		if (!diff.dimension().equals(Level.OVERWORLD)) {
 			throw new AssertionError("Expected diff in the overworld but got " + diff.dimension());

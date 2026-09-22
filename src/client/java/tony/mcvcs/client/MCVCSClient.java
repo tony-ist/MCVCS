@@ -6,7 +6,7 @@ import tony.mcvcs.client.diff.DiffHighlightRenderer;
 import tony.mcvcs.client.diff.DiffManager;
 import tony.mcvcs.client.label.BuildLabelRenderer;
 import tony.mcvcs.client.preview.PreviewManager;
-import tony.mcvcs.client.build.ClientBuilds;
+import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.selection.SelectHotkey;
 import tony.mcvcs.client.selection.SelectionBoxRenderer;
 
@@ -15,7 +15,7 @@ public class MCVCSClient implements ClientModInitializer {
 	public void onInitializeClient() {
 		PreviewManager.register();
 		DiffManager.register();
-		ClientBuilds.register();
+		ClientPlacements.register();
 		SelectionBoxRenderer.register();
 		SelectHotkey.register();
 		BuildLabelRenderer.register();

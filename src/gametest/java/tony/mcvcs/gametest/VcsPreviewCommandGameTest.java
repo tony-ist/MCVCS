@@ -22,6 +22,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.world.TestWorldSave;
 
 import tony.mcvcs.client.preview.ClientPreview;
 import tony.mcvcs.client.preview.PreviewManager;
+import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
@@ -74,7 +75,7 @@ public class VcsPreviewCommandGameTest extends VcsGameTest {
 
 			runCommand(context, "vcs preview 1");
 			ClientPreview preview = waitForPreview(context, 1);
-			assertPreview(preview, BUILD_NAME, 1, Level.OVERWORLD, box);
+			assertPreview(preview, BUILD_NAME + "/" + Build.MAIN, 1, Level.OVERWORLD, box);
 			assertPreviewBlock(preview, gold, Blocks.GOLD_BLOCK);
 			assertPreviewBlock(preview, min, Blocks.STONE);
 			// Air in the preview hides the real block there rather than falling through to it.
@@ -172,9 +173,9 @@ public class VcsPreviewCommandGameTest extends VcsGameTest {
 		}
 	}
 
-	private static void assertPreview(ClientPreview preview, String name, int version, ResourceKey<Level> dimension, BuildBox box) {
-		if (!preview.name().equals(name) || preview.version() != version) {
-			throw new AssertionError("Expected preview of '" + name + "' v" + version + " but got '" + preview.name() + "' v" + preview.version());
+	private static void assertPreview(ClientPreview preview, String label, int version, ResourceKey<Level> dimension, BuildBox box) {
+		if (!preview.name().equals(label) || preview.version() != version) {
+			throw new AssertionError("Expected preview of '" + label + "' v" + version + " but got '" + preview.name() + "' v" + preview.version());
 		}
 		if (!preview.dimension().equals(dimension)) {
 			throw new AssertionError("Expected preview in " + dimension + " but got " + preview.dimension());

@@ -26,11 +26,12 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.fabric.api.client.gametest.v1.world.TestWorldSave;
 
-import tony.mcvcs.client.build.ClientBuilds;
+import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
-import tony.mcvcs.build.ClientBuild;
+import tony.mcvcs.build.ClientPlacement;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.fabric.FabricAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -103,16 +104,19 @@ public class VcsReloadGameTest extends VcsGameTest {
 			if (!names.equals(List.of(BUILD_NAME, OTHER))) {
 				throw new AssertionError("Expected builds " + List.of(BUILD_NAME, OTHER) + " after reload but got " + names);
 			}
-			Optional<Build> selected = reopened.getServer().computeOnServer(server -> {
+			Optional<BuildPlacement> selected = reopened.getServer().computeOnServer(server -> {
 				ServerPlayer player = server.getPlayerList().getPlayers().get(0);
 				return BuildRegistry.selected(player);
 			});
-			if (selected.isEmpty() || !selected.get().equals(new Build(BUILD_NAME, world, Level.OVERWORLD, new BuildBox(min, max), 2))) {
-				throw new AssertionError("Expected '" + BUILD_NAME + "' v2 at " + new BuildBox(min, max) + " selected after reload but got " + selected);
+			BuildBox box = new BuildBox(min, max);
+			if (selected.isEmpty() || !selected.get().label().equals(BUILD_NAME + "/" + Build.MAIN)
+				|| selected.get().build().version() != 2 || selected.get().head() != 2
+				|| !selected.get().dimension().equals(Level.OVERWORLD) || !selected.get().box().equals(box)) {
+				throw new AssertionError("Expected '" + BUILD_NAME + "' v2 at " + box + " selected after reload but got " + selected);
 			}
 
 			// The client is told on join, so the box is drawn without running any command.
-			assertSelected(waitForSelection(context, BUILD_NAME, 2), BUILD_NAME, 2, new BuildBox(min, max));
+			assertSelected(waitForSelection(context, BUILD_NAME, 2), BUILD_NAME, 2, box);
 			lookAt(context, min, max);
 			screenshotLastFrame(context, "mcvcs-vcs-reload");
 
@@ -134,12 +138,20 @@ public class VcsReloadGameTest extends VcsGameTest {
 			throw new AssertionError("Expected a build file at " + buildFile(name), e);
 		}
 		JsonObject build = JsonParser.parseString(json).getAsJsonObject();
+		// Every version's extent is in build space, where version 1's minimum corner is the origin, and the one
+		// placement lays it at the world position that corner had when the build was created.
+		BlockPos extent = max.subtract(min);
+		JsonObject versions = build.getAsJsonObject("versions");
+		JsonObject placement = build.getAsJsonObject("placements").getAsJsonObject(Build.MAIN);
 		if (!build.get("name").getAsString().equals(name)
 			|| !build.get("world").getAsString().equals(world)
-			|| !build.get("dimension").getAsString().equals("minecraft:overworld")
 			|| build.get("version").getAsInt() != version
-			|| !blockPos(build.getAsJsonObject("box").get("min")).equals(min)
-			|| !blockPos(build.getAsJsonObject("box").get("max")).equals(max)) {
+			|| versions.size() != version
+			|| !blockPos(versions.getAsJsonObject(String.valueOf(version)).get("min")).equals(BlockPos.ZERO)
+			|| !blockPos(versions.getAsJsonObject(String.valueOf(version)).get("max")).equals(extent)
+			|| !placement.get("dimension").getAsString().equals("minecraft:overworld")
+			|| !blockPos(placement.get("origin")).equals(min)
+			|| placement.get("head").getAsInt() != version) {
 			throw new AssertionError("Expected '" + name + "' v" + version + " in the overworld of '" + world + "' at " + new BuildBox(min, max) + " but the build file holds " + json);
 		}
 	}
@@ -149,17 +161,17 @@ public class VcsReloadGameTest extends VcsGameTest {
 		return new BlockPos(array.get(0).getAsInt(), array.get(1).getAsInt(), array.get(2).getAsInt());
 	}
 
-	private static ClientBuild waitForSelection(ClientGameTestContext context, String name, int version) {
+	private static ClientPlacement waitForSelection(ClientGameTestContext context, String name, int version) {
 		context.waitFor(client -> {
-			ClientBuild selected = ClientBuilds.selected();
-			return selected != null && selected.name().equals(name) && selected.version() == version;
+			ClientPlacement selected = ClientPlacements.selected();
+			return selected != null && selected.build().equals(name) && selected.head() == version;
 		});
-		return context.computeOnClient(client -> ClientBuilds.selected());
+		return context.computeOnClient(client -> ClientPlacements.selected());
 	}
 
-	private static void assertSelected(ClientBuild selected, String name, int version, BuildBox box) {
-		if (!selected.name().equals(name) || selected.version() != version) {
-			throw new AssertionError("Expected selection '" + name + "' v" + version + " but got '" + selected.name() + "' v" + selected.version());
+	private static void assertSelected(ClientPlacement selected, String name, int version, BuildBox box) {
+		if (!selected.build().equals(name) || selected.head() != version) {
+			throw new AssertionError("Expected selection '" + name + "' v" + version + " but got '" + selected.label() + "' v" + selected.head());
 		}
 		if (!selected.box().equals(box)) {
 			throw new AssertionError("Expected selection box " + box + " but got " + selected.box());

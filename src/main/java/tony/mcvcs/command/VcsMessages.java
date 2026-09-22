@@ -5,6 +5,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 
 import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.network.ChatButtons;
 
 /** Chat text more than one {@code /vcs} command puts together the same way. */
@@ -17,9 +18,15 @@ final class VcsMessages {
 		return Component.literal(name).withStyle(ChatFormatting.AQUA);
 	}
 
-	/** What a command that needs a selected build says when there is none. */
-	static MutableComponent noBuildSelected() {
-		return Component.literal("No build selected in this world; run ").append(ChatButtons.template("/vcs create <buildname>")).append(" first");
+	/** A placement as it appears in chat: its build and its own name, light blue, e.g. {@code tower/testrig}. */
+	static MutableComponent placement(BuildPlacement placement) {
+		return name(placement.label());
+	}
+
+	/** What a command that needs a selected placement says when there is none. */
+	static MutableComponent noPlacementSelected() {
+		return Component.literal("Nothing selected in this world; run ").append(ChatButtons.command("/vcs select"))
+			.append(" and punch a block of a placement, or ").append(ChatButtons.template("/vcs create <buildname>")).append(" to start a build");
 	}
 
 	/** E.g. {@code 3x2x2}. */

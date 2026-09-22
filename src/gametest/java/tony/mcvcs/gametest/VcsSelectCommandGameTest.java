@@ -15,9 +15,9 @@ import java.nio.file.Files;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
-import tony.mcvcs.client.build.ClientBuilds;
+import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.build.BuildBox;
-import tony.mcvcs.build.ClientBuild;
+import tony.mcvcs.build.ClientPlacement;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
@@ -57,7 +57,7 @@ public class VcsSelectCommandGameTest extends VcsGameTest {
 			// A name that was never created leaves the selection alone.
 			runCommand(context, "vcs select gametest-select-missing");
 			context.waitTicks(5);
-			assertSelected(context.computeOnClient(client -> ClientBuilds.selected()), SECOND, 1, secondBox);
+			assertSelected(context.computeOnClient(client -> ClientPlacements.selected()), SECOND, 1, secondBox);
 
 			runCommand(context, "vcs select " + FIRST);
 			assertSelected(waitForSelection(context, FIRST), FIRST, 1, firstBox);
@@ -79,24 +79,24 @@ public class VcsSelectCommandGameTest extends VcsGameTest {
 		}
 	}
 
-	private static ClientBuild waitForSelection(ClientGameTestContext context, String name) {
+	private static ClientPlacement waitForSelection(ClientGameTestContext context, String name) {
 		return waitForSelection(context, name, 1);
 	}
 
-	private static ClientBuild waitForSelection(ClientGameTestContext context, String name, int version) {
+	private static ClientPlacement waitForSelection(ClientGameTestContext context, String name, int version) {
 		context.waitFor(client -> {
-			ClientBuild selected = ClientBuilds.selected();
-			return selected != null && selected.name().equals(name) && selected.version() == version;
+			ClientPlacement selected = ClientPlacements.selected();
+			return selected != null && selected.build().equals(name) && selected.head() == version;
 		});
-		return context.computeOnClient(client -> ClientBuilds.selected());
+		return context.computeOnClient(client -> ClientPlacements.selected());
 	}
 
-	private static void assertSelected(ClientBuild selected, String name, int version, BuildBox box) {
+	private static void assertSelected(ClientPlacement selected, String name, int version, BuildBox box) {
 		if (selected == null) {
 			throw new AssertionError("Expected selection '" + name + "' v" + version + " but nothing is selected");
 		}
-		if (!selected.name().equals(name) || selected.version() != version) {
-			throw new AssertionError("Expected selection '" + name + "' v" + version + " but got '" + selected.name() + "' v" + selected.version());
+		if (!selected.build().equals(name) || selected.head() != version) {
+			throw new AssertionError("Expected selection '" + name + "' v" + version + " but got '" + selected.label() + "' v" + selected.head());
 		}
 		if (!selected.box().equals(box)) {
 			throw new AssertionError("Expected selection box " + box + " but got " + selected.box());

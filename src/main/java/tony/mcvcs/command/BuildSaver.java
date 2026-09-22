@@ -7,6 +7,7 @@ import net.minecraft.server.level.ServerLevel;
 
 import tony.mcvcs.MCVCS;
 import tony.mcvcs.build.Build;
+import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildStorage;
 import tony.mcvcs.network.BuildSync;
 import com.sk89q.worldedit.EditSession;
@@ -75,12 +76,16 @@ public final class BuildSaver {
 	}
 
 	/**
-	 * Copies the build's box in {@code level}, the world the build is in, into a clipboard anchored at the
-	 * configured origin, writes it and the build to {@link BuildStorage} and tells every client about the
-	 * new state of the build.
+	 * Copies {@code box}, the world box of the placement the version is committed from, into a clipboard anchored at
+	 * the configured origin, writes it as {@code build}'s version {@code version} and the build itself to
+	 * {@link BuildStorage} and tells every client about the new state of the build.
+	 * <p>
+	 * The clipboard keeps the world coordinates it was copied from, which is what {@code /vcs load} and
+	 * {@code //paste} go by, but they are the coordinates of one placement and say nothing about where the version
+	 * belongs at another: that comes from the build's own {@link Build#extent extents}, see {@link BuildPlacer}.
 	 */
-	static Path save(Player actor, LocalSession session, Build build, ServerLevel level) throws WorldEditException, IOException {
-		Region region = build.region(level);
+	static Path save(Player actor, LocalSession session, Build build, int version, BuildBox box, ServerLevel level) throws WorldEditException, IOException {
+		Region region = box.region(level);
 		World world = region.getWorld();
 
 		BlockArrayClipboard clipboard = new BlockArrayClipboard(region);
@@ -93,8 +98,8 @@ public final class BuildSaver {
 			Operations.complete(copy);
 		}
 
-		Path file = BuildStorage.save(build, clipboard);
-		MCVCS.LOGGER.info("{} saved build '{}' v{} from {} at {}", actor.getName(), build.name(), build.version(), world == null ? "its box" : "its box in " + world.getName(), file);
+		Path file = BuildStorage.save(build, version, clipboard);
+		MCVCS.LOGGER.info("{} saved build '{}' v{} from {} at {}", actor.getName(), build.name(), version, world == null ? "a box" : "a box in " + world.getName(), file);
 		// Builds are shared, so every client's list just changed; the caller's own selection is sent once it is updated.
 		BuildSync.broadcast(level.getServer());
 		return file;

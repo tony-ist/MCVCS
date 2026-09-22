@@ -24,7 +24,9 @@ import net.minecraft.client.renderer.ViewArea;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import net.minecraft.commands.CommandSourceStack;
 
+import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildStorage;
 import com.sk89q.worldedit.IncompleteRegionException;
 import com.sk89q.worldedit.LocalSession;
@@ -48,6 +50,16 @@ import net.minecraft.world.level.block.state.BlockState;
 @SuppressWarnings("UnstableApiUsage")
 final class VcsTestSupport {
 	private VcsTestSupport() {
+	}
+
+	/** The {@code main} placement of {@code build}, the one {@code /vcs create} makes and the only one most tests have. */
+	static BuildPlacement main(Build build) {
+		return BuildPlacement.of(build, Build.MAIN).orElseThrow(() -> new AssertionError("Build '" + build.name() + "' has no '" + Build.MAIN + "' placement, only " + build.placementNames()));
+	}
+
+	/** The world box of {@code build}'s {@code main} placement. */
+	static BuildBox mainBox(Build build) {
+		return main(build).box();
 	}
 
 	/** Where {@code /vcs} writes version {@code version} of the build called {@code name}, spelled out rather than taken from the mod. */
@@ -102,6 +114,12 @@ final class VcsTestSupport {
 
 	static BlockPos playerPos(TestSingleplayerContext singleplayer) {
 		return singleplayer.getServer().computeOnServer(server -> server.getPlayerList().getPlayers().get(0).blockPosition());
+	}
+
+	/** Puts the player at {@code pos}, feet first, so commands that go by where they stand have somewhere to work. */
+	static void teleport(TestSingleplayerContext singleplayer, BlockPos pos) {
+		singleplayer.getServer().runOnServer(server -> server.getPlayerList().getPlayers().get(0)
+			.teleportTo(server.overworld(), pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, java.util.Set.of(), 0, 0, true));
 	}
 
 	/** Fills the box with {@code fill}, except for {@code special} which gets {@code specialState}. */

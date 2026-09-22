@@ -16,8 +16,8 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
 import tony.mcvcs.client.label.BuildLabelRenderer;
-import tony.mcvcs.client.build.ClientBuilds;
-import tony.mcvcs.build.ClientBuild;
+import tony.mcvcs.client.build.ClientPlacements;
+import tony.mcvcs.build.ClientPlacement;
 import tony.mcvcs.build.BuildBox;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
@@ -43,8 +43,8 @@ public class VcsBuildLabelGameTest extends VcsGameTest {
 
 			// No builds yet, so nothing is labelled.
 			context.waitTicks(5);
-			if (!context.computeOnClient(client -> ClientBuilds.all()).isEmpty()) {
-				throw new AssertionError("Expected no builds before /vcs create but got " + ClientBuilds.all());
+			if (!context.computeOnClient(client -> ClientPlacements.all()).isEmpty()) {
+				throw new AssertionError("Expected no builds before /vcs create but got " + ClientPlacements.all());
 			}
 
 			// A 3x2x2 stone box in front of the player and another one well beyond the label range.
@@ -75,8 +75,8 @@ public class VcsBuildLabelGameTest extends VcsGameTest {
 
 			// Deselecting drops the box but not the build or its label.
 			runCommand(context, "vcs deselect");
-			context.waitFor(client -> ClientBuilds.selected() == null);
-			assertBuilds(context.computeOnClient(client -> ClientBuilds.all()), List.of(FAR, NEAR), List.of(farBox, nearBox));
+			context.waitFor(client -> ClientPlacements.selected() == null);
+			assertBuilds(context.computeOnClient(client -> ClientPlacements.all()), List.of(FAR, NEAR), List.of(farBox, nearBox));
 			assertLabelled(context, nearBox, farBox);
 
 			lookAt(context, nearMin, nearMax.above(2));
@@ -84,20 +84,20 @@ public class VcsBuildLabelGameTest extends VcsGameTest {
 		}
 	}
 
-	private static List<ClientBuild> waitForBuilds(ClientGameTestContext context, int count) {
-		context.waitFor(client -> ClientBuilds.all().size() == count);
-		return context.computeOnClient(client -> ClientBuilds.all());
+	private static List<ClientPlacement> waitForBuilds(ClientGameTestContext context, int count) {
+		context.waitFor(client -> ClientPlacements.all().size() == count);
+		return context.computeOnClient(client -> ClientPlacements.all());
 	}
 
 	/** The builds the client knows, in the order the server lists them, each in the overworld at version 1. */
-	private static void assertBuilds(List<ClientBuild> builds, List<String> names, List<BuildBox> boxes) {
-		List<String> actualNames = builds.stream().map(ClientBuild::name).toList();
+	private static void assertBuilds(List<ClientPlacement> builds, List<String> names, List<BuildBox> boxes) {
+		List<String> actualNames = builds.stream().map(ClientPlacement::build).toList();
 		if (!actualNames.equals(names)) {
 			throw new AssertionError("Expected builds " + names + " but got " + actualNames);
 		}
 		for (int i = 0; i < builds.size(); i++) {
-			ClientBuild build = builds.get(i);
-			if (build.version() != 1 || !build.dimension().equals(Level.OVERWORLD) || !build.box().equals(boxes.get(i))) {
+			ClientPlacement build = builds.get(i);
+			if (build.head() != 1 || !build.dimension().equals(Level.OVERWORLD) || !build.box().equals(boxes.get(i))) {
 				throw new AssertionError("Expected build '" + names.get(i) + "' v1 in the overworld at " + boxes.get(i) + " but got " + build);
 			}
 		}

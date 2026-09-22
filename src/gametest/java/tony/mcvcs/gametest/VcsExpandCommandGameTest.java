@@ -4,6 +4,7 @@ import static tony.mcvcs.gametest.VcsTestSupport.assertBlock;
 import static tony.mcvcs.gametest.VcsTestSupport.assertSize;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
+import static tony.mcvcs.gametest.VcsTestSupport.mainBox;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
 import static tony.mcvcs.gametest.VcsTestSupport.read;
 import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
@@ -27,8 +28,8 @@ import tony.mcvcs.build.BoxExpansion;
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildRegistry;
-import tony.mcvcs.build.ClientBuild;
-import tony.mcvcs.client.build.ClientBuilds;
+import tony.mcvcs.build.ClientPlacement;
+import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.diff.DiffManager;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.fabric.FabricAdapter;
@@ -75,7 +76,7 @@ public class VcsExpandCommandGameTest extends VcsGameTest {
 
 			// Nothing touches the box, so there is nothing to expand and no version is written.
 			List<Component> enclosed = run(context, "vcs expand");
-			assertOnlyMessage(enclosed, "Build " + BUILD_NAME + " is already enclosed by air; nothing to expand");
+			assertOnlyMessage(enclosed, "Placement " + BUILD_NAME + "/" + Build.MAIN + " is already enclosed by air; nothing to expand");
 			assertNoSchematic(BUILD_NAME, 2);
 			assertBox(context, singleplayer, BUILD_NAME, 1, box);
 
@@ -90,7 +91,7 @@ public class VcsExpandCommandGameTest extends VcsGameTest {
 			BuildBox expanded = new BuildBox(west, beyond);
 
 			List<Component> grown = run(context, "vcs expand");
-			assertOnlyMessage(grown, "Expanded build " + BUILD_NAME + " from 2x2x2 (8 blocks) to 5x4x4 (80 blocks) and committed it as v2");
+			assertOnlyMessage(grown, "Expanded " + BUILD_NAME + "/" + Build.MAIN + " from 2x2x2 (8 blocks) to 5x4x4 (80 blocks) and committed it as v2");
 			assertBox(context, singleplayer, BUILD_NAME, 2, expanded);
 
 			// v2 is the grown box as the world has it: the stone cube, the three gold blocks and air around them.
@@ -115,7 +116,7 @@ public class VcsExpandCommandGameTest extends VcsGameTest {
 
 			// The same again is a no-op: the grown box is enclosed by air.
 			List<Component> again = run(context, "vcs expand");
-			assertOnlyMessage(again, "Build " + BUILD_NAME + " is already enclosed by air; nothing to expand");
+			assertOnlyMessage(again, "Placement " + BUILD_NAME + "/" + Build.MAIN + " is already enclosed by air; nothing to expand");
 			assertNoSchematic(BUILD_NAME, 3);
 
 			// A second build two blocks east of the first, filled with stone, and a block in the gap between them. The
@@ -132,7 +133,7 @@ public class VcsExpandCommandGameTest extends VcsGameTest {
 			runCommand(context, "vcs select " + BUILD_NAME);
 
 			List<Component> refused = run(context, "vcs expand");
-			assertOnlyMessage(refused, "Expanding build " + BUILD_NAME + " to 8x4x4 would overlap build " + NEIGHBOUR_NAME + "; builds may not intersect");
+			assertOnlyMessage(refused, "Expanding " + BUILD_NAME + "/" + Build.MAIN + " to 8x4x4 would overlap " + NEIGHBOUR_NAME + "/" + Build.MAIN + "; placements may not intersect");
 			assertNoSchematic(BUILD_NAME, 3);
 			assertBox(context, singleplayer, BUILD_NAME, 2, expanded);
 
@@ -164,14 +165,14 @@ public class VcsExpandCommandGameTest extends VcsGameTest {
 	/** The build on disk and, once the server has told it, the client's copy both have the given version and box. */
 	private static void assertBox(ClientGameTestContext context, TestSingleplayerContext singleplayer, String name, int version, BuildBox box) {
 		Optional<Build> build = singleplayer.getServer().computeOnServer(server -> BuildRegistry.find(server, name));
-		if (build.isEmpty() || build.get().version() != version || !build.get().box().equals(box)) {
+		if (build.isEmpty() || build.get().version() != version || !mainBox(build.get()).equals(box)) {
 			throw new AssertionError("Expected build '" + name + "' v" + version + " with box " + box + " but got " + build.orElse(null));
 		}
 		context.waitFor(client -> {
-			ClientBuild selected = ClientBuilds.selected();
-			return selected != null && selected.name().equals(name) && selected.version() == version;
+			ClientPlacement selected = ClientPlacements.selected();
+			return selected != null && selected.build().equals(name) && selected.head() == version;
 		});
-		ClientBuild shown = context.computeOnClient(client -> ClientBuilds.selected());
+		ClientPlacement shown = context.computeOnClient(client -> ClientPlacements.selected());
 		if (!shown.box().equals(box)) {
 			throw new AssertionError("Expected the client to show box " + box + " for '" + name + "' but got " + shown.box());
 		}

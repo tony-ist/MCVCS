@@ -4,7 +4,7 @@ import net.fabricmc.api.ModInitializer;
 
 import net.minecraft.resources.Identifier;
 
-import tony.mcvcs.command.CreateOnClick;
+import tony.mcvcs.command.PendingClick;
 import tony.mcvcs.command.VcsCommand;
 import tony.mcvcs.network.DiffSender;
 import tony.mcvcs.network.PreviewSender;
@@ -33,7 +33,7 @@ public class MCVCS implements ModInitializer {
 		DiffSender.register();
 		BuildSync.register();
 		VcsCommand.register();
-		CreateOnClick.register();
+		PendingClick.register();
 	}
 
 	public static Identifier id(String path) {

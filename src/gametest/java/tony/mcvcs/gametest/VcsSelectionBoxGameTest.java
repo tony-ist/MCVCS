@@ -13,9 +13,9 @@ import static tony.mcvcs.gametest.VcsTestSupport.select;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
-import tony.mcvcs.client.build.ClientBuilds;
+import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.build.BuildBox;
-import tony.mcvcs.build.ClientBuild;
+import tony.mcvcs.build.ClientPlacement;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -34,7 +34,7 @@ public class VcsSelectionBoxGameTest extends VcsGameTest {
 
 			// Nothing is selected yet, so nothing is drawn.
 			context.waitTicks(5);
-			if (context.computeOnClient(client -> ClientBuilds.selected()) != null) {
+			if (context.computeOnClient(client -> ClientPlacements.selected()) != null) {
 				throw new AssertionError("Expected no selected build before /vcs create");
 			}
 
@@ -59,17 +59,17 @@ public class VcsSelectionBoxGameTest extends VcsGameTest {
 		}
 	}
 
-	private static ClientBuild waitForSelection(ClientGameTestContext context, int version) {
+	private static ClientPlacement waitForSelection(ClientGameTestContext context, int version) {
 		context.waitFor(client -> {
-			ClientBuild selected = ClientBuilds.selected();
-			return selected != null && selected.version() == version;
+			ClientPlacement selected = ClientPlacements.selected();
+			return selected != null && selected.head() == version;
 		});
-		return context.computeOnClient(client -> ClientBuilds.selected());
+		return context.computeOnClient(client -> ClientPlacements.selected());
 	}
 
-	private static void assertSelected(ClientBuild selected, String name, int version, BuildBox box) {
-		if (!selected.name().equals(name) || selected.version() != version) {
-			throw new AssertionError("Expected selection '" + name + "' v" + version + " but got '" + selected.name() + "' v" + selected.version());
+	private static void assertSelected(ClientPlacement selected, String name, int version, BuildBox box) {
+		if (!selected.build().equals(name) || selected.head() != version) {
+			throw new AssertionError("Expected selection '" + name + "' v" + version + " but got '" + selected.label() + "' v" + selected.head());
 		}
 		if (!selected.dimension().equals(Level.OVERWORLD)) {
 			throw new AssertionError("Expected selection in the overworld but got " + selected.dimension());

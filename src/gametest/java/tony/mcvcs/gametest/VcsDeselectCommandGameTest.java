@@ -18,15 +18,15 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.server.level.ServerPlayer;
 
-import tony.mcvcs.client.build.ClientBuilds;
+import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.diff.ClientDiff;
 import tony.mcvcs.client.diff.DiffManager;
 import tony.mcvcs.client.preview.ClientPreview;
 import tony.mcvcs.client.preview.PreviewManager;
-import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
-import tony.mcvcs.build.ClientBuild;
+import tony.mcvcs.build.ClientPlacement;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
@@ -70,7 +70,7 @@ public class VcsDeselectCommandGameTest extends VcsGameTest {
 			context.waitFor(client -> DiffManager.active() != null);
 
 			runCommand(context, "vcs deselect");
-			context.waitFor(client -> ClientBuilds.selected() == null);
+			context.waitFor(client -> ClientPlacements.selected() == null);
 			assertNothingSelected(context, singleplayer);
 			assertNoPreviewOrDiff(context);
 
@@ -92,16 +92,16 @@ public class VcsDeselectCommandGameTest extends VcsGameTest {
 	}
 
 	private static void assertNothingSelected(ClientGameTestContext context, TestSingleplayerContext singleplayer) {
-		Optional<Build> selected = singleplayer.getServer().computeOnServer(server -> {
+		Optional<BuildPlacement> selected = singleplayer.getServer().computeOnServer(server -> {
 			ServerPlayer player = server.getPlayerList().getPlayers().get(0);
 			return BuildRegistry.selected(player);
 		});
 		if (selected.isPresent()) {
 			throw new AssertionError("Expected no selection on the server but got " + selected.get());
 		}
-		ClientBuild shown = context.computeOnClient(client -> ClientBuilds.selected());
+		ClientPlacement shown = context.computeOnClient(client -> ClientPlacements.selected());
 		if (shown != null) {
-			throw new AssertionError("Expected no selection on the client but got '" + shown.name() + "' v" + shown.version());
+			throw new AssertionError("Expected no selection on the client but got '" + shown.label() + "' v" + shown.head());
 		}
 	}
 
@@ -117,20 +117,20 @@ public class VcsDeselectCommandGameTest extends VcsGameTest {
 		}
 	}
 
-	private static ClientBuild waitForSelection(ClientGameTestContext context, String name) {
+	private static ClientPlacement waitForSelection(ClientGameTestContext context, String name) {
 		context.waitFor(client -> {
-			ClientBuild selected = ClientBuilds.selected();
-			return selected != null && selected.name().equals(name) && selected.version() == 1;
+			ClientPlacement selected = ClientPlacements.selected();
+			return selected != null && selected.build().equals(name) && selected.head() == 1;
 		});
-		return context.computeOnClient(client -> ClientBuilds.selected());
+		return context.computeOnClient(client -> ClientPlacements.selected());
 	}
 
-	private static void assertSelected(ClientBuild selected, String name, int version, BuildBox box) {
+	private static void assertSelected(ClientPlacement selected, String name, int version, BuildBox box) {
 		if (selected == null) {
 			throw new AssertionError("Expected selection '" + name + "' v" + version + " but nothing is selected");
 		}
-		if (!selected.name().equals(name) || selected.version() != version) {
-			throw new AssertionError("Expected selection '" + name + "' v" + version + " but got '" + selected.name() + "' v" + selected.version());
+		if (!selected.build().equals(name) || selected.head() != version) {
+			throw new AssertionError("Expected selection '" + name + "' v" + version + " but got '" + selected.label() + "' v" + selected.head());
 		}
 		if (!selected.box().equals(box)) {
 			throw new AssertionError("Expected selection box " + box + " but got " + selected.box());

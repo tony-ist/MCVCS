@@ -23,15 +23,15 @@ import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
-import tony.mcvcs.client.build.ClientBuilds;
+import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.diff.ClientDiff;
 import tony.mcvcs.client.diff.DiffManager;
 import tony.mcvcs.client.preview.ClientPreview;
 import tony.mcvcs.client.preview.PreviewManager;
-import tony.mcvcs.build.Build;
+import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.BuildStorage;
-import tony.mcvcs.build.ClientBuild;
+import tony.mcvcs.build.ClientPlacement;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
@@ -43,7 +43,7 @@ import net.minecraft.world.level.block.Blocks;
 @SuppressWarnings("UnstableApiUsage")
 public class VcsDeleteCommandGameTest extends VcsGameTest {
 	private static final String BUILD_NAME = "gametest-delete";
-	private static final String CONFIRMATION = "Delete build " + BUILD_NAME + "? This cannot be undone, all versions will be lost! Run /vcs confirmDelete to proceed.";
+	private static final String CONFIRMATION = "Delete build " + BUILD_NAME + ", leaving its placements standing as blocks? This cannot be undone, all versions will be lost! Run /vcs confirmDelete to proceed.";
 
 	/** Every game message the client has received, filled on the client thread. */
 	private static final List<Component> RECEIVED = new ArrayList<>();
@@ -98,7 +98,7 @@ public class VcsDeleteCommandGameTest extends VcsGameTest {
 			// Confirming removes everything and the client hears that the build is gone.
 			List<Component> deleted = run(context, "vcs confirmDelete");
 			assertOnlyMessage(deleted, "Deleted build " + BUILD_NAME + " and its 2 versions");
-			context.waitFor(client -> ClientBuilds.selected() == null && ClientBuilds.all().isEmpty());
+			context.waitFor(client -> ClientPlacements.selected() == null && ClientPlacements.all().isEmpty());
 			assertBuildGone();
 			assertNothingSelected(context, singleplayer);
 			assertNoPreviewOrDiff(context);
@@ -149,27 +149,27 @@ public class VcsDeleteCommandGameTest extends VcsGameTest {
 	}
 
 	private static void assertSelected(ClientGameTestContext context, TestSingleplayerContext singleplayer, String name, int version) {
-		Optional<Build> selected = singleplayer.getServer().computeOnServer(server -> BuildRegistry.selected(server.getPlayerList().getPlayers().get(0)));
-		if (selected.isEmpty() || !selected.get().name().equals(name) || selected.get().version() != version) {
+		Optional<BuildPlacement> selected = singleplayer.getServer().computeOnServer(server -> BuildRegistry.selected(server.getPlayerList().getPlayers().get(0)));
+		if (selected.isEmpty() || !selected.get().build().name().equals(name) || selected.get().head() != version) {
 			throw new AssertionError("Expected selection '" + name + "' v" + version + " on the server but got " + selected.orElse(null));
 		}
-		ClientBuild shown = context.computeOnClient(client -> ClientBuilds.selected());
-		if (shown == null || !shown.name().equals(name) || shown.version() != version) {
+		ClientPlacement shown = context.computeOnClient(client -> ClientPlacements.selected());
+		if (shown == null || !shown.build().equals(name) || shown.head() != version) {
 			throw new AssertionError("Expected selection '" + name + "' v" + version + " on the client but got " + shown);
 		}
 	}
 
 	private static void assertNothingSelected(ClientGameTestContext context, TestSingleplayerContext singleplayer) {
-		Optional<Build> selected = singleplayer.getServer().computeOnServer(server -> {
+		Optional<BuildPlacement> selected = singleplayer.getServer().computeOnServer(server -> {
 			ServerPlayer player = server.getPlayerList().getPlayers().get(0);
 			return BuildRegistry.selected(player);
 		});
 		if (selected.isPresent()) {
 			throw new AssertionError("Expected no selection on the server but got " + selected.get());
 		}
-		ClientBuild shown = context.computeOnClient(client -> ClientBuilds.selected());
+		ClientPlacement shown = context.computeOnClient(client -> ClientPlacements.selected());
 		if (shown != null) {
-			throw new AssertionError("Expected no selection on the client but got '" + shown.name() + "' v" + shown.version());
+			throw new AssertionError("Expected no selection on the client but got '" + shown.label() + "' v" + shown.head());
 		}
 	}
 
@@ -187,8 +187,8 @@ public class VcsDeleteCommandGameTest extends VcsGameTest {
 
 	private static void waitForSelection(ClientGameTestContext context, String name, int version) {
 		context.waitFor(client -> {
-			ClientBuild selected = ClientBuilds.selected();
-			return selected != null && selected.name().equals(name) && selected.version() == version;
+			ClientPlacement selected = ClientPlacements.selected();
+			return selected != null && selected.build().equals(name) && selected.head() == version;
 		});
 	}
 }

@@ -2,11 +2,13 @@ package tony.mcvcs.build;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.server.level.ServerLevel;
 
 import com.mojang.datafixers.util.Pair;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import com.sk89q.worldedit.fabric.FabricAdapter;
+import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.regions.Region;
 import io.netty.buffer.ByteBuf;
 
@@ -89,6 +91,25 @@ public record BuildBox(BlockPos min, BlockPos max) {
 	/** The box with {@code blocks} more layers on every side. */
 	public BuildBox grow(int blocks) {
 		return new BuildBox(min.offset(-blocks, -blocks, -blocks), max.offset(blocks, blocks, blocks));
+	}
+
+	/**
+	 * This box, held in the build space of a version, placed in the world at {@code origin}: the world position
+	 * build space {@code (0, 0, 0)} sits at, see {@link tony.mcvcs.build.Placement#origin}.
+	 */
+	public BuildBox at(BlockPos origin) {
+		return new BuildBox(min.offset(origin), max.offset(origin));
+	}
+
+	/** This world box written in the build space of a placement whose origin is {@code origin}; the inverse of {@link #at}. */
+	public BuildBox relativeTo(BlockPos origin) {
+		return new BuildBox(min.subtract(origin), max.subtract(origin));
+	}
+
+	/** The box as a WorldEdit region in {@code level}. */
+	public Region region(ServerLevel level) {
+		FabricAdapter adapter = FabricAdapter.get();
+		return new CuboidRegion(adapter.fromNativeWorld(level), adapter.adapt(min), adapter.adapt(max));
 	}
 
 	/** The smallest box containing both this box and {@code other}. */

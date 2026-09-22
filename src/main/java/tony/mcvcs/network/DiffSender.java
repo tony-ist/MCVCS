@@ -7,8 +7,8 @@ import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.level.ServerPlayer;
 
-import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.diff.BlockChange;
 import tony.mcvcs.diff.BuildDiff;
 
@@ -36,20 +36,20 @@ public final class DiffSender {
 	}
 
 	/**
-	 * Streams {@code diff}, the world compared against {@code build} at its version, to {@code player} so the client
-	 * highlights it inside the build's region.
+	 * Streams {@code diff}, what is inside {@code placement} compared against version {@code version} of its build,
+	 * to {@code player} so the client highlights it inside the placement's box.
 	 *
-	 * @throws IllegalArgumentException if the diff does not cover the build's box
+	 * @throws IllegalArgumentException if the diff does not cover the placement's box
 	 */
-	public static void send(ServerPlayer player, Build build, BuildDiff diff) {
-		BuildBox box = build.box();
+	public static void send(ServerPlayer player, BuildPlacement placement, int version, BuildDiff diff) {
+		BuildBox box = placement.box();
 		if (!diff.box().equals(box)) {
-			throw new IllegalArgumentException("Diff covers " + diff.box() + " but build '" + build.name() + "' covers " + box);
+			throw new IllegalArgumentException("Diff covers " + diff.box() + " but '" + placement.label() + "' covers " + box);
 		}
 
 		List<BlockChange> changes = diff.changes();
 		int total = changes.size();
-		ServerPlayNetworking.send(player, new DiffBeginPayload(build.name(), build.version(), build.dimension(), box, total));
+		ServerPlayNetworking.send(player, new DiffBeginPayload(placement.label(), version, placement.dimension(), box, total));
 
 		for (int offset = 0; offset < total; offset += CHANGES_PER_PACKET) {
 			int count = Math.min(CHANGES_PER_PACKET, total - offset);

@@ -21,8 +21,9 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.network.chat.Component;
 
+import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
-import tony.mcvcs.client.build.ClientBuilds;
+import tony.mcvcs.client.build.ClientPlacements;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
@@ -62,19 +63,19 @@ public class VcsWeselectCommandGameTest extends VcsGameTest {
 			select(singleplayer, elsewhere.min(), elsewhere.max());
 			assertWeSelection(singleplayer, elsewhere);
 			List<Component> unselected = run(context, "vcs weselect");
-			assertOnlyMessage(unselected, "No build selected in this world");
+			assertOnlyMessage(unselected, "Nothing selected in this world");
 			assertWeSelection(singleplayer, elsewhere);
 
 			select(singleplayer, min, max);
 			runCommand(context, "vcs create " + BUILD_NAME);
 			read(schematic(BUILD_NAME, 1));
-			context.waitFor(client -> ClientBuilds.selected() != null && ClientBuilds.selected().name().equals(BUILD_NAME));
+			context.waitFor(client -> ClientPlacements.selected() != null && ClientPlacements.selected().build().equals(BUILD_NAME));
 
 			// With no WorldEdit selection at all, the build's box becomes one.
 			clearSelection(singleplayer);
 			assertWeSelection(singleplayer, null);
 			List<Component> fromNothing = run(context, "vcs weselect");
-			assertOnlyMessage(fromNothing, "Selected build " + BUILD_NAME + " with WorldEdit: " + min.toShortString() + " to " + max.toShortString() + " (2x2x2, 8 blocks)");
+			assertOnlyMessage(fromNothing, "Selected " + BUILD_NAME + "/" + Build.MAIN + " with WorldEdit: " + min.toShortString() + " to " + max.toShortString() + " (2x2x2, 8 blocks)");
 			assertWeSelection(singleplayer, box);
 
 			// A selection somewhere else is replaced rather than joined to the box.

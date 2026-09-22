@@ -21,10 +21,11 @@ import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.common.ServerboundCustomClickActionPacket;
 
-import tony.mcvcs.client.build.ClientBuilds;
+import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.command.VcsCommandBuilds;
 import tony.mcvcs.network.ChatButtons;
-import tony.mcvcs.build.ClientBuild;
+import tony.mcvcs.build.Build;
+import tony.mcvcs.build.ClientPlacement;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
@@ -79,21 +80,23 @@ public class VcsBuildsCommandGameTest extends VcsGameTest {
 			lookAt(context, firstMin, firstMax);
 			List<Component> listed = listBuilds(context);
 			screenshotLastFrame(context, "mcvcs-vcs-builds");
-			if (listed.size() != 3) {
-				throw new AssertionError("Expected a header and two builds but got " + strings(listed));
+			if (listed.size() != 5) {
+				throw new AssertionError("Expected a header, two builds and their placements but got " + strings(listed));
 			}
 			if (!listed.get(0).getString().equals("2 builds in this world:")) {
 				throw new AssertionError("Unexpected header '" + listed.get(0).getString() + "'");
 			}
-			assertLine(listed.get(1), FIRST, "[" + VcsCommandBuilds.SELECT_BUTTON + "]");
-			assertLine(listed.get(2), SECOND, "[" + VcsCommandBuilds.SELECTED_MARKER + "]");
-			if (button(listed.get(2)).isPresent()) {
-				throw new AssertionError("The selected build must not get a button but got " + button(listed.get(2)).get());
+			assertBuildLine(listed.get(1), FIRST);
+			assertPlacementLine(listed.get(2), "[" + VcsCommandBuilds.SELECT_BUTTON + "]");
+			assertBuildLine(listed.get(3), SECOND);
+			assertPlacementLine(listed.get(4), "[" + VcsCommandBuilds.SELECTED_MARKER + "]");
+			if (button(listed.get(4)).isPresent()) {
+				throw new AssertionError("The selected placement must not get a button but got " + button(listed.get(4)).get());
 			}
 
 			// Pressing the first build's button selects it.
-			ClickEvent.Custom button = button(listed.get(1)).orElseThrow(() -> new AssertionError("Expected a button on '" + FIRST + "' in " + listed.get(1).getString()));
-			ClickEvent expected = ChatButtons.run("/vcs select " + FIRST);
+			ClickEvent.Custom button = button(listed.get(2)).orElseThrow(() -> new AssertionError("Expected a button on '" + FIRST + "' in " + listed.get(2).getString()));
+			ClickEvent expected = ChatButtons.run("/vcs select " + FIRST + " " + Build.MAIN);
 			if (!button.equals(expected)) {
 				throw new AssertionError("Expected the button to be " + expected + " but got " + button);
 			}
@@ -102,11 +105,11 @@ public class VcsBuildsCommandGameTest extends VcsGameTest {
 
 			// Listing again shows the marker moved.
 			List<Component> relisted = listBuilds(context);
-			if (relisted.size() != 3) {
-				throw new AssertionError("Expected a header and two builds but got " + strings(relisted));
+			if (relisted.size() != 5) {
+				throw new AssertionError("Expected a header, two builds and their placements but got " + strings(relisted));
 			}
-			assertLine(relisted.get(1), FIRST, "[" + VcsCommandBuilds.SELECTED_MARKER + "]");
-			assertLine(relisted.get(2), SECOND, "[" + VcsCommandBuilds.SELECT_BUTTON + "]");
+			assertPlacementLine(relisted.get(2), "[" + VcsCommandBuilds.SELECTED_MARKER + "]");
+			assertPlacementLine(relisted.get(4), "[" + VcsCommandBuilds.SELECT_BUTTON + "]");
 		}
 	}
 
@@ -141,10 +144,18 @@ public class VcsBuildsCommandGameTest extends VcsGameTest {
 		return Optional.empty();
 	}
 
-	private static void assertLine(Component line, String name, String ending) {
+	/** The heading of one build: its name and its latest version. */
+	private static void assertBuildLine(Component line, String name) {
+		if (!line.getString().equals("- " + name + " v1")) {
+			throw new AssertionError("Expected the heading of '" + name + "' v1 but got '" + line.getString() + "'");
+		}
+	}
+
+	/** One placement under a build: the {@code main} one at v1, ending in a button or the marker. */
+	private static void assertPlacementLine(Component line, String ending) {
 		String text = line.getString();
-		if (!text.contains(" " + name + " v1 ") || !text.endsWith(ending)) {
-			throw new AssertionError("Expected a line for '" + name + "' v1 ending with " + ending + " but got '" + text + "'");
+		if (!text.startsWith("    " + Build.MAIN + " v1 (") || !text.endsWith(ending)) {
+			throw new AssertionError("Expected a line for the '" + Build.MAIN + "' placement at v1 ending with " + ending + " but got '" + text + "'");
 		}
 	}
 
@@ -154,8 +165,8 @@ public class VcsBuildsCommandGameTest extends VcsGameTest {
 
 	private static void waitForSelection(ClientGameTestContext context, String name) {
 		context.waitFor(client -> {
-			ClientBuild selected = ClientBuilds.selected();
-			return selected != null && selected.name().equals(name);
+			ClientPlacement selected = ClientPlacements.selected();
+			return selected != null && selected.build().equals(name);
 		});
 	}
 }

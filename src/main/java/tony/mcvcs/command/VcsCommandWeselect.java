@@ -14,43 +14,43 @@ import com.sk89q.worldedit.world.World;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.network.ChatButtons;
 
 /**
- * {@code /vcs weselect}: makes the selected build's box the player's WorldEdit selection, the corners set as
- * {@code //pos1} and {@code //pos2} would set them, so WorldEdit commands act on exactly the build. The build itself
- * is not touched: its box only ever changes through {@code /vcs expand}, so moving the WorldEdit selection afterwards
- * cannot move the build.
+ * {@code /vcs weselect}: makes the selected placement's box the player's WorldEdit selection, the corners set as
+ * {@code //pos1} and {@code //pos2} would set them, so WorldEdit commands act on exactly that copy of the build. The
+ * placement itself is not touched: its box only ever changes through {@code /vcs expand} and {@code /vcs checkout},
+ * so moving the WorldEdit selection afterwards cannot move it.
  */
 public final class VcsCommandWeselect {
 	static final VcsHelp HELP = new VcsHelp("weselect", "/vcs weselect",
-		"make the build's box your WorldEdit selection",
-		"Sets your WorldEdit selection to the whole box of your selected build.");
+		"make the placement's box your WorldEdit selection",
+		"Sets your WorldEdit selection to the whole box of your selected placement.");
 
 	private VcsCommandWeselect() {
 	}
 
 	static int run(CommandSourceStack source) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
-		Optional<Build> selected = BuildRegistry.selected(player);
+		Optional<BuildPlacement> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
-			source.sendFailure(VcsMessages.noBuildSelected());
+			source.sendFailure(VcsMessages.noPlacementSelected());
 			return 0;
 		}
 
-		Build build = selected.get();
+		BuildPlacement placement = selected.get();
 		// WorldEdit keeps one selection per session, in the world the player is in: setting it for another world would
-		// leave it looking empty here, so the player is sent to the build instead.
-		if (!player.level().dimension().equals(build.dimension())) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(build.name())).append(" is in " + build.dimension().identifier()
-				+ " and you are in " + player.level().dimension().identifier() + "; run ").append(ChatButtons.command("/vcs tp " + build.name())).append(" first"));
+		// leave it looking empty here, so the player is sent to the placement instead.
+		if (!player.level().dimension().equals(placement.dimension())) {
+			source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is in " + placement.dimension().identifier()
+				+ " and you are in " + player.level().dimension().identifier() + "; run ").append(ChatButtons.command("/vcs tp " + placement.build().name() + " " + placement.name())).append(" first"));
 			return 0;
 		}
 
-		BuildBox box = build.box();
+		BuildBox box = placement.box();
 		FabricAdapter adapter = FabricAdapter.get();
 		Player actor = adapter.fromNativePlayer(player);
 		LocalSession session = WorldEdit.getInstance().getSessionManager().get(actor);
@@ -61,7 +61,7 @@ public final class VcsCommandWeselect {
 		// Sends the new corners to a client running WorldEditCUI, which is what //pos1 and //pos2 do after setting one.
 		selector.explainRegionAdjust(actor, session);
 
-		source.sendSuccess(() -> Component.literal("Selected build ").append(VcsMessages.name(build.name()))
+		source.sendSuccess(() -> Component.literal("Selected ").append(VcsMessages.placement(placement))
 			.append(" with WorldEdit: " + box.min().toShortString() + " to " + box.max().toShortString() + " (" + VcsMessages.size(box) + ", " + box.volume() + " blocks)"), false);
 		return 1;
 	}

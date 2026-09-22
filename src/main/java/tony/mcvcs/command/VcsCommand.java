@@ -1,11 +1,13 @@
 package tony.mcvcs.command;
 
 import java.util.List;
-import java.util.stream.IntStream;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.builder.RequiredArgumentBuilder;
+import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -15,13 +17,16 @@ import net.minecraft.server.permissions.PermissionCheck;
 
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildRegistry;
+import tony.mcvcs.build.Placement;
 
 /**
  * {@code /vcs} command tree. Only the syntax lives here: each subcommand is parsed and handed to the class that does
  * the work.
  * <ul>
- * <li>{@code /vcs create <buildname>}: {@link VcsCommandCreate}</li>
- * <li>{@code /vcs select <buildname>}: {@link VcsCommandSelect}</li>
+ * <li>{@code /vcs create <buildname> [placementname]}: {@link VcsCommandCreate}</li>
+ * <li>{@code /vcs place <buildname> [version | latest] [placementname] [-f]}: {@link VcsCommandPlace}</li>
+ * <li>{@code /vcs unplace [-c]} and {@code /vcs confirmUnplace}: {@link VcsCommandUnplace}</li>
+ * <li>{@code /vcs select [buildname [placementname]]}: {@link VcsCommandSelect}</li>
  * <li>{@code /vcs builds}: {@link VcsCommandBuilds}</li>
  * <li>{@code /vcs deselect}: {@link VcsCommandDeselect}</li>
  * <li>{@code /vcs commit}: {@link VcsCommandCommit}</li>
@@ -30,25 +35,25 @@ import tony.mcvcs.build.BuildRegistry;
  * <li>{@code /vcs diff [version | off]}: {@link VcsCommandDiff}</li>
  * <li>{@code /vcs expand}: {@link VcsCommandExpand}</li>
  * <li>{@code /vcs checkout <version | latest> [-f]}: {@link VcsCommandCheckout}</li>
- * <li>{@code /vcs delete <buildname>} and {@code /vcs confirmDelete}: {@link VcsCommandDelete}</li>
- * <li>{@code /vcs tp [buildname]}: {@link VcsCommandTp}</li>
+ * <li>{@code /vcs delete <buildname> [-c]} and {@code /vcs confirmDelete}: {@link VcsCommandDelete}</li>
+ * <li>{@code /vcs tp [buildname [placementname]]}: {@link VcsCommandTp}</li>
  * <li>{@code /vcs weselect}: {@link VcsCommandWeselect}</li>
  * <li>{@code /vcs help [command]} and {@code /vcs -h}: {@link VcsCommandHelp}</li>
  * </ul>
  * Every subcommand also takes {@code -h} in place of its arguments, which shows its help instead of running it, see
  * {@link #sub}. Builds and selections are looked up through {@link BuildRegistry}, which only shows those belonging
- * to the world being played; a build remembers which world and dimension its box is in.
+ * to the world being played; every command that works on blocks acts on the selected {@link Placement}.
  */
 public final class VcsCommand {
 	/** Vanilla permission required to run the command (gamemasters = op level 2 / cheats). */
 	public static final PermissionCheck PERMISSION = Commands.LEVEL_GAMEMASTERS;
 	/**
-	 * Version number standing for the version {@code /vcs load} or {@code /vcs diff} falls back to when given none, and
-	 * {@code /vcs checkout latest} asks for: the selected build's latest one for {@code load} and {@code checkout}, the
-	 * one its box holds for {@code diff}, see {@link Build#head}.
+	 * Version number standing for the version a command falls back to when given none: the build's latest one for
+	 * {@code load}, {@code place} and {@code checkout}, the one the selected placement holds for {@code diff}, see
+	 * {@link Placement#head}.
 	 */
 	static final int LATEST = 0;
-	/** Flag after {@code /vcs checkout <version>} that makes it check out over uncommitted changes instead of refusing. */
+	/** Flag that makes a command overwrite what is in the way instead of refusing. */
 	public static final String FORCE = "-f";
 
 	private VcsCommand() {
@@ -56,6 +61,7 @@ public final class VcsCommand {
 
 	public static void register() {
 		VcsCommandDelete.register();
+		VcsCommandUnplace.register();
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
 			dispatcher.register(Commands.literal("vcs")
 				.requires(Commands.hasPermission(PERMISSION))
@@ -68,11 +74,34 @@ public final class VcsCommand {
 						.executes(context -> VcsCommandHelp.run(context.getSource(), StringArgumentType.getString(context, "command")))))
 				.then(sub(VcsCommandCreate.HELP)
 					.then(Commands.argument("buildname", StringArgumentType.word())
-						.executes(context -> VcsCommandCreate.run(context.getSource(), StringArgumentType.getString(context, "buildname")))))
-				.then(sub(VcsCommandSelect.HELP)
+						.executes(context -> VcsCommandCreate.run(context.getSource(), StringArgumentType.getString(context, "buildname"), Build.MAIN))
+						.then(Commands.argument("placementname", StringArgumentType.word())
+							.executes(context -> VcsCommandCreate.run(context.getSource(), StringArgumentType.getString(context, "buildname"), StringArgumentType.getString(context, "placementname"))))))
+				.then(sub(VcsCommandPlace.HELP)
 					.then(Commands.argument("buildname", StringArgumentType.word())
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))
-						.executes(context -> VcsCommandSelect.run(context.getSource(), StringArgumentType.getString(context, "buildname")))))
+						.executes(context -> place(context, LATEST_VERSION, null, false))
+						.then(Commands.literal("latest")
+							.executes(context -> place(context, LATEST_VERSION, null, false))
+							.then(placementOf(LATEST_VERSION)))
+						.then(Commands.argument("version", IntegerArgumentType.integer(1))
+							.suggests((context, builder) -> SharedSuggestionProvider.suggest(versionsOf(context), builder))
+							.executes(context -> place(context, ARGUMENT_VERSION, null, false))
+							.then(placementOf(ARGUMENT_VERSION)))))
+				.then(sub(VcsCommandUnplace.HELP)
+					.executes(context -> VcsCommandUnplace.run(context.getSource(), false))
+					.then(Commands.literal(VcsCommandUnplace.CLEAR)
+						.executes(context -> VcsCommandUnplace.run(context.getSource(), true))))
+				.then(sub(VcsCommandUnplace.CONFIRM_HELP)
+					.executes(context -> VcsCommandUnplace.confirm(context.getSource())))
+				.then(sub(VcsCommandSelect.HELP)
+					.executes(context -> VcsCommandSelect.run(context.getSource()))
+					.then(Commands.argument("buildname", StringArgumentType.word())
+						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))
+						.executes(context -> VcsCommandSelect.run(context.getSource(), StringArgumentType.getString(context, "buildname")))
+						.then(Commands.argument("placementname", StringArgumentType.word())
+							.suggests((context, builder) -> SharedSuggestionProvider.suggest(placements(context.getSource(), StringArgumentType.getString(context, "buildname")), builder))
+							.executes(context -> VcsCommandSelect.run(context.getSource(), StringArgumentType.getString(context, "buildname"), StringArgumentType.getString(context, "placementname"))))))
 				.then(sub(VcsCommandBuilds.HELP)
 					.executes(context -> VcsCommandBuilds.run(context.getSource())))
 				.then(sub(VcsCommandDeselect.HELP)
@@ -112,14 +141,19 @@ public final class VcsCommand {
 				.then(sub(VcsCommandDelete.HELP)
 					.then(Commands.argument("buildname", StringArgumentType.word())
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))
-						.executes(context -> VcsCommandDelete.run(context.getSource(), StringArgumentType.getString(context, "buildname")))))
+						.executes(context -> VcsCommandDelete.run(context.getSource(), StringArgumentType.getString(context, "buildname"), false))
+						.then(Commands.literal(VcsCommandDelete.CLEAR)
+							.executes(context -> VcsCommandDelete.run(context.getSource(), StringArgumentType.getString(context, "buildname"), true)))))
 				.then(sub(VcsCommandDelete.CONFIRM_HELP)
 					.executes(context -> VcsCommandDelete.confirm(context.getSource())))
 				.then(sub(VcsCommandTp.HELP)
 					.executes(context -> VcsCommandTp.runSelected(context.getSource()))
 					.then(Commands.argument("buildname", StringArgumentType.word())
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))
-						.executes(context -> VcsCommandTp.run(context.getSource(), StringArgumentType.getString(context, "buildname")))))
+						.executes(context -> VcsCommandTp.run(context.getSource(), StringArgumentType.getString(context, "buildname")))
+						.then(Commands.argument("placementname", StringArgumentType.word())
+							.suggests((context, builder) -> SharedSuggestionProvider.suggest(placements(context.getSource(), StringArgumentType.getString(context, "buildname")), builder))
+							.executes(context -> VcsCommandTp.run(context.getSource(), StringArgumentType.getString(context, "buildname"), StringArgumentType.getString(context, "placementname"))))))
 				.then(sub(VcsCommandWeselect.HELP)
 					.executes(context -> VcsCommandWeselect.run(context.getSource())))));
 	}
@@ -138,6 +172,29 @@ public final class VcsCommand {
 				}));
 	}
 
+	/** Where {@code /vcs place} takes the version from, since the same tail hangs under {@code latest} and a number. */
+	@FunctionalInterface
+	private interface VersionSource {
+		int of(CommandContext<CommandSourceStack> context);
+	}
+
+	/** {@code /vcs place <buildname>} and {@code /vcs place <buildname> latest}: the build's latest version. */
+	private static final VersionSource LATEST_VERSION = context -> LATEST;
+	/** {@code /vcs place <buildname> <version>}: the number that was typed. */
+	private static final VersionSource ARGUMENT_VERSION = context -> IntegerArgumentType.getInteger(context, "version");
+
+	/** The {@code <placementname> [-f]} tail of {@code /vcs place}, under the version that was given. */
+	private static RequiredArgumentBuilder<CommandSourceStack, String> placementOf(VersionSource version) {
+		return Commands.argument("placementname", StringArgumentType.word())
+			.executes(context -> place(context, version, StringArgumentType.getString(context, "placementname"), false))
+			.then(Commands.literal(FORCE)
+				.executes(context -> place(context, version, StringArgumentType.getString(context, "placementname"), true)));
+	}
+
+	private static int place(CommandContext<CommandSourceStack> context, VersionSource version, String placementName, boolean force) throws CommandSyntaxException {
+		return VcsCommandPlace.run(context.getSource(), StringArgumentType.getString(context, "buildname"), version.of(context), placementName, force);
+	}
+
 	/** Every version number of the build the source player has selected; nothing if there is no player or selection. */
 	private static List<String> versions(CommandSourceStack source) {
 		ServerPlayer player = source.getPlayer();
@@ -145,7 +202,19 @@ public final class VcsCommand {
 			return List.of();
 		}
 		return BuildRegistry.selected(player)
-			.map(build -> IntStream.rangeClosed(1, build.version()).mapToObj(Integer::toString).toList())
+			.map(placement -> placement.build().versionNumbers().stream().map(String::valueOf).toList())
 			.orElse(List.of());
+	}
+
+	/** Every version number of the build named by the {@code buildname} argument being completed. */
+	private static List<String> versionsOf(CommandContext<CommandSourceStack> context) {
+		return BuildRegistry.find(context.getSource().getServer(), StringArgumentType.getString(context, "buildname"))
+			.map(build -> build.versionNumbers().stream().map(String::valueOf).toList())
+			.orElse(List.of());
+	}
+
+	/** Every placement name of the build called {@code buildName}, for completing a {@code placementname} argument. */
+	private static List<String> placements(CommandSourceStack source, String buildName) {
+		return BuildRegistry.find(source.getServer(), buildName).map(Build::placementNames).orElse(List.of());
 	}
 }

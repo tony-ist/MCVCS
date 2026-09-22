@@ -5,7 +5,8 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.level.ServerPlayer;
 
 import tony.mcvcs.build.BoxSnapshot;
-import tony.mcvcs.build.Build;
+import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.BuildPlacement;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 
 /** Server side of the preview protocol: turns a schematic into {@link PreviewBeginPayload} and {@link PreviewBlocksPayload}s. */
@@ -32,15 +33,16 @@ public final class PreviewSender {
 	}
 
 	/**
-	 * Streams {@code clipboard}, the schematic saved for {@code build}, to {@code player} so the client shows it
-	 * inside the build's region. The clipboard sits at its own world coordinates inside the box, with air around it
-	 * if it is smaller, see {@link BoxSnapshot#ofClipboard}.
+	 * Streams {@code clipboard}, version {@code version} of {@code placement}'s build, to {@code player} so the client
+	 * shows it inside the placement's box. The version is laid where the placement holds it, with air around it if it
+	 * is smaller than the box, see {@link BoxSnapshot#ofClipboard}.
 	 *
-	 * @throws IllegalArgumentException if the clipboard reaches outside the build's box
+	 * @throws IllegalArgumentException if the version does not fit the placement's box
 	 */
-	public static void send(ServerPlayer player, Build build, Clipboard clipboard) {
-		BoxSnapshot snapshot = BoxSnapshot.ofClipboard(build.box(), clipboard);
-		ServerPlayNetworking.send(player, new PreviewBeginPayload(build.name(), build.version(), build.dimension(), build.box()));
+	public static void send(ServerPlayer player, BuildPlacement placement, int version, Clipboard clipboard) {
+		BuildBox box = placement.box();
+		BoxSnapshot snapshot = BoxSnapshot.ofClipboard(box, clipboard, placement.boxOf(version));
+		ServerPlayNetworking.send(player, new PreviewBeginPayload(placement.label(), version, placement.dimension(), box));
 
 		int total = snapshot.size();
 		for (int offset = 0; offset < total; offset += BLOCKS_PER_PACKET) {

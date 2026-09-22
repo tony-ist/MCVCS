@@ -26,6 +26,7 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.JsonOps;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.UUIDUtil;
 
@@ -34,14 +35,15 @@ import com.sk89q.worldedit.extent.clipboard.io.BuiltInClipboardFormat;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardWriter;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Everything the mod keeps on disk, under {@code mcvcs/} in the game directory:
  * <pre>
  * mcvcs/
- *   selections.json          which build each player has selected in each world, by world then player UUID
+ *   selections.json          which placement each player has selected in each world, by world then player UUID
  *   &lt;buildname&gt;/
- *     build.json             the {@link Build}: its world, dimension, box and latest version
+ *     build.json             the {@link Build}: its world, every version's extent and every placement of it
  *     v1.schem, v2.schem ... one schematic per version
  * </pre>
  * Every build has a folder of its own and none of it mixes with WorldEdit's {@code //schem} files. The folder
@@ -49,6 +51,9 @@ import com.sk89q.worldedit.extent.clipboard.io.ClipboardWriter;
  * filter on it; a name can only be taken by one world at a time. Nothing is cached: each call reads or writes
  * the files, so the folder is the single source of truth and can be edited or copied between game directories
  * while the server is down.
+ * <p>
+ * A schematic still carries the world position it was copied from, which is what {@code /vcs load} pastes by, but
+ * where a version belongs at a placement comes from {@code build.json} alone, see {@link Build}.
  * <p>
  * Names reach the file system as directory names, so only {@link Build#isValidName valid names} may be stored.
  */
@@ -62,8 +67,17 @@ public final class BuildStorage {
 	/** Schematic file format. */
 	public static final ClipboardFormat FORMAT = BuiltInClipboardFormat.SPONGE_V3_SCHEMATIC;
 
-	/** World name to player UUID to build name. */
-	private static final Codec<Map<String, Map<UUID, String>>> SELECTIONS_CODEC = Codec.unboundedMap(Codec.STRING, Codec.unboundedMap(UUIDUtil.STRING_CODEC, Codec.STRING));
+	/** The build and placement a player has selected in one world. */
+	public record Selection(String build, String placement) {
+		public static final Codec<Selection> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+			Codec.STRING.fieldOf("build").forGetter(Selection::build),
+			Codec.STRING.fieldOf("placement").forGetter(Selection::placement)
+		).apply(instance, Selection::new));
+	}
+
+	/** World name to player UUID to what they have selected there. */
+	private static final Codec<Map<String, Map<UUID, Selection>>> SELECTIONS_CODEC =
+		Codec.unboundedMap(Codec.STRING, Codec.unboundedMap(UUIDUtil.STRING_CODEC, Selection.CODEC));
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
 	private BuildStorage() {
@@ -87,12 +101,12 @@ public final class BuildStorage {
 		return directory(name).resolve(BUILD_FILE);
 	}
 
-	/** The schematic of {@code build} at its version. */
-	public static Path schematicFile(Build build) {
-		return directory(build.name()).resolve("v" + build.version() + "." + FORMAT.getPrimaryFileExtension());
+	/** The schematic of version {@code version} of the build called {@code name}. */
+	public static Path schematicFile(String name, int version) {
+		return directory(name).resolve("v" + version + "." + FORMAT.getPrimaryFileExtension());
 	}
 
-	/** The file recording every player's selected build in every world. */
+	/** The file recording every player's selection in every world. */
 	public static Path selectionsFile() {
 		return root().resolve(SELECTIONS_FILE);
 	}
@@ -101,7 +115,7 @@ public final class BuildStorage {
 	public static List<Build> all(String world) throws IOException {
 		List<Build> inWorld = new ArrayList<>();
 		for (String name : folderNames()) {
-			Build build = readJson(buildFile(name), Build.CODEC);
+			Build build = readBuild(name);
 			if (build.world().equals(world)) {
 				inWorld.add(build);
 			}
@@ -134,11 +148,10 @@ public final class BuildStorage {
 		if (!Build.isValidName(name)) {
 			return Optional.empty();
 		}
-		Path file = buildFile(name);
-		if (!Files.isRegularFile(file)) {
+		if (!Files.isRegularFile(buildFile(name))) {
 			return Optional.empty();
 		}
-		return Optional.of(readJson(file, Build.CODEC));
+		return Optional.of(readBuild(name));
 	}
 
 	/**
@@ -149,7 +162,7 @@ public final class BuildStorage {
 	public static Optional<Build> findInAnyWorldIgnoringCase(String name) throws IOException {
 		for (String existing : folderNames()) {
 			if (existing.equalsIgnoreCase(name)) {
-				return Optional.of(readJson(buildFile(existing), Build.CODEC));
+				return Optional.of(readBuild(existing));
 			}
 		}
 		return Optional.empty();
@@ -161,13 +174,28 @@ public final class BuildStorage {
 	}
 
 	/**
-	 * Writes {@code clipboard} as the schematic of {@code build} at its version and records the build itself as
-	 * the latest state of the build with its name, creating the build's folder if needed.
+	 * The build called {@code name}, reading its {@link #BUILD_FILE}. A file written before placements is converted
+	 * and written back in the current form as it is read, see {@link LegacyBuild}.
+	 */
+	private static Build readBuild(String name) throws IOException {
+		Path file = buildFile(name);
+		JsonElement json = readJson(file);
+		if (LegacyBuild.isLegacy(json)) {
+			Build migrated = LegacyBuild.migrate(json);
+			writeJson(file, Build.CODEC, migrated);
+			return migrated;
+		}
+		return parse(file, Build.CODEC, json);
+	}
+
+	/**
+	 * Writes {@code clipboard} as the schematic of version {@code version} of {@code build} and records the build
+	 * itself as the latest state of the build with its name, creating the build's folder if needed.
 	 *
 	 * @return the schematic written
 	 */
-	public static Path save(Build build, Clipboard clipboard) throws IOException {
-		Path file = schematicFile(build);
+	public static Path save(Build build, int version, Clipboard clipboard) throws IOException {
+		Path file = schematicFile(build.name(), version);
 		Files.createDirectories(file.getParent());
 
 		try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(file));
@@ -180,7 +208,8 @@ public final class BuildStorage {
 
 	/**
 	 * Records {@code build} as the latest state of the build with its name without writing any schematic, for
-	 * changes such as {@code /vcs checkout} moving its {@link Build#head}. The build's folder must exist already.
+	 * changes such as {@code /vcs checkout} moving a placement's head or {@code /vcs place} adding one. The build's
+	 * folder must exist already.
 	 */
 	public static void update(Build build) throws IOException {
 		Path file = buildFile(build.name());
@@ -204,16 +233,16 @@ public final class BuildStorage {
 				}
 			}
 		}
-		clearSelectionsOf(name);
+		clearSelectionsOf(name, null);
 	}
 
 	/**
-	 * Reads the schematic {@link #save} wrote for {@code build} at its version.
+	 * Reads the schematic {@link #save} wrote for version {@code version} of the build called {@code name}.
 	 *
 	 * @throws NoSuchFileException if no schematic was written for that version
 	 */
-	public static Clipboard read(Build build) throws IOException {
-		Path file = schematicFile(build);
+	public static Clipboard readSchematic(String name, int version) throws IOException {
+		Path file = schematicFile(name, version);
 		if (!Files.isRegularFile(file)) {
 			throw new NoSuchFileException(file.toString());
 		}
@@ -224,26 +253,26 @@ public final class BuildStorage {
 		}
 	}
 
-	/** The name of the build {@code player} has selected in {@code world}, if any is recorded. */
-	public static Optional<String> selection(String world, UUID player) throws IOException {
+	/** What {@code player} has selected in {@code world}, if anything is recorded. */
+	public static Optional<Selection> selection(String world, UUID player) throws IOException {
 		return Optional.ofNullable(selections().getOrDefault(world, Map.of()).get(player));
 	}
 
-	/** Records {@code name} as the build {@code player} has selected in {@code world}, leaving every other selection alone. */
-	public static void saveSelection(String world, UUID player, String name) throws IOException {
-		Map<String, Map<UUID, String>> selections = new HashMap<>(selections());
-		Map<UUID, String> inWorld = new HashMap<>(selections.getOrDefault(world, Map.of()));
-		inWorld.put(player, name);
+	/** Records {@code selection} as what {@code player} has selected in {@code world}, leaving every other selection alone. */
+	public static void saveSelection(String world, UUID player, Selection selection) throws IOException {
+		Map<String, Map<UUID, Selection>> selections = new HashMap<>(selections());
+		Map<UUID, Selection> inWorld = new HashMap<>(selections.getOrDefault(world, Map.of()));
+		inWorld.put(player, selection);
 		selections.put(world, inWorld);
 
 		Files.createDirectories(root());
 		writeJson(selectionsFile(), SELECTIONS_CODEC, selections);
 	}
 
-	/** Forgets which build {@code player} has selected in {@code world}, leaving every other selection alone. */
+	/** Forgets what {@code player} has selected in {@code world}, leaving every other selection alone. */
 	public static void clearSelection(String world, UUID player) throws IOException {
-		Map<String, Map<UUID, String>> selections = new HashMap<>(selections());
-		Map<UUID, String> inWorld = new HashMap<>(selections.getOrDefault(world, Map.of()));
+		Map<String, Map<UUID, Selection>> selections = new HashMap<>(selections());
+		Map<UUID, Selection> inWorld = new HashMap<>(selections.getOrDefault(world, Map.of()));
 		if (inWorld.remove(player) == null) {
 			return;
 		}
@@ -257,13 +286,17 @@ public final class BuildStorage {
 		writeJson(selectionsFile(), SELECTIONS_CODEC, selections);
 	}
 
-	/** Forgets every player's selection of the build called {@code name} in every world, leaving every other selection alone. */
-	private static void clearSelectionsOf(String name) throws IOException {
-		Map<String, Map<UUID, String>> selections = new HashMap<>();
+	/**
+	 * Forgets every player's selection of the build called {@code name} in every world, or only of its placement
+	 * called {@code placement} when one is given, leaving every other selection alone.
+	 */
+	public static void clearSelectionsOf(String name, @Nullable String placement) throws IOException {
+		Map<String, Map<UUID, Selection>> selections = new HashMap<>();
 		boolean changed = false;
-		for (Map.Entry<String, Map<UUID, String>> world : selections().entrySet()) {
-			Map<UUID, String> inWorld = new HashMap<>(world.getValue());
-			changed |= inWorld.values().removeIf(name::equals);
+		for (Map.Entry<String, Map<UUID, Selection>> world : selections().entrySet()) {
+			Map<UUID, Selection> inWorld = new HashMap<>(world.getValue());
+			changed |= inWorld.values().removeIf(selection -> selection.build().equals(name)
+				&& (placement == null || selection.placement().equals(placement)));
 			if (!inWorld.isEmpty()) {
 				selections.put(world.getKey(), inWorld);
 			}
@@ -276,16 +309,23 @@ public final class BuildStorage {
 		writeJson(selectionsFile(), SELECTIONS_CODEC, selections);
 	}
 
-	private static Map<String, Map<UUID, String>> selections() throws IOException {
+	private static Map<String, Map<UUID, Selection>> selections() throws IOException {
 		Path file = selectionsFile();
-		return Files.isRegularFile(file) ? readJson(file, SELECTIONS_CODEC) : Map.of();
+		return Files.isRegularFile(file) ? parse(file, SELECTIONS_CODEC, readJson(file)) : Map.of();
 	}
 
-	private static <T> T readJson(Path file, Codec<T> codec) throws IOException {
+	private static JsonElement readJson(Path file) throws IOException {
 		try (Reader reader = Files.newBufferedReader(file)) {
-			JsonElement json = JsonParser.parseReader(reader);
+			return JsonParser.parseReader(reader);
+		} catch (JsonParseException e) {
+			throw new IOException("Malformed " + file + ": " + e.getMessage(), e);
+		}
+	}
+
+	private static <T> T parse(Path file, Codec<T> codec, JsonElement json) throws IOException {
+		try {
 			return codec.parse(JsonOps.INSTANCE, json).getOrThrow(message -> new IOException("Malformed " + file + ": " + message));
-		} catch (JsonParseException | IllegalArgumentException e) {
+		} catch (IllegalArgumentException e) {
 			// A record whose fields do not go together, such as a head past the latest version, is refused by its constructor.
 			throw new IOException("Malformed " + file + ": " + e.getMessage(), e);
 		}

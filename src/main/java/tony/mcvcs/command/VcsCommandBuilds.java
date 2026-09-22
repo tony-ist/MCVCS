@@ -11,22 +11,23 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
 
 import tony.mcvcs.build.Build;
+import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.network.ChatButtons;
 
 /**
- * {@code /vcs builds}: lists every build in the world, each with a chat button that runs {@code /vcs select} for it,
- * see {@link ChatButtons}; the selected one is marked instead.
+ * {@code /vcs builds}: lists every build in the world with its placements, each with a chat button that runs
+ * {@code /vcs select} for it, see {@link ChatButtons}; the selected placement is marked instead.
  */
 public final class VcsCommandBuilds {
-	/** Label of the button put after each build that is not selected. */
+	/** Label of the button put after each placement that is not selected. */
 	public static final String SELECT_BUTTON = "Select";
-	/** Marker put after the selected build instead of a button. */
+	/** Marker put after the selected placement instead of a button. */
 	public static final String SELECTED_MARKER = "selected";
 
 	static final VcsHelp HELP = new VcsHelp("builds", "/vcs builds",
 		"list the builds in this world",
-		"Lists every build in this world with its latest version and size. Each one has a [Select] button that selects it; the selected build is marked [selected] instead.");
+		"Lists every build in this world with its latest version, then each of its placements with the version it holds and its size. Each placement has a [Select] button that selects it; the selected one is marked [selected] instead.");
 
 	private VcsCommandBuilds() {
 	}
@@ -39,23 +40,35 @@ public final class VcsCommandBuilds {
 			return 0;
 		}
 
-		String selected = BuildRegistry.selected(player).map(Build::name).orElse(null);
+		String selected = BuildRegistry.selected(player).map(BuildPlacement::label).orElse(null);
 		source.sendSuccess(() -> Component.literal(builds.size() + (builds.size() == 1 ? " build" : " builds") + " in this world:"), false);
+		int placements = 0;
 		for (Build build : builds) {
-			source.sendSuccess(() -> buildLine(build, build.name().equals(selected)), false);
+			source.sendSuccess(() -> buildLine(build), false);
+			for (BuildPlacement placement : BuildPlacement.allOf(build)) {
+				source.sendSuccess(() -> placementLine(placement, placement.label().equals(selected)), false);
+				placements++;
+			}
 		}
-		return builds.size();
+		return placements;
+	}
+
+	/** The heading of one build: its name and how many versions it has. */
+	private static MutableComponent buildLine(Build build) {
+		return Component.literal("- ").append(VcsMessages.name(build.name())).append(" v" + build.version()
+			+ (build.placements().isEmpty() ? ", not placed anywhere" : ""));
 	}
 
 	/**
-	 * One line of the listing: the build's name, version and size, followed by a clickable {@code [Select]} that runs
-	 * {@code /vcs select} for it, or a {@code [selected]} marker if it already is.
+	 * One line under a build: the placement's name, the version it holds and its size, followed by a clickable
+	 * {@code [Select]} that runs {@code /vcs select} for it, or a {@code [selected]} marker if it already is.
 	 */
-	private static MutableComponent buildLine(Build build, boolean selected) {
-		MutableComponent line = Component.literal("- ").append(VcsMessages.name(build.name())).append(" v" + build.version() + " (" + build.box().volume() + " blocks) ");
+	private static MutableComponent placementLine(BuildPlacement placement, boolean selected) {
+		MutableComponent line = Component.literal("    ").append(VcsMessages.name(placement.name()))
+			.append(" v" + placement.head() + " (" + placement.box().volume() + " blocks) at " + placement.box().min().toShortString() + " ");
 		if (selected) {
 			return line.append(ComponentUtils.wrapInSquareBrackets(Component.literal(SELECTED_MARKER)).withStyle(ChatFormatting.GRAY));
 		}
-		return line.append(ChatButtons.button(SELECT_BUTTON, "/vcs select " + build.name()));
+		return line.append(ChatButtons.button(SELECT_BUTTON, "/vcs select " + placement.build().name() + " " + placement.name()));
 	}
 }
