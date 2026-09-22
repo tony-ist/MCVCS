@@ -40,8 +40,8 @@ There is no client-only mode: the builds live on the server, so the mod has to b
 | `/vcs place <buildname> [version\|latest] [placementname] [-f]` | Shows another copy of the build where you stand, without touching the world: that version, or the latest one if none is given, is drawn with its top north-west corner one block below your feet, so it hangs below you extending east and south, exactly where `/vcs load` and `//paste` would put it. Only you see it. Line it up with the numpad keys (see [Hotkeys](#hotkeys)) and run `/vcs confirmPlace` to place it, or `/vcs cancelPlace` to drop it; the copy is forgotten if you leave the server first, and a second `/vcs place` replaces it. Its box is green while it can be placed where it stands and red while it cannot, because it overlaps a placement or because blocks are standing in the way and no `-f` was given. The new placement is named `p2`, `p3` and so on unless you name it. Without the mod on your client there is nothing to draw the copy with, so it is placed where you stand straight away. |
 | `/vcs confirmPlace [-f]` | Puts the copy your last `/vcs place` is showing into the world where you have moved it, as a placement of its own, and selects it. It lives its own life from then on: check it out and modify it on its own, and commits from it become versions of the same build. The blocks are placed without block updates and outside your WorldEdit history, the same way `/vcs checkout` places them. Refuses if the copy overlaps another placement, and refuses if anything is already standing where it goes unless you add `-f` here or gave it to `/vcs place`, which overwrites those blocks for good; a refused copy stays up, so you can move it somewhere clear and confirm again. |
 | `/vcs cancelPlace` | Stops showing the copy your last `/vcs place` is showing. Nothing was ever put into the world, so nothing is taken back. |
-| `/vcs unplace [-c]` | Asks you to confirm taking your selected placement out of its build. Nothing happens until you run `/vcs confirmUnplace`; the request is forgotten if you leave the server first. The build and every version of it stay on disk, so `/vcs place` can put it back. |
-| `/vcs confirmUnplace` | Removes the placement your last `/vcs unplace` named: it stops being tracked and anyone who had it selected loses that selection. Its blocks are left standing where they are, as ordinary world blocks, unless `-c` was given, in which case its box is emptied as well. |
+| `/vcs unplace [-k]` | Takes your selected placement out of its build and empties its box, leaving the ground clear; the version it held is on disk, so nothing is lost and it happens at once. Add `-k` to leave its blocks standing as ordinary world blocks instead, removing only the tracking. If the box differs from the version it holds, that work would be lost, so you are asked to confirm first and nothing happens until you run `/vcs confirmUnplace`; the request is forgotten if you leave the server first. The build and every version of it stay on disk, so `/vcs place` can put it back. |
+| `/vcs confirmUnplace` | Removes the placement your last `/vcs unplace` named, discarding the uncommitted changes it was holding: it stops being tracked and anyone who had it selected loses that selection. Its box is emptied unless `-k` was given, in which case its blocks are left standing where they are. |
 | `/vcs select [buildname [placementname]]` | Selects the placement whose box is shown and that later commands act on. With no arguments it waits for you to punch a block of the placement you want, the same kind of click `/vcs create` waits for: the block is left alone and whichever placement covers it is selected. With a build that has one placement, that one is selected at once; with a build that has several, you are asked to punch one. With a placement name too, that placement is selected outright. |
 | `/vcs builds` | Lists every build in this world with its latest version, and under it each of its placements with the version it holds, its size and where it stands. Each placement has a `[Select]` button in chat that runs `/vcs select` for it; the selected one is marked `[selected]` instead. |
 | `/vcs deselect` | Clears your selection: the bounding box, and any preview or diff highlighting, disappear and commands that need a selection refuse until you select one again. |
@@ -71,10 +71,27 @@ The numpad moves the copy `/vcs place` is showing, and does nothing while none i
 | `8` / `2` | Pushes the copy away from you and pulls it back, through the side of its box you are looking at |
 | `4` / `6` | Slides it left and right along that side, as you see it, without changing its height |
 | `7` / `9` | Raises and lowers it |
+| `5` | Places it where it stands, the same as `/vcs confirmPlace`; where it cannot be placed it says why instead |
 
-Which way the copy goes is read off the box, not off the compass: looking at its north side, `8` pushes it north to south, and looking at its east side, `8` pushes it east to west. Looking at the top or the bottom of the box, or away from it altogether, leaves `8`, `2`, `4` and `6` nothing to go by, so they move nothing and tell you to look at a side of it. `7` and `9` need no side and always work. Each press moves one block, or ten while your sprint key is held.
+Which way the copy goes is read off the box, not off the compass: looking at its north side, `8` pushes it north to south, and looking at its east side, `8` pushes it east to west. Looking at the top or the bottom of the box, or away from it altogether, leaves `8`, `2`, `4` and `6` nothing to go by, so they move nothing and tell you to look at a side of it. `7`, `9` and `5` need no side and always work. Each press moves one block, or ten while your sprint key is held.
 
 Every key can be rebound like any other under Options, Controls, Key Binds, in the MCVCS category.
+
+## Client settings
+
+What belongs to neither the key binds screen nor the server lives in `config/mcvcs.json`, written with its defaults the first time you run the mod:
+
+```json
+{
+  "sprintStep": 10
+}
+```
+
+| Setting | What it does |
+| --- | --- |
+| `sprintStep` | How many blocks a numpad press moves a `/vcs place` copy while your sprint key is held. 1 to 1000, 10 by default. |
+
+The file is read again every time you join a world or server, so an edit takes hold without restarting the game. A file that cannot be read is logged and ignored, leaving the settings as they were.
 
 ## How it works
 
@@ -147,6 +164,8 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - In mcvcs folder name builds as buildname-v2 instead of just v2
 - Allow change build box to new worldedit selection, think about shrinking when blocks get excluded
 - Press numpad 5 to place the build during preview
+- Sprint key should move placement preview it 10 blocks.
+- Command /vcs move initiates moving preview for current placement allowing to change its position and press 5 moves it physically in the world
 
 ### Nice to have
 
@@ -158,4 +177,3 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Add clickable tp command in /vcs builds list
 - Add some effect when punching is armed
 - In vcs builds display label Placement before placement name
-- Hm maybe not confirm unplace, annoying and not destructive

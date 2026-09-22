@@ -18,6 +18,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
+import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.client.place.PlacePreviewStatus.Status;
 import tony.mcvcs.client.preview.PlacePreview;
 import tony.mcvcs.client.preview.PreviewManager;
@@ -36,15 +37,14 @@ import org.jspecify.annotations.Nullable;
  * pulls it back, {@code 4} and {@code 6} slide it sideways along that face, left and right as the player sees it,
  * with no change of height. Looking at the top or the bottom of the box, or away from it altogether, leaves those
  * four with nothing to go by, so they move nothing and say so instead. {@code 7} and {@code 9} raise and lower the
- * copy, which needs no face at all.
+ * copy, which needs no face at all. {@code 5} places it, running {@code /vcs confirmPlace} for the player, and says
+ * why instead when the copy stands where it cannot be placed.
  * <p>
- * Each press moves one block, or {@link #SPRINT_STEP} while the sprint key is held. The client draws the copy in its
- * new place at once and tells the server where it went, see {@link PlacePreviewMovePayload}; nothing is put into the
- * world until the placement is confirmed.
+ * Each press moves one block, or {@link ClientConfig#sprintStep()} of them while the sprint key is held. The client
+ * draws the copy in its new place at once and tells the server where it went, see {@link PlacePreviewMovePayload};
+ * nothing is put into the world until the placement is confirmed.
  */
 public final class PlacePreviewKeys {
-	/** How far a press moves the copy while the sprint key is held, for crossing a plot instead of nudging. */
-	public static final int SPRINT_STEP = 10;
 	/** How far ahead, in blocks, the box can be and still be looked at; the same reach the select hotkey has. */
 	private static final double RANGE = SelectHotkey.RANGE;
 	/** How near a hit has to be to a side of the box, in blocks, to count as that side; a hit is on it exactly. */
@@ -64,9 +64,15 @@ public final class PlacePreviewKeys {
 	public static final KeyMapping UP = key("place_up", GLFW.GLFW_KEY_KP_7);
 	/** Lowers the copy. */
 	public static final KeyMapping DOWN = key("place_down", GLFW.GLFW_KEY_KP_9);
+	/** Places the copy where it stands, as {@code /vcs confirmPlace} does. */
+	public static final KeyMapping CONFIRM = key("place_confirm", GLFW.GLFW_KEY_KP_5);
 
 	/** Shown when a sideways key is pressed while no side of the box is in sight, since there is nothing to go by. */
 	public static final String HINT = "Look at the build's side face to move it with hotkeys";
+	/** What {@code 5} says instead of placing when the copy stands where it cannot be placed; the reason follows. */
+	public static final String REFUSED = "Cannot place here - ";
+	/** The command {@code 5} runs, the same one the player would type. */
+	private static final String CONFIRM_COMMAND = "vcs confirmPlace";
 
 	private PlacePreviewKeys() {
 	}
@@ -77,7 +83,7 @@ public final class PlacePreviewKeys {
 
 	/** Must run from the client entrypoint: key mappings can only be added before the options are loaded. */
 	public static void register() {
-		for (KeyMapping key : new KeyMapping[] {AWAY, CLOSER, LEFT, RIGHT, UP, DOWN}) {
+		for (KeyMapping key : new KeyMapping[] {AWAY, CLOSER, LEFT, RIGHT, UP, DOWN, CONFIRM}) {
 			KeyMappingHelper.registerKeyMapping(key);
 		}
 		ClientTickEvents.END_CLIENT_TICK.register(PlacePreviewKeys::tick);
@@ -103,6 +109,31 @@ public final class PlacePreviewKeys {
 		while (DOWN.consumeClick()) {
 			move(client, Direction.DOWN);
 		}
+		while (CONFIRM.consumeClick()) {
+			confirm(client);
+		}
+	}
+
+	/**
+	 * {@code 5}: places the copy where it stands. The client knows what the server would refuse, see
+	 * {@link PlacePreviewStatus}, so a copy that cannot go there says why instead of running a command that is bound
+	 * to fail; what the client cannot tell, the server still has the last word on.
+	 */
+	private static void confirm(Minecraft client) {
+		PlacePreview preview = PreviewManager.place();
+		LocalPlayer player = client.player;
+		if (preview == null || player == null) {
+			return;
+		}
+
+		Status status = PlacePreviewStatus.status();
+		String reason = status == null || !status.box().equals(preview.box()) ? null : status.reason();
+		if (reason != null) {
+			player.sendOverlayMessage(Component.literal(REFUSED + reason).withStyle(ChatFormatting.RED));
+			return;
+		}
+		// Sent as if typed, so the server checks the permission and answers in chat the way it does for the command.
+		player.connection.sendCommand(CONFIRM_COMMAND);
 	}
 
 	/** {@code 8} and {@code 2}: through the side of the box in sight, away from the player or back towards them. */
@@ -142,7 +173,7 @@ public final class PlacePreviewKeys {
 		return face;
 	}
 
-	/** Slides the copy {@code direction} by a block, or by {@link #SPRINT_STEP} while the sprint key is held. */
+	/** Slides the copy {@code direction} by a block, or by {@link ClientConfig#sprintStep()} while sprint is held. */
 	private static void move(Minecraft client, Direction direction) {
 		PlacePreview preview = PreviewManager.place();
 		LocalPlayer player = client.player;
@@ -151,7 +182,7 @@ public final class PlacePreviewKeys {
 			return;
 		}
 
-		int step = client.options.keySprint.isDown() ? SPRINT_STEP : 1;
+		int step = client.options.keySprint.isDown() ? ClientConfig.sprintStep() : 1;
 		BlockPos min = preview.box().min().relative(direction, step);
 		PreviewManager.movePlace(min, client);
 		ClientPlayNetworking.send(new PlacePreviewMovePayload(min));

@@ -1,6 +1,7 @@
 package tony.mcvcs.command;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -16,11 +17,13 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
 import tony.mcvcs.MCVCS;
+import tony.mcvcs.build.BoxSnapshot;
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.BuildStorage;
+import tony.mcvcs.diff.BuildDiff;
 import tony.mcvcs.network.BuildSync;
 import tony.mcvcs.network.ChatButtons;
 import tony.mcvcs.network.DiffSender;
@@ -33,29 +36,33 @@ import com.sk89q.worldedit.fabric.FabricAdapter;
 import com.sk89q.worldedit.world.block.BlockTypes;
 
 /**
- * {@code /vcs unplace [-c]}: asks the player to confirm taking the selected placement out of the build; nothing is
- * touched yet. {@code /vcs confirmUnplace} then removes it. The blocks are left standing where they are unless
- * {@link #CLEAR} was given, in which case the placement's box is emptied as well.
+ * {@code /vcs unplace [-k]}: takes the selected placement out of its build and empties its box, leaving the ground
+ * clear; {@link #KEEP} leaves the blocks standing instead and only stops the placement being tracked.
+ * <p>
+ * The box holds a version of the build, which is on disk either way, so removing the placement loses nothing and is
+ * done at once. What is not on disk is work done since: a box that differs from the version it holds is asked about
+ * first, and {@code /vcs confirmUnplace} then goes through with it. That is the only thing the confirmation is
+ * there for, so it is asked whether the blocks are about to be emptied or kept.
  * <p>
  * The build itself, and every version of it, stays on disk: only this copy of it in the world stops being tracked.
  * A build may end up with no placements at all, and {@code /vcs place} puts it back into the world.
  */
 public final class VcsCommandUnplace {
-	/** Flag after {@code /vcs unplace} that also empties the placement's box instead of leaving the blocks standing. */
-	public static final String CLEAR = "-c";
+	/** Flag after {@code /vcs unplace} that leaves the blocks standing instead of emptying the placement's box. */
+	public static final String KEEP = "-k";
 
-	/** What each player's last {@code /vcs unplace} asked to remove, and whether to clear its blocks, by player UUID. */
+	/** What each player's last {@code /vcs unplace} asked about, and whether to keep its blocks, by player UUID. */
 	private static final Map<UUID, Pending> PENDING = new HashMap<>();
 
-	private record Pending(String build, String placement, boolean clear) {
+	private record Pending(String build, String placement, boolean keep) {
 	}
 
-	static final VcsHelp HELP = new VcsHelp("unplace", "/vcs unplace [" + CLEAR + "]",
-		"stop tracking the selected placement, once you confirm",
-		"Asks you to confirm removing your selected placement from its build. Nothing happens until you run /vcs confirmUnplace. The build and all its versions stay: only this copy of it in the world stops being tracked, and its blocks are left standing unless you add " + CLEAR + ", which empties its box as well.");
+	static final VcsHelp HELP = new VcsHelp("unplace", "/vcs unplace [" + KEEP + "]",
+		"stop tracking the selected placement and empty its box",
+		"Removes your selected placement from its build and empties its box, since the version it holds is kept on disk. Add " + KEEP + " to leave its blocks standing as ordinary world blocks instead. If the box has uncommitted changes, they would be lost, so you are asked to confirm with /vcs confirmUnplace first. The build and all its versions stay: run /vcs place to put it back into the world.");
 	static final VcsHelp CONFIRM_HELP = new VcsHelp("confirmUnplace", "/vcs confirmUnplace",
 		"remove the placement your last /vcs unplace named",
-		"Removes the placement your last /vcs unplace named from its build, emptying its box if " + CLEAR + " was given. The build's versions are untouched; run /vcs place to put it back into the world.");
+		"Removes the placement your last /vcs unplace named, emptying its box unless " + KEEP + " was given, and discards the uncommitted changes it was holding. The build's versions are untouched; run /vcs place to put it back into the world.");
 
 	private VcsCommandUnplace() {
 	}
@@ -66,8 +73,12 @@ public final class VcsCommandUnplace {
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> PENDING.remove(handler.player.getUUID()));
 	}
 
-	/** Only asks for confirmation; {@link #confirm} does the removing. */
-	static int run(CommandSourceStack source, boolean clear) throws CommandSyntaxException {
+	/**
+	 * Removes the placement straight away, or asks first when its box holds work no version does.
+	 *
+	 * @param keep whether to leave the blocks standing instead of emptying the placement's box
+	 */
+	static int run(CommandSourceStack source, boolean keep) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<BuildPlacement> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
@@ -76,10 +87,24 @@ public final class VcsCommandUnplace {
 		}
 
 		BuildPlacement placement = selected.get();
-		PENDING.put(player.getUUID(), new Pending(placement.build().name(), placement.name(), clear));
-		source.sendSuccess(() -> Component.literal("Remove placement ").append(VcsMessages.placement(placement))
-			.append(clear ? ", emptying its " + placement.box().volume() + " blocks" : ", leaving its blocks standing")
-			.append("? The build's versions are kept. Run ").append(ChatButtons.command("/vcs confirmUnplace")).append(" to proceed."), false);
+		ServerLevel level = source.getServer().getLevel(placement.dimension());
+		if (level == null) {
+			source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is in " + placement.dimension().identifier() + ", which does not exist here"));
+			return 0;
+		}
+
+		// Only what was built since the box last held a version would be lost, so only that is worth asking about.
+		int uncommitted = uncommitted(placement, level, player);
+		if (uncommitted == 0) {
+			return remove(source, player, placement, keep);
+		}
+
+		PENDING.put(player.getUUID(), new Pending(placement.build().name(), placement.name(), keep));
+		source.sendSuccess(() -> Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is modified: " + uncommitted
+			+ (uncommitted == 1 ? " block differs" : " blocks differ") + " from v" + placement.head() + ", and removing it would lose "
+			+ (uncommitted == 1 ? "that change" : "those changes") + (keep ? ", though its blocks would be left standing" : " along with its blocks")
+			+ ". Run ").append(ChatButtons.command("/vcs commit")).append(" to save them first, ").append(ChatButtons.command("/vcs diff"))
+			.append(" to see them, or ").append(ChatButtons.command("/vcs confirmUnplace")).append(" to remove it anyway."), false);
 		return 1;
 	}
 
@@ -99,10 +124,17 @@ public final class VcsCommandUnplace {
 			source.sendFailure(Component.literal("No placement ").append(VcsMessages.name(pending.build() + Build.LABEL_SEPARATOR + pending.placement())).append(" in this world"));
 			return 0;
 		}
+		return remove(source, player, found.get(), pending.keep());
+	}
 
-		BuildPlacement placement = found.get();
+	/**
+	 * Takes {@code placement} out of its build, emptying its box unless {@code keep}. The last thing both an
+	 * unmodified {@code /vcs unplace} and {@code /vcs confirmUnplace} do.
+	 */
+	private static int remove(CommandSourceStack source, ServerPlayer player, BuildPlacement placement, boolean keep) {
+		MinecraftServer server = source.getServer();
 		BuildBox box = placement.box();
-		if (pending.clear()) {
+		if (!keep) {
 			ServerLevel level = server.getLevel(placement.dimension());
 			if (level == null) {
 				source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is in " + placement.dimension().identifier() + ", which does not exist here"));
@@ -123,7 +155,7 @@ public final class VcsCommandUnplace {
 			return 0;
 		}
 		MCVCS.LOGGER.info("{} unplaced '{}' at {}, {}", player.getGameProfile().name(), placement.label(), box.min().toShortString(),
-			pending.clear() ? "emptying its box" : "leaving its blocks");
+			keep ? "leaving its blocks" : "emptying its box");
 
 		// Anyone previewing or diffing the placement is looking at a box that is no longer tracked.
 		for (ServerPlayer other : server.getPlayerList().getPlayers()) {
@@ -141,10 +173,32 @@ public final class VcsCommandUnplace {
 		BuildSync.broadcast(server);
 
 		source.sendSuccess(() -> Component.literal("Removed placement ").append(VcsMessages.placement(placement))
-			.append(pending.clear() ? " and emptied its box" : "; its blocks were left standing")
+			.append(keep ? "; its blocks were left standing" : " and emptied its box")
 			.append("; build ").append(VcsMessages.name(placement.build().name())).append(" keeps its " + placement.build().version()
 				+ (placement.build().version() == 1 ? " version" : " versions")), false);
 		return 1;
+	}
+
+	/**
+	 * How many blocks inside {@code placement}'s box differ from the version it holds, i.e. how much work removing it
+	 * would lose. A version whose schematic cannot be read counts as differing everywhere, so the player is asked
+	 * rather than having the box emptied on the strength of a comparison that could not be made.
+	 */
+	private static int uncommitted(BuildPlacement placement, ServerLevel level, ServerPlayer player) {
+		BuildBox box = placement.box();
+		try {
+			BuildDiff changes = BuildDiff.between(
+				BoxSnapshot.ofClipboard(box, BuildStorage.readSchematic(placement.build().name(), placement.head()), box),
+				BoxSnapshot.ofLevel(box, level));
+			return changes.size();
+		} catch (NoSuchFileException e) {
+			MCVCS.LOGGER.warn("No schematic for '{}' v{} at {}, so {} is asked to confirm unplacing it",
+				placement.label(), placement.head(), e.getFile(), player.getGameProfile().name());
+			return Math.toIntExact(box.volume());
+		} catch (IOException | IllegalArgumentException e) {
+			MCVCS.LOGGER.error("Failed to compare '{}' with v{} for {}", placement.label(), placement.head(), player.getGameProfile().name(), e);
+			return Math.toIntExact(box.volume());
+		}
 	}
 
 	/**

@@ -4,6 +4,7 @@ import net.fabricmc.api.ClientModInitializer;
 
 import tony.mcvcs.client.diff.DiffHighlightRenderer;
 import tony.mcvcs.client.diff.DiffManager;
+import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.client.label.BuildLabelRenderer;
 import tony.mcvcs.client.place.PlacePreviewKeys;
 import tony.mcvcs.client.place.PlacePreviewRenderer;
@@ -16,6 +17,7 @@ import tony.mcvcs.client.selection.SelectionBoxRenderer;
 public class MCVCSClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
+		ClientConfig.register();
 		PreviewManager.register();
 		DiffManager.register();
 		ClientPlacements.register();

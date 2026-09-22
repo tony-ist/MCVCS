@@ -26,7 +26,7 @@ import tony.mcvcs.build.Placement;
  * <li>{@code /vcs create <buildname> [placementname] [-we]}: {@link VcsCommandCreate}</li>
  * <li>{@code /vcs place <buildname> [version | latest] [placementname] [-f]}, {@code /vcs confirmPlace [-f]} and
  * {@code /vcs cancelPlace}: {@link VcsCommandPlace}</li>
- * <li>{@code /vcs unplace [-c]} and {@code /vcs confirmUnplace}: {@link VcsCommandUnplace}</li>
+ * <li>{@code /vcs unplace [-k]} and {@code /vcs confirmUnplace}: {@link VcsCommandUnplace}</li>
  * <li>{@code /vcs select [buildname [placementname]]}: {@link VcsCommandSelect}</li>
  * <li>{@code /vcs builds}: {@link VcsCommandBuilds}</li>
  * <li>{@code /vcs deselect}: {@link VcsCommandDeselect}</li>
@@ -102,7 +102,7 @@ public final class VcsCommand {
 					.executes(context -> VcsCommandPlace.cancel(context.getSource())))
 				.then(sub(VcsCommandUnplace.HELP)
 					.executes(context -> VcsCommandUnplace.run(context.getSource(), false))
-					.then(Commands.literal(VcsCommandUnplace.CLEAR)
+					.then(Commands.literal(VcsCommandUnplace.KEEP)
 						.executes(context -> VcsCommandUnplace.run(context.getSource(), true))))
 				.then(sub(VcsCommandUnplace.CONFIRM_HELP)
 					.executes(context -> VcsCommandUnplace.confirm(context.getSource())))
