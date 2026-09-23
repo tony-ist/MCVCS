@@ -122,8 +122,6 @@ The file is read again every time you join a world or server, so an edit takes h
 - The `mcvcs/` folder is shared by every world opened from the same game directory, so commands only see builds whose `world` matches the one being played, and a build name, compared without regard to case, can only be used by one build at a time, in one world. Renaming a save folder orphans its builds until `world` in their `build.json` is updated to match.
 - Selections are per world and per player, stored in `mcvcs/selections.json` keyed by world then player UUID, each naming a build and one of its placements, so they are back after a restart.
 - Every placement in the world, and which one you have selected, is synced to your client on join and whenever any of it changes. Each placement's `buildname/placementname` floats above its box while you are within 32 blocks of it, selected or not, and the selected placement's bounding box is drawn in its dimension.
-- A `build.json` written before placements existed, which had one `box` and one `head` for the whole build, is converted the first time it is read: every version's extent is taken from its schematic and the box becomes a placement called `main`. The conversion lives in `LegacyBuild` on its own and can be deleted once no such file is left.
-
 ```
 mcvcs/
   selections.json

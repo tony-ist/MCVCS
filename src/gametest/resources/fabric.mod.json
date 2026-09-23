@@ -20,7 +20,6 @@
 			"tony.mcvcs.gametest.VcsPlaceCommandGameTest",
 			"tony.mcvcs.gametest.VcsPlacePreviewGameTest",
 			"tony.mcvcs.gametest.VcsUnplaceCommandGameTest",
-			"tony.mcvcs.gametest.VcsMigrationGameTest",
 			"tony.mcvcs.gametest.VcsWeselectCommandGameTest",
 			"tony.mcvcs.gametest.VcsSelectHotkeyGameTest",
 			"tony.mcvcs.gametest.VcsBuildsCommandGameTest",

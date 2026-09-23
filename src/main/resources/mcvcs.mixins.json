@@ -3,7 +3,6 @@
 	"package": "tony.mcvcs.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"mixins": [
-		"ExampleMixin",
 		"ServerCommonPacketListenerImplMixin"
 	],
 	"injectors": {
