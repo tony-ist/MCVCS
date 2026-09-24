@@ -74,6 +74,11 @@ public class VcsCreateCommandGameTest extends VcsGameTest {
 			if (Files.exists(escaped)) {
 				throw new AssertionError("Create with name '..' must not write " + escaped);
 			}
+			// A name starting with a minus would read as a flag, so it is refused too.
+			runCommand(context, "vcs create -dash -we");
+			if (Files.exists(BuildStorage.root().resolve("-dash"))) {
+				throw new AssertionError("Create with name '-dash' must not write a build folder");
+			}
 
 			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 

@@ -40,9 +40,10 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 	/**
 	 * What a build or placement name may look like. The build name becomes the build's folder on disk, so this is
 	 * the set of characters a command word may contain minus anything that could name another folder: no {@code .}
-	 * or {@code ..} segments, no leading or trailing dots and no separators.
+	 * or {@code ..} segments, no leading or trailing dots and no separators. Nor may it start with {@code -}, which
+	 * would read as a flag such as {@code -we} or {@code -h}.
 	 */
-	public static final Pattern NAME = Pattern.compile("[A-Za-z0-9_+-]+(\\.[A-Za-z0-9_+-]+)*");
+	public static final Pattern NAME = Pattern.compile("[A-Za-z0-9_+][A-Za-z0-9_+-]*(\\.[A-Za-z0-9_+-]+)*");
 	/** Name {@code /vcs create} gives the placement it makes, unless another is asked for. */
 	public static final String MAIN = "main";
 	/** What {@code /vcs place} names a placement when it is given no name: this followed by the lowest free number. */

@@ -60,11 +60,11 @@ public final class VcsCommandBuilds {
 	}
 
 	/**
-	 * One line under a build: the placement's name, the version it holds and its size, followed by a clickable
+	 * One line under a build: the placement's name, labelled as one, the version it holds and its size, followed by a clickable
 	 * {@code [Select]} that runs {@code /vcs select} for it, or a {@code [selected]} marker if it already is.
 	 */
 	private static MutableComponent placementLine(BuildPlacement placement, boolean selected) {
-		MutableComponent line = Component.literal("    ").append(VcsMessages.name(placement.name()))
+		MutableComponent line = Component.literal("    Placement ").append(VcsMessages.name(placement.name()))
 			.append(" v" + placement.head() + " (" + placement.box().volume() + " blocks) at " + placement.box().min().toShortString() + " ");
 		if (selected) {
 			return line.append(ComponentUtils.wrapInSquareBrackets(Component.literal(SELECTED_MARKER)).withStyle(ChatFormatting.GRAY));

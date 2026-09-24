@@ -154,7 +154,7 @@ public class VcsBuildsCommandGameTest extends VcsGameTest {
 	/** One placement under a build: the {@code main} one at v1, ending in a button or the marker. */
 	private static void assertPlacementLine(Component line, String ending) {
 		String text = line.getString();
-		if (!text.startsWith("    " + Build.MAIN + " v1 (") || !text.endsWith(ending)) {
+		if (!text.startsWith("    Placement " + Build.MAIN + " v1 (") || !text.endsWith(ending)) {
 			throw new AssertionError("Expected a line for the '" + Build.MAIN + "' placement at v1 ending with " + ending + " but got '" + text + "'");
 		}
 	}

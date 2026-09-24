@@ -43,7 +43,7 @@ There is no client-only mode: the builds live on the server, so the mod has to b
 | `/vcs unplace [-k]` | Takes your selected placement out of its build and empties its box, leaving the ground clear; the version it held is on disk, so nothing is lost and it happens at once. Add `-k` to leave its blocks standing as ordinary world blocks instead, removing only the tracking. If the box differs from the version it holds, that work would be lost, so you are asked to confirm first and nothing happens until you run `/vcs confirmUnplace`; the request is forgotten if you leave the server first. The build and every version of it stay on disk, so `/vcs place` can put it back. |
 | `/vcs confirmUnplace` | Removes the placement your last `/vcs unplace` named, discarding the uncommitted changes it was holding: it stops being tracked and anyone who had it selected loses that selection. Its box is emptied unless `-k` was given, in which case its blocks are left standing where they are. |
 | `/vcs select [buildname [placementname]]` | Selects the placement whose box is shown and that later commands act on. With no arguments it waits for you to punch a block of the placement you want, the same kind of click `/vcs create` waits for: the block is left alone and whichever placement covers it is selected. With a build that has one placement, that one is selected at once; with a build that has several, you are asked to punch one. With a placement name too, that placement is selected outright. |
-| `/vcs builds` | Lists every build in this world with its latest version, and under it each of its placements with the version it holds, its size and where it stands. Each placement has a `[Select]` button in chat that runs `/vcs select` for it; the selected one is marked `[selected]` instead. |
+| `/vcs builds` | Lists every build in this world with its latest version, and under it each of its placements, labelled `Placement`, with the version it holds, its size and where it stands. Each placement has a `[Select]` button in chat that runs `/vcs select` for it; the selected one is marked `[selected]` instead. |
 | `/vcs deselect` | Clears your selection: the bounding box, and any preview or diff highlighting, disappear and commands that need a selection refuse until you select one again. |
 | `/vcs commit` | Saves what is inside the selected placement's box as the build's next version. The box is the one that placement holds; your current WorldEdit selection is ignored. Every other placement of the build can then check that version out, wherever it stands; their own heads do not move. If anything other than air touches the box, the version is still saved but a yellow warning tells you to run `/vcs expand`, since the touching blocks were left out. |
 | `/vcs preview <version>` | Renders that version in place of the real blocks inside the selected placement's box, where that placement holds it. Nothing in the world changes. A version too big for the box is refused; check it out to see it at its own size. |
@@ -98,7 +98,7 @@ The file is read again every time you join a world or server, so an edit takes h
 ## How it works
 
 - Schematics are written in Sponge v3 format to the mod's own `mcvcs/` folder in the game directory (next to `config/`, `saves/` and so on), separate from WorldEdit's `//schem` files. Each build has a folder named after it holding one file per version: `mcvcs/<buildname>/v1.schem`, `mcvcs/<buildname>/v2.schem`, ...
-- Build and placement names become folder names and chat labels, so they may only contain letters, digits, `_`, `+`, `-` and dots between those characters.
+- Build and placement names become folder names and chat labels, so they may only contain letters, digits, `_`, `+`, `-` and dots between those characters, and may not start with `-`, which would read as a flag.
 - Geometry is kept in *build space*, the build's own coordinates, in which version 1's minimum corner is `(0, 0, 0)`. Every version has its own extent there, which is how versions of different sizes line up with each other, and every placement has an `origin`: the world position build space `(0, 0, 0)` sits at. A placement's box is the extent of the version it holds, laid at that origin. The origin is fixed when the placement is made and never moves again, so checking out a version of another size grows or shrinks the box around the build instead of sliding the build sideways.
 - Each build's folder holds `build.json` describing it: its name, the world it belongs to (the save folder's name, e.g. `New World`, or `level-name` on a server), its latest version, the extent of every version and every placement of it with its dimension, origin and `head`, the version that placement holds. It is rewritten on every create, place, commit, expand, checkout and unplace, and the folder is the only place the build exists: nothing is stored in the world save, and deleting a build's folder, which is what `/vcs confirmDelete` does, removes it.
 
@@ -149,7 +149,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ## TODO
 
-
 ### Roadmap
 
 - Add version tags. To keep track of TickNet versions more easily. Tags could be like '1.5.4' and selectable in checkouts, diffs and previews
@@ -158,7 +157,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Make automatic releases on github by reading tags
 - Make version automatically in format mcvcs-fabric-1.2.0+mc26.1.2
 - Add shrink command to shrink selection to bounding box
-- Deny naming builds starting from minus (-)
 - vcs select, vcs select buildname should disarm punch
 - In mcvcs folder name builds as buildname-v2 instead of just v2
 - Allow change build box to new worldedit selection, think about shrinking when blocks get excluded. vcs shrink command
@@ -174,4 +172,3 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - /vcs off command to turn off diff and preview
 - Add clickable tp command in /vcs builds list
 - Add some effect when punching is armed
-- In vcs builds display label Placement before placement name
