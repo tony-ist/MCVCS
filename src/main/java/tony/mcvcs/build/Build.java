@@ -105,6 +105,16 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 	}
 
 	/**
+	 * Whether a new build or placement may be called {@code name}: a {@link #isValidName valid name} that starts with a
+	 * letter from {@code a} to {@code z}, in either case. Only checked when a build or placement is made, so ones named
+	 * before the rule still load.
+	 */
+	public static boolean isValidNewName(String name) {
+		char first = name.isEmpty() ? 0 : Character.toLowerCase(name.charAt(0));
+		return first >= 'a' && first <= 'z' && isValidName(name);
+	}
+
+	/**
 	 * What identifies the world {@code server} runs as a {@link #world}: the name of its save folder, which is unique
 	 * within a game directory and survives reopening the world. In singleplayer that is the folder under
 	 * {@code saves/}; on a dedicated server it is {@code level-name}.

@@ -79,6 +79,13 @@ public class VcsCreateCommandGameTest extends VcsGameTest {
 			if (Files.exists(BuildStorage.root().resolve("-dash"))) {
 				throw new AssertionError("Create with name '-dash' must not write a build folder");
 			}
+			// A build name has to start with a letter from a to z.
+			for (String name : List.of("1digit", "_under", "+plus")) {
+				runCommand(context, "vcs create " + name + " -we");
+				if (Files.exists(BuildStorage.root().resolve(name))) {
+					throw new AssertionError("Create with name '" + name + "' must not write a build folder");
+				}
+			}
 
 			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 

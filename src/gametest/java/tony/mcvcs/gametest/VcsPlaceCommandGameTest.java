@@ -79,6 +79,9 @@ public class VcsPlaceCommandGameTest extends VcsGameTest {
 			assertOnlyMessage(run(context, "vcs place gametest-place-missing"), "No build named gametest-place-missing in this world");
 			// So is a version the build does not have.
 			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME + " 2"), "Build " + BUILD_NAME + " only has versions 1 to 1");
+			// And so is a placement name that does not start with a letter from a to z.
+			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME + " latest 2nd"),
+				"Placement name 2nd must start with a letter from a to z and may only contain letters, digits, _ + - and dots between them");
 
 			// Placing where the player stands shows the copy one block below their feet, extending east and south, the
 			// same spot /vcs load and //paste would use. The player is moved well clear of the first placement first.
