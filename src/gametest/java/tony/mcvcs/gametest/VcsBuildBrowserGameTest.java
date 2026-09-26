@@ -14,6 +14,7 @@ import java.util.Arrays;
 import com.mojang.blaze3d.platform.Window;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.BlockPos;
@@ -21,11 +22,13 @@ import net.minecraft.world.level.block.Blocks;
 import org.lwjgl.glfw.GLFW;
 
 import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.ClientPlacement;
 import tony.mcvcs.build.PreviewGrid;
 import tony.mcvcs.client.browser.BuildBrowser;
 import tony.mcvcs.client.browser.BuildBrowserKey;
 import tony.mcvcs.client.browser.BuildBrowserScreen;
 import tony.mcvcs.client.browser.Thumbnail;
+import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.client.preview.PlacePreview;
 import tony.mcvcs.client.preview.PreviewManager;
@@ -34,8 +37,9 @@ import tony.mcvcs.network.BuildSummary;
 /**
  * The builds overlay: {@code B} opens it with every build of the world in a grid, each showing its newest committed
  * version, name and tags; a build too big to download by itself waits for a click; a very long one arrives as a
- * coarser grid of itself; the refresh button picks up a new
- * commit; clicking a build starts {@code /vcs place} of it; and a player who may not run {@code /vcs} is told so.
+ * coarser grid of itself; the refresh button picks up a new commit; the buttons a hovered cell shows select the build,
+ * start {@code /vcs place} of it and teleport onto it, the first two greyed out for a build placed nowhere; and a player
+ * who may not run {@code /vcs} is told so.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsBuildBrowserGameTest extends VcsGameTest {
@@ -139,15 +143,28 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			context.waitTicks(2);
 			context.takeScreenshot("mcvcs-builds-overlay-refreshed");
 
+			// Hovering a cell shows its buttons over the preview.
+			hover(context, SMALL);
+			context.waitTicks(2);
+			context.takeScreenshot("mcvcs-builds-overlay-buttons");
+
 			// B again closes it.
 			context.getInput().pressKey(BuildBrowserKey.KEY);
 			context.waitFor(client -> client.screen == null);
 
-			// Clicking the tower closes the overlay and starts placing its newest version where the player stands.
-			context.getInput().pressKey(BuildBrowserKey.KEY);
-			context.waitForScreen(BuildBrowserScreen.class);
+			// Select closes the overlay and selects the hall's only placement.
+			open(context);
+			clickButton(context, BIG, BuildBrowserScreen.SELECT);
+			context.waitFor(client -> client.screen == null);
+			context.waitFor(client -> {
+				ClientPlacement selected = ClientPlacements.selected();
+				return selected != null && selected.build().equals(BIG);
+			});
+
+			// Place closes the overlay and starts placing the tower's newest version where the player stands.
+			open(context);
 			waitForReady(context, SMALL, 3);
-			click(context, SMALL);
+			clickButton(context, SMALL, BuildBrowserScreen.PLACE);
 			context.waitFor(client -> client.screen == null);
 			context.waitFor(client -> {
 				PlacePreview place = PreviewManager.place();
@@ -158,6 +175,36 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			context.waitTicks(5);
 			context.takeScreenshot("mcvcs-builds-overlay-placing");
 			runCommand(context, "vcs cancelPlace");
+			context.runOnClient(client -> client.player.setXRot(0.0f));
+
+			// TP closes the overlay and puts the player on top of the bridge, at its centre.
+			open(context);
+			clickButton(context, LONG, BuildBrowserScreen.TP);
+			context.waitFor(client -> client.screen == null);
+			BlockPos onBridge = new BlockPos(bridgeMin.getX() + 70, bridgeMax.getY() + 1, bridgeMin.getZ() + 1);
+			context.waitFor(client -> client.player.blockPosition().equals(onBridge));
+
+			// A build placed nowhere has Select and TP greyed out, and pressing one does nothing.
+			runCommand(context, "vcs unplace -k");
+			open(context);
+			context.waitFor(client -> {
+				BuildSummary hall = summary(BIG);
+				return BuildBrowser.listState() == BuildBrowser.ListState.LOADED && hall != null && hall.placements() == 0;
+			});
+			hover(context, BIG);
+			context.runOnClient(client -> {
+				BuildBrowserScreen screen = (BuildBrowserScreen) client.screen;
+				if (screen.buttonOf(BuildBrowserScreen.SELECT).active || screen.buttonOf(BuildBrowserScreen.TP).active || !screen.buttonOf(BuildBrowserScreen.PLACE).active) {
+					throw new AssertionError("Expected only Place to be pressable on a build with no placements");
+				}
+			});
+			context.waitTicks(2);
+			context.takeScreenshot("mcvcs-builds-overlay-unplaced");
+			clickButton(context, BIG, BuildBrowserScreen.SELECT);
+			context.waitTicks(2);
+			context.waitForScreen(BuildBrowserScreen.class);
+			context.getInput().pressKey(BuildBrowserKey.KEY);
+			context.waitFor(client -> client.screen == null);
 		} finally {
 			ClientConfig.load();
 		}
@@ -224,16 +271,47 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 		return BuildBrowser.builds().stream().filter(build -> build.name().equals(name)).findFirst().orElse(null);
 	}
 
-	/** Moves the mouse onto the preview of {@code name}'s cell and clicks it, as a player would. */
+	/** Opens the overlay with {@code B}. */
+	private static void open(ClientGameTestContext context) {
+		context.getInput().pressKey(BuildBrowserKey.KEY);
+		context.waitForScreen(BuildBrowserScreen.class);
+		context.waitFor(client -> BuildBrowser.listState() == BuildBrowser.ListState.LOADED);
+	}
+
+	/** Clicks the top left corner of the preview of {@code name}'s cell, clear of its buttons, as a player would. */
 	private static void click(ClientGameTestContext context, String name) {
-		ScreenRectangle cell = context.computeOnClient(client -> {
+		ScreenRectangle cell = cellOf(context, name);
+		clickAt(context, cell.left() + 8, cell.top() + 8);
+	}
+
+	/** Moves the mouse onto the label of {@code name}'s cell, so its buttons show with the tooltip below them. */
+	private static void hover(ClientGameTestContext context, String name) {
+		ScreenRectangle cell = cellOf(context, name);
+		moveTo(context, cell.left() + 8, cell.bottom() - 4);
+		context.waitTick();
+	}
+
+	/** Hovers {@code name}'s cell and clicks its button labelled {@code label}. */
+	private static void clickButton(ClientGameTestContext context, String name, String label) {
+		hover(context, name);
+		ScreenRectangle button = context.computeOnClient(client -> {
+			Button found = client.screen instanceof BuildBrowserScreen screen ? screen.buttonOf(label) : null;
+			if (found == null) {
+				throw new AssertionError("Expected a " + label + " button on the cell of " + name);
+			}
+			return found.getRectangle();
+		});
+		clickAt(context, button.left() + button.width() / 2.0, button.top() + button.height() / 2.0);
+	}
+
+	private static ScreenRectangle cellOf(ClientGameTestContext context, String name) {
+		return context.computeOnClient(client -> {
 			ScreenRectangle found = client.screen instanceof BuildBrowserScreen screen ? screen.cellOf(name) : null;
 			if (found == null) {
 				throw new AssertionError("Expected a cell for " + name + " on " + client.screen);
 			}
 			return found;
 		});
-		clickAt(context, cell.left() + cell.width() / 2.0, cell.top() + cell.width() / 2.0);
 	}
 
 	/** Clicks the refresh button in the top right corner. */

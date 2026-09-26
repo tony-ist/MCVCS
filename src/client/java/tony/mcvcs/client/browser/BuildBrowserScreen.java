@@ -1,9 +1,12 @@
 package tony.mcvcs.client.browser;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.screens.LoadingDotsText;
 import net.minecraft.client.gui.screens.Screen;
@@ -17,6 +20,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.util.Util;
 import org.jspecify.annotations.Nullable;
 
+import tony.mcvcs.build.Build;
 import tony.mcvcs.build.ClientPlacement;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.config.ClientConfig;
@@ -27,9 +31,12 @@ import tony.mcvcs.network.BuildSummary;
  * turning slowly about its vertical axis, with the build's name, version and tags under it. The build of the selected
  * placement is outlined.
  * <p>
- * Clicking a cell closes the overlay and runs {@code /vcs place} for that version, so the copy shows up where the
- * player stands, ready to be lined up. A build bigger than {@link ClientConfig.Settings#autoDownloadLimit} shows a
- * placeholder instead of its preview until clicked, and that first click downloads the preview rather than placing.
+ * Hovering a cell swaps its preview for three buttons, each closing the overlay and running a command as if typed:
+ * {@code Select} runs {@code /vcs select} for the build, {@code TP} runs {@code /vcs tp} to it, and {@code Place} runs
+ * {@code /vcs place} for the version the cell shows, so the copy shows up where the player stands, ready to be lined
+ * up. A build with no placements has the first two greyed out. A build bigger than
+ * {@link ClientConfig.Settings#autoDownloadLimit} shows a placeholder instead of its preview until the cell is clicked
+ * outside its buttons, which downloads the preview.
  * <p>
  * The list is asked for when the overlay opens and when its refresh button is pressed, and not otherwise, see
  * {@link BuildBrowser}. How big the cells are and how fast they turn come from {@link ClientConfig}. The game keeps
@@ -49,13 +56,29 @@ public final class BuildBrowserScreen extends Screen {
 	private static final int GREY = 0xFFA0A0A0;
 	private static final int RED = 0xFFFF6B6B;
 	private static final int CELL = 0x80000000;
-	private static final int CELL_HOVERED = 0xA0303040;
+	private static final int CELL_HOVERED = 0xD0304A6A;
 	private static final int BORDER = 0xFF3A3A3A;
 	private static final int BORDER_HOVERED = 0xFFB0B0B0;
 	/** The yellow the selected placement's own box is drawn in. */
 	private static final int BORDER_SELECTED = 0xFFFFFF55;
 
+	/** Labels of the buttons a hovered cell shows. */
+	public static final String SELECT = "Select";
+	public static final String TP = "TP";
+	public static final String PLACE = "Place";
+	/** Height of those buttons, unless the cell is too small for three of them stacked. */
+	private static final int BUTTON_HEIGHT = 20;
+	/** Space between the buttons, and between them and the edges of the preview. */
+	private static final int BUTTON_GAP = 2;
+	/** Width a button needs beyond its label. */
+	private static final int BUTTON_PADDING = 16;
+
 	private double scroll;
+	private final Button select = Button.builder(Component.literal(SELECT), button -> run(build -> "vcs select " + build.name())).build();
+	private final Button tp = Button.builder(Component.literal(TP), button -> run(build -> "vcs tp " + build.name())).build();
+	private final Button place = Button.builder(Component.literal(PLACE), button -> run(build -> "vcs place " + build.name() + " " + build.version())).build();
+	/** The build whose cell the buttons are on, or null while no cell is hovered and they are hidden. */
+	private @Nullable BuildSummary buttonsFor;
 
 	public BuildBrowserScreen() {
 		super(Component.literal("MCVCS Builds"));
@@ -71,6 +94,12 @@ public final class BuildBrowserScreen extends Screen {
 		addRenderableWidget(Button.builder(Component.literal("Refresh"), button -> BuildBrowser.refresh())
 			.bounds(width - GAP - 60, 6, 60, 20)
 			.build());
+		// Clickable but not drawn with the other widgets: they go over the previews, so the grid draws them after its cells.
+		for (Button button : buttons()) {
+			addWidget(button);
+		}
+		buttonsFor = null;
+		hideButtons();
 		scroll = Mth.clamp(scroll, 0.0, maxScroll());
 	}
 
@@ -91,18 +120,18 @@ public final class BuildBrowserScreen extends Screen {
 				if (BuildBrowser.builds().isEmpty()) {
 					graphics.centeredText(font, "No builds in this world yet; run /vcs create <buildname> to start one", width / 2, height / 2, GREY);
 				} else {
-					grid(graphics, mouseX, mouseY);
+					grid(graphics, mouseX, mouseY, partialTick);
 				}
 			}
 		}
 	}
 
-	private void grid(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
+	private void grid(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
 		List<BuildSummary> builds = BuildBrowser.builds();
 		Layout layout = layout();
 		ClientPlacement selected = ClientPlacements.selected();
 		float yaw = yaw();
-		@Nullable BuildSummary hovered = at(mouseX, mouseY);
+		@Nullable BuildSummary hovered = updateButtons(mouseX, mouseY);
 
 		graphics.enableScissor(0, HEADER, width, height - GAP);
 		for (int i = 0; i < builds.size(); i++) {
@@ -116,9 +145,15 @@ public final class BuildBrowserScreen extends Screen {
 			boolean isSelected = selected != null && selected.build().equals(build.name());
 			cell(graphics, build, x, y, layout.cell(), isHovered, isSelected, yaw);
 		}
+		if (hovered != null) {
+			for (Button button : buttons()) {
+				button.extractRenderState(graphics, mouseX, mouseY, partialTick);
+			}
+		}
 		graphics.disableScissor();
 
-		if (hovered != null) {
+		// Over a button, that button's own tooltip says what it does instead.
+		if (hovered != null && !overButton(mouseX, mouseY)) {
 			graphics.setComponentTooltipForNextFrame(font, tooltip(hovered), mouseX, mouseY);
 		}
 	}
@@ -128,18 +163,29 @@ public final class BuildBrowserScreen extends Screen {
 		graphics.fill(x, y, x + size, bottom, hovered ? CELL_HOVERED : CELL);
 		graphics.outline(x - 1, y - 1, size + 2, size + LABEL + 2, selected ? BORDER_SELECTED : hovered ? BORDER_HOVERED : BORDER);
 
+		// A hovered cell has its buttons where the preview was, with nothing behind them.
+		if (!hovered) {
+			preview(graphics, build, x, y, size, yaw);
+		}
+
+		graphics.text(font, fit(build.name(), size - 6), x + 3, y + size + 2, WHITE);
+		graphics.text(font, fit(build.versionLabel(), size - 6), x + 3, y + size + 2 + font.lineHeight + 1, GREY);
+	}
+
+	/** The preview of the version {@code build} names, or what is keeping it, on the square at the top of its cell. */
+	private void preview(GuiGraphicsExtractor graphics, BuildSummary build, int x, int y, int size, float yaw) {
 		int centerX = x + size / 2;
 		int centerY = y + size / 2;
 		Thumbnail thumbnail = BuildBrowser.thumbnail(build);
 		if (thumbnail == null) {
 			if (BuildBrowser.downloadsByItself(build)) {
-				loading(graphics, centerX, centerY, "Waiting");
+				loading(graphics, centerX, centerY, "Downloading");
 			} else {
 				placeholder(graphics, build, x, y, size);
 			}
 		} else {
 			switch (thumbnail.state()) {
-				case REQUESTED -> loading(graphics, centerX, centerY, "Waiting");
+				case REQUESTED -> loading(graphics, centerX, centerY, "Downloading");
 				case DOWNLOADING -> loading(graphics, centerX, centerY, "Downloading " + (int) (thumbnail.progress() * 100) + "%");
 				case MESHING -> loading(graphics, centerX, centerY, "Preparing");
 				case FAILED -> wrapped(graphics, thumbnail.failure() + (thumbnail.retryable() ? "; refresh to try again" : ""), x, y, size, RED);
@@ -154,9 +200,6 @@ public final class BuildBrowserScreen extends Screen {
 				}
 			}
 		}
-
-		graphics.text(font, fit(build.name(), size - 6), x + 3, y + size + 2, WHITE);
-		graphics.text(font, fit(build.versionLabel(), size - 6), x + 3, y + size + 2 + font.lineHeight + 1, GREY);
 	}
 
 	/** A build too big to download by itself: says so, and how big it is. */
@@ -190,10 +233,22 @@ public final class BuildBrowserScreen extends Screen {
 	private static List<Component> tooltip(BuildSummary build) {
 		String size = build.extent().sizeX() + "x" + build.extent().sizeY() + "x" + build.extent().sizeZ()
 			+ " (" + String.format("%,d", build.extent().volume()) + " blocks)";
-		String action = BuildBrowser.thumbnail(build) == null && !BuildBrowser.downloadsByItself(build)
-			? "Click to download the preview"
-			: "Click to place a copy where you stand";
-		return List.of(Component.literal(build.name() + " " + build.versionLabel()), Component.literal(size), Component.literal(action));
+		String placements = switch (build.placements()) {
+			case 0 -> "Not placed anywhere";
+			case 1 -> "1 placement";
+			default -> build.placements() + " placements";
+		};
+		List<Component> lines = new ArrayList<>(List.of(
+			Component.literal(build.name() + " " + build.versionLabel()), Component.literal(size), Component.literal(placements)));
+		if (waitsForClick(build)) {
+			lines.add(Component.literal("Click to download the preview"));
+		}
+		return lines;
+	}
+
+	/** Whether {@code build}'s preview is not downloaded until its cell is clicked, and that click has not come yet. */
+	private static boolean waitsForClick(BuildSummary build) {
+		return BuildBrowser.thumbnail(build) == null && !BuildBrowser.downloadsByItself(build);
 	}
 
 	/** How far the previews have turned by now: the same for every cell, so they turn together. */
@@ -204,29 +259,103 @@ public final class BuildBrowserScreen extends Screen {
 
 	@Override
 	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+		// The buttons follow the mouse only when drawn, and the mouse may have moved since.
+		updateButtons(event.x(), event.y());
 		if (super.mouseClicked(event, doubleClick)) {
 			return true;
 		}
-		BuildSummary build = event.button() == 0 ? at(event.x(), event.y()) : null;
-		if (build == null || minecraft == null) {
+		if (event.button() != 0) {
+			return false;
+		}
+		if (overButton(event.x(), event.y())) {
+			// A greyed-out button: it does nothing, and neither does the cell under it.
+			return true;
+		}
+		BuildSummary build = at(event.x(), event.y());
+		if (build == null || minecraft == null || !waitsForClick(build)) {
 			return false;
 		}
 		minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0f));
-		if (BuildBrowser.thumbnail(build) == null && !BuildBrowser.downloadsByItself(build)) {
-			BuildBrowser.download(build);
-		} else {
-			place(build);
-		}
+		BuildBrowser.download(build);
 		return true;
 	}
 
-	/** Closes the overlay and runs {@code /vcs place} for the version the cell shows, as if typed. */
-	private void place(BuildSummary build) {
+	/** Closes the overlay and runs the command {@code command} makes for the build the buttons are on, as if typed. */
+	private void run(Function<BuildSummary, String> command) {
+		BuildSummary build = buttonsFor;
 		LocalPlayer player = minecraft == null ? null : minecraft.player;
+		if (build == null) {
+			return;
+		}
 		onClose();
 		if (player != null) {
 			// Sent as a command, so the server checks the permission and answers in chat the way it does for the command.
-			player.connection.sendCommand("vcs place " + build.name() + " " + build.version());
+			player.connection.sendCommand(command.apply(build));
+		}
+	}
+
+	private List<Button> buttons() {
+		return List.of(select, tp, place);
+	}
+
+	private void hideButtons() {
+		for (Button button : buttons()) {
+			button.visible = false;
+		}
+	}
+
+	/** Whether {@code (x, y)} is on one of the buttons, greyed out or not. */
+	private boolean overButton(double x, double y) {
+		return buttons().stream().anyMatch(button -> button.visible && button.isMouseOver(x, y));
+	}
+
+	/**
+	 * Puts the buttons on the cell under {@code (x, y)}, or hides them if there is none, and says whose cell that is.
+	 * What they say and whether they can be pressed is only worked out again when the mouse moves onto another build.
+	 */
+	private @Nullable BuildSummary updateButtons(double x, double y) {
+		BuildSummary build = at(x, y);
+		ScreenRectangle cell = build == null ? null : cellOf(build.name());
+		if (build == null || cell == null) {
+			buttonsFor = null;
+			hideButtons();
+			return null;
+		}
+		if (!build.equals(buttonsFor)) {
+			buttonsFor = build;
+			boolean placed = build.placements() > 0;
+			Tooltip notPlaced = Tooltip.create(Component.literal("Not placed anywhere; place it first"));
+			select.active = placed;
+			select.setTooltip(!placed ? notPlaced : Tooltip.create(Component.literal(build.placements() == 1
+				? "Select its placement"
+				: "Select one of its " + build.placements() + " placements: punch a block of the one you want")));
+			tp.active = placed;
+			tp.setTooltip(!placed ? notPlaced : Tooltip.create(Component.literal(build.placements() == 1
+				? "Teleport on top of its placement"
+				: "Teleport on top of its " + Build.MAIN + " placement, or its first if it has none")));
+			place.setTooltip(Tooltip.create(Component.literal("Place a copy of v" + build.version() + " where you stand")));
+		}
+		for (Button button : buttons()) {
+			button.visible = true;
+		}
+		layoutButtons(cell.left(), cell.top(), cell.width());
+		return build;
+	}
+
+	/**
+	 * Stacks the buttons in the middle of the preview of the cell at {@code (x, y)}, all as wide as the widest label
+	 * needs, and lower than {@link #BUTTON_HEIGHT} only if the preview is too small for three of them.
+	 */
+	private void layoutButtons(int x, int y, int size) {
+		List<Button> buttons = buttons();
+		int count = buttons.size();
+		int widest = buttons.stream().mapToInt(button -> font.width(button.getMessage())).max().orElse(0);
+		int buttonWidth = Math.min(widest + BUTTON_PADDING, size - 2 * BUTTON_GAP);
+		int buttonHeight = Math.min(BUTTON_HEIGHT, (size - 2 * BUTTON_GAP - (count - 1) * BUTTON_GAP) / count);
+		int left = x + (size - buttonWidth) / 2;
+		int top = y + (size - count * buttonHeight - (count - 1) * BUTTON_GAP) / 2;
+		for (int i = 0; i < count; i++) {
+			buttons.get(i).setRectangle(buttonWidth, buttonHeight, left, top + i * (buttonHeight + BUTTON_GAP));
 		}
 	}
 
@@ -305,5 +434,10 @@ public final class BuildBrowserScreen extends Screen {
 			}
 		}
 		return null;
+	}
+
+	/** The button labelled {@code label} on the hovered cell, for tests to click; null while no cell is hovered. */
+	public @Nullable Button buttonOf(String label) {
+		return buttons().stream().filter(button -> button.visible && button.getMessage().getString().equals(label)).findFirst().orElse(null);
 	}
 }

@@ -86,9 +86,17 @@ Every key can be rebound like any other under Options, Controls, Key Binds, in t
 
 With the mod on both the server and your client, `B` opens a screen listing every build in this world in a grid, sorted by name. Each cell shows the build's newest committed version as a 3D preview turning about its vertical axis, with the build's name under it and the version with its tags, e.g. `v2 (2.0.0)`. The build of your selected placement is outlined in yellow. Placements play no part: what a cell shows is the build's newest version, whichever version its placements hold and whatever has been changed in them since.
 
-Clicking a cell closes the overlay and runs `/vcs place <buildname> <version>` for the version the cell shows, so the copy appears below your feet ready to be lined up with the numpad keys.
+Hovering a cell turns it blue and replaces its preview with three buttons stacked in the middle, each closing the overlay and running a command for that build:
 
-Previews are downloaded from the server when the overlay opens, with loading dots and a percentage in each cell until its preview is ready. A version never changes once committed, so each preview is downloaded once and kept until you leave the server; opening the overlay again shows it straight away. A build bigger than `autoDownloadLimit` blocks (see [Client settings](#client-settings)) is not downloaded by itself: its cell says `Click to download the preview` with its size, and the first click downloads it instead of placing the build.
+| Button | Runs | What it does |
+| --- | --- | --- |
+| `Select` | `/vcs select <buildname>` | Selects the build's placement; if it has several, punch the one you want |
+| `TP` | `/vcs tp <buildname>` | Teleports you on top of its `main` placement, or its first if it has none called `main` |
+| `Place` | `/vcs place <buildname> <version>` | Places a copy of the version the cell shows below your feet, ready to be lined up with the numpad keys |
+
+`Select` and `TP` are greyed out for a build that is not placed anywhere.
+
+Previews are downloaded from the server when the overlay opens, with loading dots and `Downloading` in each cell, then the percentage downloaded, until its preview is ready. A version never changes once committed, so each preview is downloaded once and kept until you leave the server; opening the overlay again shows it straight away. A build bigger than `autoDownloadLimit` blocks (see [Client settings](#client-settings)) is not downloaded by itself: its cell says `Click to download the preview` with its size, and clicking the cell anywhere but on its buttons downloads it.
 
 The list is fetched when the overlay opens and is not updated while it stays open. The `Refresh` button in the top right corner fetches it again, picking up new builds and new commits, and retries any preview that failed to download.
 
@@ -176,7 +184,7 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
-- Builds overlay: show buttons in cells: tp and select the build. After that add ability to preview any version of the build
+- Builds overlay: add ability to preview any version of the build
 - Preview of huge builds is laggy when moving it. Maybe make debounce: move only box and rerender the build only after some time 
 - Aliases for commands to type them faster
 - Make automatic releases on github by reading tags

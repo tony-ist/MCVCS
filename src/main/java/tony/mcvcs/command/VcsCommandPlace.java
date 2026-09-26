@@ -145,8 +145,8 @@ public final class VcsCommandPlace {
 
 		source.sendSuccess(() -> Component.literal("Showing ").append(VcsMessages.name(buildName + Build.LABEL_SEPARATOR + name))
 			.append(" " + build.versionLabel(placed) + " (" + VcsMessages.size(box) + ", " + box.volume() + " blocks) at " + box.min().toShortString())
-			.append("; line it up with the numpad keys, or hold left alt and turn the mouse wheel to push it away and pull it back, then run ").append(ChatButtons.command("/vcs confirmPlace"))
-			.append(" to place it or ").append(ChatButtons.command("/vcs cancelPlace")).append(" to drop it"), false);
+			.append("; hold left alt and turn the mouse wheel to move it, then run ").append(ChatButtons.command("/vcs confirmPlace"))
+			.append(" to place it or ").append(ChatButtons.command("/vcs cancelPlace")).append(" to drop it. Numpad 5 places it too."), false);
 		return 1;
 	}
 
