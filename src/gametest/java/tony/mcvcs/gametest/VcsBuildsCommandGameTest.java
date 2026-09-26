@@ -12,7 +12,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.select;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
@@ -32,7 +31,7 @@ import net.minecraft.world.level.block.Blocks;
 /**
  * {@code /vcs builds} lists every build in the world with a {@code [Select]} button after each one that is not
  * selected; pressing the button selects that build with no confirmation dialog in between. The selected build is
- * marked instead.
+ * marked instead. Every placement, selected or not, also gets a {@code [Tp]} button that teleports onto it.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsBuildsCommandGameTest extends VcsGameTest {
@@ -87,20 +86,21 @@ public class VcsBuildsCommandGameTest extends VcsGameTest {
 				throw new AssertionError("Unexpected header '" + listed.get(0).getString() + "'");
 			}
 			assertBuildLine(listed.get(1), FIRST);
-			assertPlacementLine(listed.get(2), "[" + VcsCommandBuilds.SELECT_BUTTON + "]");
+			assertPlacementLine(listed.get(2), "[" + VcsCommandBuilds.SELECT_BUTTON + "] [" + VcsCommandBuilds.TP_BUTTON + "]");
 			assertBuildLine(listed.get(3), SECOND);
-			assertPlacementLine(listed.get(4), "[" + VcsCommandBuilds.SELECTED_MARKER + "]");
-			if (button(listed.get(4)).isPresent()) {
-				throw new AssertionError("The selected placement must not get a button but got " + button(listed.get(4)).get());
-			}
+			assertPlacementLine(listed.get(4), "[" + VcsCommandBuilds.SELECTED_MARKER + "] [" + VcsCommandBuilds.TP_BUTTON + "]");
+			assertButtons(listed.get(2), ChatButtons.run("/vcs select " + FIRST + " " + Build.MAIN), ChatButtons.run("/vcs tp " + FIRST + " " + Build.MAIN));
+			// The selected placement gets no select button, but can still be teleported to.
+			assertButtons(listed.get(4), ChatButtons.run("/vcs tp " + SECOND + " " + Build.MAIN));
 
-			// Pressing the first build's button selects it.
-			ClickEvent.Custom button = button(listed.get(2)).orElseThrow(() -> new AssertionError("Expected a button on '" + FIRST + "' in " + listed.get(2).getString()));
-			ClickEvent expected = ChatButtons.run("/vcs select " + FIRST + " " + Build.MAIN);
-			if (!button.equals(expected)) {
-				throw new AssertionError("Expected the button to be " + expected + " but got " + button);
-			}
-			press(context, button);
+			// Pressing the selected build's [Tp] puts the player on top of its box, at its centre.
+			press(context, buttons(listed.get(4)).get(0));
+			waitForPosition(context, secondMin.getX() + 1.5, secondMax.getY() + 1, secondMin.getZ() + 1.0);
+			context.waitTicks(5);
+			screenshotLastFrame(context, "mcvcs-vcs-builds-tp");
+
+			// Pressing the first build's [Select] selects it.
+			press(context, buttons(listed.get(2)).get(0));
 			waitForSelection(context, FIRST);
 
 			// Listing again shows the marker moved.
@@ -108,8 +108,12 @@ public class VcsBuildsCommandGameTest extends VcsGameTest {
 			if (relisted.size() != 5) {
 				throw new AssertionError("Expected a header, two builds and their placements but got " + strings(relisted));
 			}
-			assertPlacementLine(relisted.get(2), "[" + VcsCommandBuilds.SELECTED_MARKER + "]");
-			assertPlacementLine(relisted.get(4), "[" + VcsCommandBuilds.SELECT_BUTTON + "]");
+			assertPlacementLine(relisted.get(2), "[" + VcsCommandBuilds.SELECTED_MARKER + "] [" + VcsCommandBuilds.TP_BUTTON + "]");
+			assertPlacementLine(relisted.get(4), "[" + VcsCommandBuilds.SELECT_BUTTON + "] [" + VcsCommandBuilds.TP_BUTTON + "]");
+
+			// The first build's [Tp] takes the player back over to it.
+			press(context, buttons(relisted.get(2)).get(0));
+			waitForPosition(context, firstMin.getX() + 1.5, firstMax.getY() + 1, firstMin.getZ() + 1.0);
 		}
 	}
 
@@ -130,18 +134,29 @@ public class VcsBuildsCommandGameTest extends VcsGameTest {
 		context.waitTicks(2);
 	}
 
-	/** The first {@link ClickEvent.Custom} in {@code component} or its siblings, if any. */
-	private static Optional<ClickEvent.Custom> button(Component component) {
+	/** Every {@link ClickEvent.Custom} in {@code component} and its siblings, in the order they are shown. */
+	private static List<ClickEvent.Custom> buttons(Component component) {
+		List<ClickEvent.Custom> buttons = new ArrayList<>();
 		if (component.getStyle().getClickEvent() instanceof ClickEvent.Custom custom) {
-			return Optional.of(custom);
+			buttons.add(custom);
 		}
 		for (Component sibling : component.getSiblings()) {
-			Optional<ClickEvent.Custom> button = button(sibling);
-			if (button.isPresent()) {
-				return button;
-			}
+			buttons.addAll(buttons(sibling));
 		}
-		return Optional.empty();
+		return buttons;
+	}
+
+	/** That {@code line} carries exactly the {@code expected} buttons, in that order. */
+	private static void assertButtons(Component line, ClickEvent... expected) {
+		List<ClickEvent.Custom> actual = buttons(line);
+		if (!actual.equals(List.of(expected))) {
+			throw new AssertionError("Expected the buttons " + List.of(expected) + " on '" + line.getString() + "' but got " + actual);
+		}
+	}
+
+	/** Waits until the client's player stands at {@code (x, y, z)}. */
+	private static void waitForPosition(ClientGameTestContext context, double x, double y, double z) {
+		context.waitFor(client -> client.player.position().distanceToSqr(x, y, z) < 1.0E-4);
 	}
 
 	/** The heading of one build: its name and its latest version. */

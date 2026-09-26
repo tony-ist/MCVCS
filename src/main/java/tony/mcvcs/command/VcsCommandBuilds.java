@@ -17,17 +17,20 @@ import tony.mcvcs.network.ChatButtons;
 
 /**
  * {@code /vcs builds}: lists every build in the world with its placements, each with a chat button that runs
- * {@code /vcs select} for it, see {@link ChatButtons}; the selected placement is marked instead.
+ * {@code /vcs select} for it, see {@link ChatButtons}, the selected placement being marked instead, and one that runs
+ * {@code /vcs tp} to it.
  */
 public final class VcsCommandBuilds {
 	/** Label of the button put after each placement that is not selected. */
 	public static final String SELECT_BUTTON = "Select";
 	/** Marker put after the selected placement instead of a button. */
 	public static final String SELECTED_MARKER = "selected";
+	/** Label of the button put after every placement, selected or not, that teleports onto it. */
+	public static final String TP_BUTTON = "Tp";
 
 	static final VcsHelp HELP = new VcsHelp("builds", "/vcs builds",
 		"list the builds in this world",
-		"Lists every build in this world with its latest version, then each of its placements with the version it holds and its size. Each placement has a [Select] button that selects it; the selected one is marked [selected] instead.");
+		"Lists every build in this world with its latest version, then each of its placements with the version it holds and its size. Each placement has a [Select] button that selects it, or a [selected] marker if it already is, and a [Tp] button that teleports you onto it.");
 
 	private VcsCommandBuilds() {
 	}
@@ -61,14 +64,16 @@ public final class VcsCommandBuilds {
 
 	/**
 	 * One line under a build: the placement's name, labelled as one, the version it holds and its size, followed by a clickable
-	 * {@code [Select]} that runs {@code /vcs select} for it, or a {@code [selected]} marker if it already is.
+	 * {@code [Select]} that runs {@code /vcs select} for it, or a {@code [selected]} marker if it already is, and then a
+	 * clickable {@code [Tp]} that runs {@code /vcs tp} to it.
 	 */
 	private static MutableComponent placementLine(BuildPlacement placement, boolean selected) {
 		MutableComponent line = Component.literal("    Placement ").append(VcsMessages.name(placement.name()))
 			.append(" v" + placement.head() + " (" + placement.box().volume() + " blocks) at " + placement.box().min().toShortString() + " ");
-		if (selected) {
-			return line.append(ComponentUtils.wrapInSquareBrackets(Component.literal(SELECTED_MARKER)).withStyle(ChatFormatting.GRAY));
-		}
-		return line.append(ChatButtons.button(SELECT_BUTTON, "/vcs select " + placement.build().name() + " " + placement.name()));
+		String target = placement.build().name() + " " + placement.name();
+		line.append(selected
+			? ComponentUtils.wrapInSquareBrackets(Component.literal(SELECTED_MARKER)).withStyle(ChatFormatting.GRAY)
+			: ChatButtons.button(SELECT_BUTTON, "/vcs select " + target));
+		return line.append(" ").append(ChatButtons.button(TP_BUTTON, "/vcs tp " + target));
 	}
 }

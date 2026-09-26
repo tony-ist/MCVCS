@@ -44,8 +44,7 @@ import org.jspecify.annotations.Nullable;
  *   selections.json          which placement each player has selected in each world, by world then player UUID
  *   &lt;buildname&gt;/
  *     build.json             the {@link Build}: its world, every version's extent and every placement of it
- *     v1.schem, v2.schem ... one schematic per version
- * </pre>
+ *     &lt;buildname&gt;-v1.schem, &lt;buildname&gt;-v2.schem ... one schematic per version * </pre>
  * Every build has a folder of its own and none of it mixes with WorldEdit's {@code //schem} files. The folder
  * is shared by every world in the game directory, so each build records the world it belongs to and lookups
  * filter on it; a name can only be taken by one world at a time. Nothing is cached: each call reads or writes
@@ -103,7 +102,7 @@ public final class BuildStorage {
 
 	/** The schematic of version {@code version} of the build called {@code name}. */
 	public static Path schematicFile(String name, int version) {
-		return directory(name).resolve("v" + version + "." + FORMAT.getPrimaryFileExtension());
+		return directory(name).resolve(name + "-v" + version + "." + FORMAT.getPrimaryFileExtension());
 	}
 
 	/** The file recording every player's selection in every world. */

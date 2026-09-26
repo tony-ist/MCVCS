@@ -26,6 +26,7 @@
 			"tony.mcvcs.gametest.VcsDeselectCommandGameTest",
 			"tony.mcvcs.gametest.VcsDeleteCommandGameTest",
 			"tony.mcvcs.gametest.VcsReloadGameTest",
+			"tony.mcvcs.gametest.VcsMigrationGameTest",
 			"tony.mcvcs.gametest.VcsWorldScopeGameTest"
 		]
 	},

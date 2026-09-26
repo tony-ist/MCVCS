@@ -67,7 +67,7 @@ final class VcsTestSupport {
 	/** Where {@code /vcs} writes version {@code version} of the build called {@code name}, spelled out rather than taken from the mod. */
 	@SuppressWarnings("SameParameterValue")
 	static Path schematic(String name, int version) {
-		return FabricLoader.getInstance().getGameDir().resolve("mcvcs").resolve(name).resolve("v" + version + ".schem");
+		return FabricLoader.getInstance().getGameDir().resolve("mcvcs").resolve(name).resolve(name + "-v" + version + ".schem");
 	}
 
 	/** Where {@code /vcs} writes the description of the build called {@code name}, spelled out rather than taken from the mod. */

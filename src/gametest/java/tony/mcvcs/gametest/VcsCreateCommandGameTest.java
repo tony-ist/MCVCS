@@ -70,7 +70,7 @@ public class VcsCreateCommandGameTest extends VcsGameTest {
 
 			// The name is a folder name, so one that points outside the builds folder is refused before anything is written.
 			runCommand(context, "vcs create ..");
-			Path escaped = BuildStorage.root().resolve("..").resolve("v1.schem").normalize();
+			Path escaped = BuildStorage.root().resolve("..").resolve("..-v1.schem").normalize();
 			if (Files.exists(escaped)) {
 				throw new AssertionError("Create with name '..' must not write " + escaped);
 			}
