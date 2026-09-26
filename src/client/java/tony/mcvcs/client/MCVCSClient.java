@@ -1,6 +1,11 @@
 package tony.mcvcs.client;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.rendering.v1.PictureInPictureRendererRegistry;
+
+import tony.mcvcs.client.browser.BuildBrowser;
+import tony.mcvcs.client.browser.BuildBrowserKey;
+import tony.mcvcs.client.browser.BuildPreviewRenderer;
 
 import tony.mcvcs.client.diff.DiffHighlightRenderer;
 import tony.mcvcs.client.diff.DiffManager;
@@ -30,5 +35,8 @@ public class MCVCSClient implements ClientModInitializer {
 		PlacePreviewRenderer.register();
 		BuildLabelRenderer.register();
 		DiffHighlightRenderer.register();
+		BuildBrowser.register();
+		BuildBrowserKey.register();
+		PictureInPictureRendererRegistry.register(context -> new BuildPreviewRenderer(context.bufferSource()));
 	}
 }

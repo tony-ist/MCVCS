@@ -1,0 +1,242 @@
+package tony.mcvcs.gametest;
+
+import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
+import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
+import static tony.mcvcs.gametest.VcsTestSupport.read;
+import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
+import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
+import static tony.mcvcs.gametest.VcsTestSupport.schematic;
+import static tony.mcvcs.gametest.VcsTestSupport.select;
+import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
+
+import java.util.Arrays;
+
+import com.mojang.blaze3d.platform.Window;
+import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
+import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
+import net.minecraft.client.resources.language.I18n;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.Blocks;
+import org.lwjgl.glfw.GLFW;
+
+import tony.mcvcs.client.browser.BuildBrowser;
+import tony.mcvcs.client.browser.BuildBrowserKey;
+import tony.mcvcs.client.browser.BuildBrowserScreen;
+import tony.mcvcs.client.browser.Thumbnail;
+import tony.mcvcs.client.config.ClientConfig;
+import tony.mcvcs.client.preview.PlacePreview;
+import tony.mcvcs.client.preview.PreviewManager;
+import tony.mcvcs.network.BuildSummary;
+
+/**
+ * The builds overlay: {@code B} opens it with every build of the world in a grid, each showing its newest committed
+ * version, name and tags; a build too big to download by itself waits for a click; the refresh button picks up a new
+ * commit; clicking a build starts {@code /vcs place} of it; and a player who may not run {@code /vcs} is told so.
+ */
+@SuppressWarnings("UnstableApiUsage")
+public class VcsBuildBrowserGameTest extends VcsGameTest {
+	private static final String SMALL = "gametest-browser-tower";
+	private static final String BIG = "gametest-browser-hall";
+
+	@Override
+	protected void run(ClientGameTestContext context) {
+		checkKey(context);
+
+		resetBuilds(SMALL, BIG);
+		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
+			singleplayer.getClientLevel().waitForChunksRender();
+			// Held still, so the screenshots show the same side every run; the big build's 48 blocks are past the limit.
+			ClientConfig.override(new ClientConfig.Settings(0.0, ClientConfig.DEFAULT_CELL_SIZE, 40));
+
+			// A 3x4x3 tower of stone with a grass top, glass in the middle and leaves on top, hovering over the ground.
+			BlockPos towerMin = playerPos(singleplayer).offset(4, 3, 4);
+			BlockPos towerMax = towerMin.offset(2, 3, 2);
+			fillBox(singleplayer, towerMin, towerMax, Blocks.STONE_BRICKS.defaultBlockState(), towerMin, Blocks.STONE_BRICKS.defaultBlockState());
+			fillBox(singleplayer, towerMin.above(), towerMax.below(2), Blocks.GLASS.defaultBlockState(), towerMin.above(), Blocks.GLASS.defaultBlockState());
+			fillBox(singleplayer, towerMin.above(3), towerMax, Blocks.OAK_LEAVES.defaultBlockState(), towerMin.above(3), Blocks.GRASS_BLOCK.defaultBlockState());
+			select(singleplayer, towerMin, towerMax);
+			runCommand(context, "vcs create " + SMALL + " -we");
+			read(schematic(SMALL, 1));
+
+			// A 4x3x4 hall of planks: 48 blocks, too big to download without a click at this limit.
+			BlockPos hallMin = playerPos(singleplayer).offset(-8, 3, 4);
+			BlockPos hallMax = hallMin.offset(3, 2, 3);
+			fillBox(singleplayer, hallMin, hallMax, Blocks.OAK_PLANKS.defaultBlockState(), hallMin, Blocks.GOLD_BLOCK.defaultBlockState());
+			select(singleplayer, hallMin, hallMax);
+			runCommand(context, "vcs create " + BIG + " -we");
+			read(schematic(BIG, 1));
+
+			// A second version of the tower, tagged, so its cell shows the newest version with its tag.
+			setBlock(singleplayer, towerMax, Blocks.GOLD_BLOCK.defaultBlockState());
+			runCommand(context, "vcs select " + SMALL);
+			runCommand(context, "vcs commit 2.0.0");
+			read(schematic(SMALL, 2));
+
+			// B opens the overlay; the tower's preview downloads by itself, the hall waits for a click.
+			context.getInput().pressKey(BuildBrowserKey.KEY);
+			context.waitForScreen(BuildBrowserScreen.class);
+			moveAway(context);
+			waitForReady(context, SMALL, 2);
+			assertVersion(context, SMALL, 2);
+			if (context.computeOnClient(client -> BuildBrowser.thumbnail(summary(BIG)) != null)) {
+				throw new AssertionError("Expected the hall's preview to wait for a click");
+			}
+			context.waitTicks(5);
+			context.takeScreenshot("mcvcs-builds-overlay");
+
+			// Clicking the hall's placeholder downloads its preview instead of placing it.
+			click(context, BIG);
+			waitForReady(context, BIG, 1);
+			context.waitForScreen(BuildBrowserScreen.class);
+			if (context.computeOnClient(client -> PreviewManager.place()) != null) {
+				throw new AssertionError("Expected the first click on a placeholder to download the preview, not to place the build");
+			}
+
+			// The previews turn: two frames a moment apart show them from different sides.
+			moveAway(context);
+			ClientConfig.override(new ClientConfig.Settings(90.0, ClientConfig.DEFAULT_CELL_SIZE, 40));
+			context.waitTicks(5);
+			context.takeScreenshot("mcvcs-builds-overlay-turning-1");
+			context.waitTicks(10);
+			context.takeScreenshot("mcvcs-builds-overlay-turning-2");
+			ClientConfig.override(new ClientConfig.Settings(0.0, ClientConfig.DEFAULT_CELL_SIZE, 40));
+
+			// A commit while the overlay is open shows up only once refresh is pressed.
+			setBlock(singleplayer, towerMax.below(), Blocks.DIAMOND_BLOCK.defaultBlockState());
+			runCommand(context, "vcs commit");
+			read(schematic(SMALL, 3));
+			context.waitTicks(5);
+			assertVersion(context, SMALL, 2);
+			clickRefresh(context);
+			context.waitFor(client -> version(SMALL) == 3);
+			waitForReady(context, SMALL, 3);
+			moveAway(context);
+			context.waitTicks(2);
+			context.takeScreenshot("mcvcs-builds-overlay-refreshed");
+
+			// B again closes it.
+			context.getInput().pressKey(BuildBrowserKey.KEY);
+			context.waitFor(client -> client.screen == null);
+
+			// Clicking the tower closes the overlay and starts placing its newest version where the player stands.
+			context.getInput().pressKey(BuildBrowserKey.KEY);
+			context.waitForScreen(BuildBrowserScreen.class);
+			waitForReady(context, SMALL, 3);
+			click(context, SMALL);
+			context.waitFor(client -> client.screen == null);
+			context.waitFor(client -> {
+				PlacePreview place = PreviewManager.place();
+				return place != null && place.blocks().name().equals(SMALL + "/p2") && place.blocks().version() == 3;
+			});
+			// The copy hangs below the player's feet, so they look down at it.
+			context.runOnClient(client -> client.player.setXRot(90.0f));
+			context.waitTicks(5);
+			context.takeScreenshot("mcvcs-builds-overlay-placing");
+			runCommand(context, "vcs cancelPlace");
+		} finally {
+			ClientConfig.load();
+		}
+
+		checkDenied(context);
+	}
+
+	/** The key is one of the game's key mappings, on {@code B} by default, with a readable name. */
+	private static void checkKey(ClientGameTestContext context) {
+		context.runOnClient(client -> {
+			if (Arrays.stream(client.options.keyMappings).noneMatch(mapping -> mapping == BuildBrowserKey.KEY)) {
+				throw new AssertionError("Expected the builds overlay key among the game's key mappings");
+			}
+			if (BuildBrowserKey.KEY.getDefaultKey().getValue() != GLFW.GLFW_KEY_B) {
+				throw new AssertionError("Expected the builds overlay key to default to B but got " + BuildBrowserKey.KEY.getDefaultKey());
+			}
+			if (!I18n.exists(BuildBrowserKey.KEY.getName())) {
+				throw new AssertionError("Expected a translation for " + BuildBrowserKey.KEY.getName());
+			}
+		});
+	}
+
+	/** In a world without cheats the player may not run {@code /vcs}, so the overlay lists nothing and says why. */
+	private static void checkDenied(ClientGameTestContext context) {
+		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(false)).create()) {
+			singleplayer.getClientLevel().waitForChunksRender();
+			context.getInput().pressKey(BuildBrowserKey.KEY);
+			context.waitForScreen(BuildBrowserScreen.class);
+			context.waitFor(client -> BuildBrowser.listState() == BuildBrowser.ListState.DENIED);
+			context.takeScreenshot("mcvcs-builds-overlay-denied");
+			context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+			context.waitFor(client -> client.screen == null);
+		}
+	}
+
+	private static void waitForReady(ClientGameTestContext context, String name, int version) {
+		context.waitFor(client -> {
+			BuildSummary build = summary(name);
+			if (build == null || build.version() != version) {
+				return false;
+			}
+			Thumbnail thumbnail = BuildBrowser.thumbnail(build);
+			if (thumbnail != null && thumbnail.state() == Thumbnail.State.FAILED) {
+				throw new AssertionError("Preview of " + name + " v" + version + " failed: " + thumbnail.failure());
+			}
+			return thumbnail != null && thumbnail.state() == Thumbnail.State.READY;
+		});
+	}
+
+	private static void assertVersion(ClientGameTestContext context, String name, int expected) {
+		int actual = context.computeOnClient(client -> version(name));
+		if (actual != expected) {
+			throw new AssertionError("Expected the overlay to show " + name + " at v" + expected + " but it shows v" + actual);
+		}
+	}
+
+	/** The version the overlay lists {@code name} at, or 0 if it does not list it. */
+	private static int version(String name) {
+		BuildSummary build = summary(name);
+		return build == null ? 0 : build.version();
+	}
+
+	private static BuildSummary summary(String name) {
+		return BuildBrowser.builds().stream().filter(build -> build.name().equals(name)).findFirst().orElse(null);
+	}
+
+	/** Moves the mouse onto the preview of {@code name}'s cell and clicks it, as a player would. */
+	private static void click(ClientGameTestContext context, String name) {
+		ScreenRectangle cell = context.computeOnClient(client -> {
+			ScreenRectangle found = client.screen instanceof BuildBrowserScreen screen ? screen.cellOf(name) : null;
+			if (found == null) {
+				throw new AssertionError("Expected a cell for " + name + " on " + client.screen);
+			}
+			return found;
+		});
+		clickAt(context, cell.left() + cell.width() / 2.0, cell.top() + cell.width() / 2.0);
+	}
+
+	/** Clicks the refresh button in the top right corner. */
+	private static void clickRefresh(ClientGameTestContext context) {
+		int width = context.computeOnClient(client -> client.getWindow().getGuiScaledWidth());
+		clickAt(context, width - 8 - 30, 16);
+	}
+
+	/** Clicks at {@code (x, y)} in GUI coordinates. */
+	private static void clickAt(ClientGameTestContext context, double x, double y) {
+		moveTo(context, x, y);
+		context.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);
+		context.waitTicks(2);
+	}
+
+	/** Moves the mouse off every cell, so no tooltip covers the previews in a screenshot. */
+	private static void moveAway(ClientGameTestContext context) {
+		moveTo(context, 1, 1);
+	}
+
+	/** Moves the mouse to {@code (x, y)} in GUI coordinates, which the window scales up by the GUI scale. */
+	private static void moveTo(ClientGameTestContext context, double x, double y) {
+		double scale = context.computeOnClient(client -> {
+			Window window = client.getWindow();
+			return (double) window.getScreenWidth() / window.getGuiScaledWidth();
+		});
+		context.getInput().setCursorPos(x * scale, y * scale);
+		context.waitTick();
+	}
+}

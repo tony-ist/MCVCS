@@ -1,10 +1,13 @@
 package tony.mcvcs.network;
 
+import java.util.List;
+
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 
 import tony.mcvcs.build.BoxSnapshot;
 import tony.mcvcs.build.BuildBox;
@@ -84,6 +87,15 @@ public final class PreviewSender {
 
 	/** Sends {@code snapshot} as {@link PreviewBlocksPayload}s, whichever begin payload announced it. */
 	private static void stream(ServerPlayer player, BoxSnapshot snapshot) {
+		slices(snapshot, (offset, palette, indices, last) ->
+			ServerPlayNetworking.send(player, new PreviewBlocksPayload(offset, palette, indices, last)));
+	}
+
+	/**
+	 * Cuts {@code snapshot} into palette-compressed slices of at most {@link #BLOCKS_PER_PACKET} blocks, in box order,
+	 * and hands each to {@code sink}; the last one is flagged. Every payload that carries blocks is cut the same way.
+	 */
+	public static void slices(BoxSnapshot snapshot, SliceSink sink) {
 		int total = snapshot.size();
 		for (int offset = 0; offset < total; offset += BLOCKS_PER_PACKET) {
 			int count = Math.min(BLOCKS_PER_PACKET, total - offset);
@@ -92,7 +104,19 @@ public final class PreviewSender {
 			for (int i = 0; i < count; i++) {
 				indices[i] = palette.indexOf(snapshot.state(offset + i));
 			}
-			ServerPlayNetworking.send(player, new PreviewBlocksPayload(offset, palette.states(), indices, offset + count == total));
+			sink.accept(offset, palette.states(), indices, offset + count == total);
 		}
+	}
+
+	/** Receives one slice from {@link #slices}. */
+	@FunctionalInterface
+	public interface SliceSink {
+		/**
+		 * @param offset  box index of the slice's first block
+		 * @param palette distinct block states of the slice
+		 * @param indices palette index per block, in box order
+		 * @param last    whether this slice completes the snapshot
+		 */
+		void accept(int offset, List<BlockState> palette, int[] indices, boolean last);
 	}
 }

@@ -7,6 +7,7 @@ import net.minecraft.resources.Identifier;
 import tony.mcvcs.command.PendingClick;
 import tony.mcvcs.command.VcsCommand;
 import tony.mcvcs.migration.Migrations;
+import tony.mcvcs.network.BuildBrowserSender;
 import tony.mcvcs.network.DiffSender;
 import tony.mcvcs.network.PreviewSender;
 import tony.mcvcs.network.BuildSync;
@@ -24,6 +25,7 @@ public class MCVCS implements ModInitializer {
 		PreviewSender.register();
 		DiffSender.register();
 		BuildSync.register();
+		BuildBrowserSender.register();
 		VcsCommand.register();
 		PendingClick.register();
 	}

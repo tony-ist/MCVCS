@@ -24,6 +24,7 @@
 			"tony.mcvcs.gametest.VcsUnplaceCommandGameTest",
 			"tony.mcvcs.gametest.VcsWeselectCommandGameTest",
 			"tony.mcvcs.gametest.VcsSelectHotkeyGameTest",
+			"tony.mcvcs.gametest.VcsBuildBrowserGameTest",
 			"tony.mcvcs.gametest.VcsBuildsCommandGameTest",
 			"tony.mcvcs.gametest.VcsDeselectCommandGameTest",
 			"tony.mcvcs.gametest.VcsDeleteCommandGameTest",

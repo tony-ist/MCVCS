@@ -1,6 +1,7 @@
 {
 	"key.category.mcvcs.main": "MCVCS",
 	"key.mcvcs.select_looked_at": "Select Build Under Crosshair",
+	"key.mcvcs.open_builds": "Open Builds Overlay",
 	"key.mcvcs.place_away": "Move Placement Preview Away",
 	"key.mcvcs.place_closer": "Move Placement Preview Closer",
 	"key.mcvcs.place_left": "Move Placement Preview Left",

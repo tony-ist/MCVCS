@@ -20,14 +20,14 @@ Placements may never overlap, one another's or another build's, whichever build 
 - Minecraft 26.1.2 with Fabric Loader and Fabric API
 - WorldEdit (used for selections and for reading and writing schematics)
 - Operator level 2 (cheats) to run the commands
-- The mod can run on the server alone; players without it on their client can still join and use every command. Only previews, placement labels and the selection box are rendered client-side, so those need the mod installed on the client too (see below)
+- The mod can run on the server alone; players without it on their client can still join and use every command. Only previews, placement labels, the selection box and the builds overlay are rendered client-side, so those need the mod installed on the client too (see below)
 
 ## Server-side only or with the client
 
 The mod works in two setups:
 
 - **Server only.** Install it on the server (or in the host's single-player game). Players connect with a vanilla Fabric client and get the full command set: `create`, `place`, `unplace`, `select`, `builds`, `deselect`, `commit`, `tag`, `load`, `diff`, `fit`, `setSelection`, `checkout`, `delete`, `tp`, `weselect` and `help` all run on the server. Nothing is drawn in their world, though: no placement labels and no selection box, `/vcs diff` only reports its counts in chat, and `/vcs preview` refuses with a message saying the client does not have MCVCS installed. `/vcs place` has nothing to show the copy with either, so it puts it into the world where you stand straight away, with no lining up and nothing to confirm.
-- **Server and client.** Install it on both. On top of the commands, the client shows every placement's name floating above its box, draws the selected placement's bounding box, highlights the blocks `/vcs diff` finds, can render `/vcs preview <version>` in place of the real blocks, shows the copy `/vcs place` is about to put down so it can be lined up before it is confirmed, and adds hotkeys that select the placement under your crosshair and move that copy about (see below).
+- **Server and client.** Install it on both. On top of the commands, the client shows every placement's name floating above its box, draws the selected placement's bounding box, highlights the blocks `/vcs diff` finds, can render `/vcs preview <version>` in place of the real blocks, shows the copy `/vcs place` is about to put down so it can be lined up before it is confirmed, opens an overlay with a turning preview of every build (see [Builds overlay](#builds-overlay)), and adds hotkeys that select the placement under your crosshair and move that copy about (see below).
 
 There is no client-only mode: the builds live on the server, so the mod has to be there for anything to work.
 
@@ -65,6 +65,8 @@ There is no client-only mode: the builds live on the server, so the mod has to b
 
 With the mod on your client, pressing `V` selects the placement under your crosshair, the same as running `/vcs select` for it. It takes the nearest placement whose box your line of sight passes through, or the one you are standing in.
 
+Pressing `B` opens the [builds overlay](#builds-overlay), and pressing it again closes it.
+
 The numpad moves the copy `/vcs place` is showing, and does nothing while none is being shown:
 
 | Key | What it does |
@@ -80,21 +82,37 @@ Which way the copy goes is read off the box, not off the compass: looking at its
 
 Every key can be rebound like any other under Options, Controls, Key Binds, in the MCVCS category.
 
+## Builds overlay
+
+With the mod on both the server and your client, `B` opens a screen listing every build in this world in a grid, sorted by name. Each cell shows the build's newest committed version as a 3D preview turning about its vertical axis, with the build's name under it and the version with its tags, e.g. `v2 (2.0.0)`. The build of your selected placement is outlined in yellow. Placements play no part: what a cell shows is the build's newest version, whichever version its placements hold and whatever has been changed in them since.
+
+Clicking a cell closes the overlay and runs `/vcs place <buildname> <version>` for the version the cell shows, so the copy appears below your feet ready to be lined up with the numpad keys.
+
+Previews are downloaded from the server when the overlay opens, with loading dots and a percentage in each cell until its preview is ready. A version never changes once committed, so each preview is downloaded once and kept until you leave the server; opening the overlay again shows it straight away. A build bigger than `autoDownloadLimit` blocks (see [Client settings](#client-settings)) is not downloaded by itself: its cell says `Click to download the preview` with its size, and the first click downloads it instead of placing the build.
+
+The list is fetched when the overlay opens and is not updated while it stays open. The `Refresh` button in the top right corner fetches it again, picking up new builds and new commits, and retries any preview that failed to download.
+
+The preview draws block models only, lit as in full daylight. Chests, signs and other block entities, and water and lava, are left out. The overlay needs the same permission as `/vcs`, so a player without it is told so instead. On a server without the mod, or with an older version of it, `B` says so on the action bar and opens nothing.
+
 ## Client settings
 
 What belongs to neither the key binds screen nor the server lives in `config/mcvcs.json`, written with its defaults the first time you run the mod:
 
 ```json
 {
-  "sprintStep": 10
+  "rotationSpeed": 36.0,
+  "cellSize": 96,
+  "autoDownloadLimit": 1000000
 }
 ```
 
 | Setting | What it does |
 | --- | --- |
-| `sprintStep` | Nothing at present. It used to be how many blocks a numpad press moved a `/vcs place` copy while the sprint key was held, which every press and wheel notch now moves one of; the setting is still read and written so it is there to build on. 1 to 1000, 10 by default. |
+| `rotationSpeed` | How fast the previews in the builds overlay turn, in degrees per second. 0 to 720, 36 by default, which is one turn every 10 seconds; 0 holds them still. |
+| `cellSize` | Width and height of each preview in the builds overlay, in GUI pixels. 48 to 512, 96 by default. |
+| `autoDownloadLimit` | The biggest build, in blocks of its box, whose preview the builds overlay downloads by itself. Bigger builds wait for a click. 1,000,000 by default; 0 makes every build wait. |
 
-The file is read again every time you join a world or server, so an edit takes hold without restarting the game. A file that cannot be read is logged and ignored, leaving the settings as they were.
+The file is read again every time you join a world or server, so an edit takes hold without restarting the game. A file that cannot be read is logged and ignored, leaving the settings as they were. A file missing some of these settings, or holding ones older versions of the mod wrote, is written out again with exactly these settings, keeping the values it gave.
 
 ## How it works
 
@@ -157,7 +175,7 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 ### Roadmap
 
 - Aliases for commands to type them faster
-- UI Overlay: Display builds and versions on the client in overlay. Also show rotating 3D render of the build. Make buttons in overlay to select, checkout, diff and preview builds.
+- Builds overlay: show every version of a build, not only the newest, and add buttons to select, checkout, diff and preview builds.
 - Make automatic releases on github by reading tags
 - Make version automatically in format mcvcs-fabric-1.2.0+mc26.1.2
 - Command /vcs move initiates moving preview for current placement allowing to change its position with numpad keys and press 5 moves it physically in the world
