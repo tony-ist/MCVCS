@@ -33,8 +33,8 @@ import com.sk89q.worldedit.session.ClipboardHolder;
  */
 public final class VcsCommandLoad {
 	static final VcsHelp HELP = new VcsHelp("load", "/vcs load [version | tag]",
-		"put a version in your WorldEdit clipboard for //paste",
-		"Puts that version of the selected placement's build, given by number or by tag, or the latest one if none is given, into your WorldEdit clipboard, replacing whatever you had copied, so //paste places it. The origin is one block above the top north-west corner, so //paste puts the build one block below your feet, extending east and south. What you paste is only blocks; run /vcs place to add a placement the mod keeps track of.");
+		"put a version in your WorldEdit clipboard for `//paste`",
+		"Puts that version of the selected placement's build, given by number or by tag, or the latest one if none is given, into your WorldEdit clipboard, replacing whatever you had copied, so `//paste` places it. The origin is one block above the top north-west corner, so `//paste` puts the build one block below your feet, extending east and south. What you paste is only blocks; run `/vcs place` to add a placement the mod keeps track of.");
 
 	private VcsCommandLoad() {
 	}

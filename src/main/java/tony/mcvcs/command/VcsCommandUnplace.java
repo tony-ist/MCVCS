@@ -59,10 +59,11 @@ public final class VcsCommandUnplace {
 
 	static final VcsHelp HELP = new VcsHelp("unplace", "/vcs unplace [" + KEEP + "]",
 		"stop tracking the selected placement and empty its box",
-		"Removes your selected placement from its build and empties its box, since the version it holds is kept on disk. Add " + KEEP + " to leave its blocks standing as ordinary world blocks instead. If the box has uncommitted changes, they would be lost, so you are asked to confirm with /vcs confirmUnplace first. The build and all its versions stay: run /vcs place to put it back into the world.");
+		"Removes your selected placement from its build and empties its box, since the version it holds is kept on disk. If the box has uncommitted changes, they would be lost, so you are asked to confirm with `/vcs confirmUnplace` first. The build and all its versions stay: run `/vcs place` to put it back into the world.",
+		new VcsHelp.Key(KEEP, "leave its blocks standing as ordinary world blocks instead of emptying the box"));
 	static final VcsHelp CONFIRM_HELP = new VcsHelp("confirmUnplace", "/vcs confirmUnplace",
-		"remove the placement your last /vcs unplace named",
-		"Removes the placement your last /vcs unplace named, emptying its box unless " + KEEP + " was given, and discards the uncommitted changes it was holding. The build's versions are untouched; run /vcs place to put it back into the world.");
+		"remove the placement your last `/vcs unplace` named",
+		"Removes the placement your last `/vcs unplace` named, emptying its box unless " + KEEP + " was given, and discards the uncommitted changes it was holding. The build's versions are untouched; run `/vcs place` to put it back into the world.");
 
 	private VcsCommandUnplace() {
 	}

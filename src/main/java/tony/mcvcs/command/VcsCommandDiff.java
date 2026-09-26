@@ -37,7 +37,7 @@ import tony.mcvcs.network.DiffSender;
 public final class VcsCommandDiff {
 	static final VcsHelp HELP = new VcsHelp("diff", "/vcs diff [version | tag | off]",
 		"highlight what changed in the placement since a version",
-		"Compares the provided version, given by number or by tag (or the one the selected placement holds by default), with what is in its box now. With the mod on your client blocks are highlighted in place: green for added, red for removed, yellow for changed. /vcs diff off removes the highlights.");
+		"Compares the provided version, given by number or by tag (or the one the selected placement holds by default), with what is in its box now. With the mod on your client blocks are highlighted in place: green for added, red for removed, yellow for changed. `/vcs diff off` removes the highlights.");
 
 	private VcsCommandDiff() {
 	}

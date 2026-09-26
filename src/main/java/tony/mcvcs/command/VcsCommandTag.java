@@ -24,7 +24,7 @@ import tony.mcvcs.build.BuildStorage;
 public final class VcsCommandTag {
 	static final VcsHelp HELP = new VcsHelp("tag", "/vcs tag <version | tag> <tagname>",
 		"tag a version of the selected placement's build, e.g. 2.0.0",
-		"Gives that version of the selected placement's build a tag, e.g. /vcs tag 2 2.0.0. A tag may contain letters, digits, -, _, + and dots, but may not be digits alone. A version can have several tags, but each tag names one version of a build, so a tag already in use is refused. Wherever a command takes a version number, such as /vcs checkout, /vcs diff or /vcs preview, it takes a tag too. /vcs commit <tagname> tags the version it saves in the same way.");
+		"Gives that version of the selected placement's build a tag, e.g. `/vcs tag 2 2.0.0`. A tag may contain letters, digits, -, _, + and dots, but may not be digits alone. A version can have several tags, but each tag names one version of a build, so a tag already in use is refused. Wherever a command takes a version number, such as `/vcs checkout`, `/vcs diff` or `/vcs preview`, it takes a tag too. `/vcs commit <tagname>` tags the version it saves in the same way.");
 
 	private VcsCommandTag() {
 	}

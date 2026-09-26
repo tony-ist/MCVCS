@@ -49,7 +49,8 @@ import com.sk89q.worldedit.extent.clipboard.Clipboard;
 public final class VcsCommandCheckout {
 	static final VcsHelp HELP = new VcsHelp("checkout", "/vcs checkout <version | tag | latest> [" + VcsCommand.FORCE + "]",
 		"put a version back into the selected placement",
-		"Empties the selected placement's box and puts the provided version, given by number or by tag, into it, without block updates. The box becomes that version's size around the same origin. Refuses if the box has uncommitted changes, or if anything stands where a bigger version would reach: commit first, or add " + VcsCommand.FORCE + " to overwrite both. A placement in the way is always refused. /vcs diff starts to compare versions against this checked out version.");
+		"Empties the selected placement's box and puts the provided version, given by number or by tag, into it, without block updates. The box becomes that version's size around the same origin. Refuses if the box has uncommitted changes, or if anything stands where a bigger version would reach: commit first. A placement in the way is always refused. `/vcs diff` starts to compare versions against this checked out version.",
+		new VcsHelp.Key(VcsCommand.FORCE, "overwrite uncommitted changes and whatever stands where a bigger version would reach"));
 
 	private VcsCommandCheckout() {
 	}

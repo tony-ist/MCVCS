@@ -30,7 +30,7 @@ import com.sk89q.worldedit.extent.clipboard.Clipboard;
 public final class VcsCommandPreview {
 	static final VcsHelp HELP = new VcsHelp("preview", "/vcs preview <version | tag | off>",
 		"show a version in place of the real blocks, on your client only",
-		"Draws that version of the build, given by number or by tag, inside the selected placement's box instead of the real blocks. Nothing in the world changes, and only you see it; the mod has to be installed on your client. /vcs preview off shows the real blocks again.");
+		"Draws that version of the build, given by number or by tag, inside the selected placement's box instead of the real blocks. Nothing in the world changes, and only you see it; the mod has to be installed on your client. `/vcs preview off` shows the real blocks again.");
 
 	private VcsCommandPreview() {
 	}

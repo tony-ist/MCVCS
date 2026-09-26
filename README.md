@@ -178,4 +178,3 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - /vcs off command to turn off diff and preview
 - Add some effect when punching is armed
 - In tests display test name and sequential number and all number of tests running in chat or just just screen.
-- In help all commands should be highlighted with green color, the keys to command should be all on new line and also highlighted with orange color.

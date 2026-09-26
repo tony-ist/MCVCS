@@ -45,7 +45,8 @@ public final class VcsCommandCreate {
 
 	static final VcsHelp HELP = new VcsHelp("create", "/vcs create <buildname> [placementname] [" + SELECTION + "]",
 		"start a build from the block you punch",
-		"Starts a build called <buildname> and saves it as version 1. Punch any block of the build: the selection grows over everything connected to that block, so it should hover in the air, touching nothing that is not part of it. Add " + SELECTION + " to use the bounding box of your WorldEdit selection as the build instead.");
+		"Starts a build called <buildname> and saves it as version 1. Punch any block of the build: the selection grows over everything connected to that block, so it should hover in the air, touching nothing that is not part of it.",
+		new VcsHelp.Key(SELECTION, "use the bounding box of your WorldEdit selection as the build instead of punching a block"));
 
 	private VcsCommandCreate() {
 	}

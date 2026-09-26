@@ -15,7 +15,7 @@ import tony.mcvcs.network.ChatButtons;
 public final class VcsCommandHelp {
 	static final VcsHelp HELP = new VcsHelp("help", "/vcs help [command]",
 		"this listing, or everything about one command",
-		"Without a command: how to start a build and one line per command. With one: the same as running that command with " + VcsHelp.FLAG + " after it, e.g. /vcs commit " + VcsHelp.FLAG + ".");
+		"Without a command: how to start a build and one line per command. With one: the same as running that command with " + VcsHelp.FLAG + " after it, e.g. `/vcs commit " + VcsHelp.FLAG + "`.");
 
 	/** Every subcommand's help, in the order {@code /vcs help} lists them. */
 	static final List<VcsHelp> ALL = List.of(

@@ -40,7 +40,7 @@ import com.sk89q.worldedit.fabric.FabricAdapter;
 public final class VcsCommandCommit {
 	static final VcsHelp HELP = new VcsHelp("commit", "/vcs commit [tagname]",
 		"save the selected placement as the build's next version",
-		"Saves what is inside the selected placement's box as the build's next version. WorldEdit selection does not matter, only the placement's box is concerned. Every other placement of the build can then check that version out. With a tag name, e.g. /vcs commit 2.0.0, the new version is tagged.");
+		"Saves what is inside the selected placement's box as the build's next version. WorldEdit selection does not matter, only the placement's box is concerned. Every other placement of the build can then check that version out. With a tag name, e.g. `/vcs commit 2.0.0`, the new version is tagged.");
 
 	private VcsCommandCommit() {
 	}

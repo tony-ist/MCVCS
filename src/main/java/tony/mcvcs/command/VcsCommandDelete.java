@@ -53,10 +53,11 @@ public final class VcsCommandDelete {
 
 	static final VcsHelp HELP = new VcsHelp("delete", "/vcs delete <buildname> [" + CLEAR + "]",
 		"delete a build, once you confirm",
-		"Asks you to confirm deleting the build. Nothing is deleted until you run /vcs confirmDelete; the request is forgotten if you leave the server first, and a second /vcs delete replaces it. The blocks of its placements are left standing in the world unless you add " + CLEAR + ", which empties every one of their boxes as well.");
+		"Asks you to confirm deleting the build. Nothing is deleted until you run `/vcs confirmDelete`; the request is forgotten if you leave the server first, and a second `/vcs delete` replaces it. The blocks of its placements are left standing in the world.",
+		new VcsHelp.Key(CLEAR, "also empty the boxes of every placement of the build"));
 	static final VcsHelp CONFIRM_HELP = new VcsHelp("confirmDelete", "/vcs confirmDelete",
-		"delete the build your last /vcs delete named",
-		"Deletes the build your last /vcs delete named: its folder with every version in it is removed and anyone who had one of its placements selected loses that selection. This cannot be undone.");
+		"delete the build your last `/vcs delete` named",
+		"Deletes the build your last `/vcs delete` named: its folder with every version in it is removed and anyone who had one of its placements selected loses that selection. This cannot be undone.");
 
 	private VcsCommandDelete() {
 	}

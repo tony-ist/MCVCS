@@ -75,13 +75,15 @@ public final class VcsCommandPlace {
 
 	static final VcsHelp HELP = new VcsHelp("place", "/vcs place <buildname> [version | tag | latest] [placementname] [" + VcsCommand.FORCE + "]",
 		"show another copy of a build where you stand, ready to be placed",
-		"Shows the given version of the build, by number or by tag, or its latest one, where you stand, as a preview only: nothing is put into the world yet. Line it up with the numpad keys (8 and 2 push it away from you and pull it back along the face of the box you look at, 4 and 6 slide it sideways, 7 and 9 raise and lower it, and holding left alt lets the mouse wheel push it away and pull it back off any face of the box, its top and bottom included, where that means down and up), then run /vcs confirmPlace to place it, or /vcs cancelPlace to drop it. The new placement lives its own life: modifications are separate from other placements. However new commits create new versions of the same build. Adding " + VcsCommand.FORCE + " flag will overwrite blocks when placing. Without the mod on your client there is nothing to preview with, so the copy is placed where you stand straight away.");
+		"Shows the given version of the build, by number or by tag, or its latest one, where you stand, as a preview only: nothing is put into the world yet. Line it up with the numpad keys (8 and 2 push it away from you and pull it back along the face of the box you look at, 4 and 6 slide it sideways, 7 and 9 raise and lower it, and holding left alt lets the mouse wheel push it away and pull it back off any face of the box, its top and bottom included, where that means down and up), then run `/vcs confirmPlace` to place it, or `/vcs cancelPlace` to drop it. The new placement lives its own life: modifications are separate from other placements. However new commits create new versions of the same build. Without the mod on your client there is nothing to preview with, so the copy is placed where you stand straight away.",
+		new VcsHelp.Key(VcsCommand.FORCE, "overwrite the blocks standing where the copy is placed"));
 	static final VcsHelp CONFIRM_HELP = new VcsHelp("confirmPlace", "/vcs confirmPlace [" + VcsCommand.FORCE + "]",
-		"place the copy your last /vcs place is showing",
-		"Puts the copy your last /vcs place is showing into the world where you have moved it, as a placement of its own, and selects it. Refuses if it overlaps another placement, and refuses if anything is already standing where it goes unless you add " + VcsCommand.FORCE + " here or gave it to /vcs place, which overwrites those blocks for good.");
+		"place the copy your last `/vcs place` is showing",
+		"Puts the copy your last `/vcs place` is showing into the world where you have moved it, as a placement of its own, and selects it. Refuses if it overlaps another placement, and refuses if anything is already standing where it goes.",
+		new VcsHelp.Key(VcsCommand.FORCE, "overwrite those blocks for good; giving it to `/vcs place` does the same"));
 	static final VcsHelp CANCEL_HELP = new VcsHelp("cancelPlace", "/vcs cancelPlace",
-		"drop the copy your last /vcs place is showing",
-		"Stops showing the copy your last /vcs place is showing without placing anything. Nothing was ever put into the world, so nothing is taken back.");
+		"drop the copy your last `/vcs place` is showing",
+		"Stops showing the copy your last `/vcs place` is showing without placing anything. Nothing was ever put into the world, so nothing is taken back.");
 
 	private VcsCommandPlace() {
 	}
