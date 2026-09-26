@@ -93,6 +93,7 @@ public class VcsTagCommandGameTest extends VcsGameTest {
 			assertTags(singleplayer, Map.of("1.0.0", 1, "first_Release+x", 1, "2.0.0-rc.1", 2));
 
 			// A plain commit still works and has no tag.
+			setBlock(singleplayer, max, Blocks.GOLD_BLOCK.defaultBlockState());
 			assertMessages(run(context, "vcs commit"), List.of("Committed " + BUILD_NAME + "/" + Build.MAIN + " as build " + BUILD_NAME + " v3 ("), true);
 
 			// Digits alone would read as a version number, so they are no tag.

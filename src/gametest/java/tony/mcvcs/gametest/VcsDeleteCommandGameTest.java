@@ -66,6 +66,7 @@ public class VcsDeleteCommandGameTest extends VcsGameTest {
 			select(singleplayer, min, max);
 			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
+			setBlock(singleplayer, max, Blocks.GOLD_BLOCK.defaultBlockState());
 			runCommand(context, "vcs commit");
 			read(schematic(BUILD_NAME, 2));
 			waitForSelection(context, BUILD_NAME, 2);

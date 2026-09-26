@@ -9,6 +9,7 @@ import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
 import static tony.mcvcs.gametest.VcsTestSupport.select;
+import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 
 import java.nio.file.Files;
 
@@ -65,7 +66,9 @@ public class VcsSelectCommandGameTest extends VcsGameTest {
 			lookAt(context, firstMin, firstMax);
 			screenshotLastFrame(context, "mcvcs-vcs-select");
 
-			// Commit follows the selection: the first build gets a v2, the second does not.
+			// Commit follows the selection: with both builds changed, the first gets a v2, the second does not.
+			setBlock(singleplayer, firstMax, Blocks.GOLD_BLOCK.defaultBlockState());
+			setBlock(singleplayer, secondMax, Blocks.GOLD_BLOCK.defaultBlockState());
 			runCommand(context, "vcs commit");
 			read(schematic(FIRST, 2));
 			if (Files.exists(schematic(SECOND, 2))) {

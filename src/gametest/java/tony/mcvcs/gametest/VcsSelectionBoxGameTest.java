@@ -9,6 +9,7 @@ import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
 import static tony.mcvcs.gametest.VcsTestSupport.select;
+import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
@@ -52,7 +53,8 @@ public class VcsSelectionBoxGameTest extends VcsGameTest {
 			lookAt(context, min, max);
 			screenshotLastFrame(context, "mcvcs-vcs-selection-box");
 
-			// Committing keeps the box and bumps the version the client shows.
+			// Committing a change keeps the box and bumps the version the client shows.
+			setBlock(singleplayer, max, Blocks.GOLD_BLOCK.defaultBlockState());
 			runCommand(context, "vcs commit");
 			read(schematic(BUILD_NAME, 2));
 			assertSelected(waitForSelection(context, 2), BUILD_NAME, 2, box);

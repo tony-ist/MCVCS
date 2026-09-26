@@ -12,6 +12,7 @@ import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
 import static tony.mcvcs.gametest.VcsTestSupport.select;
+import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -86,6 +87,7 @@ public class VcsReloadGameTest extends VcsGameTest {
 			select(singleplayer, min, max);
 			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
+			setBlock(singleplayer, min, Blocks.DIAMOND_BLOCK.defaultBlockState());
 			runCommand(context, "vcs commit");
 			read(schematic(BUILD_NAME, 2));
 			assertSelected(waitForSelection(context, BUILD_NAME, 2), BUILD_NAME, 2, new BuildBox(min, max));
@@ -121,6 +123,7 @@ public class VcsReloadGameTest extends VcsGameTest {
 			screenshotLastFrame(context, "mcvcs-vcs-reload");
 
 			// Commit picks up where it left off, with the box from create time: the gold block is still in the corner.
+			setBlock(reopened, max, Blocks.DIAMOND_BLOCK.defaultBlockState());
 			runCommand(context, "vcs commit");
 			Clipboard v3 = read(schematic(BUILD_NAME, 3));
 			assertSize(v3, BlockVector3.at(3, 2, 2));

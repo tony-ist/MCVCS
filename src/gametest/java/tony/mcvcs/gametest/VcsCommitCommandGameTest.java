@@ -34,7 +34,8 @@ import net.minecraft.world.level.block.Blocks;
 
 /**
  * {@code /vcs commit} saves the box captured at create time as the next version, whatever the WorldEdit selection
- * is now, and warns in yellow, without refusing, when blocks outside the box touch it.
+ * is now, and warns in yellow, without refusing, when blocks outside the box touch it. A box that has not changed
+ * since the version it holds is refused, and no version is written.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsCommitCommandGameTest extends VcsGameTest {
@@ -91,15 +92,26 @@ public class VcsCommitCommandGameTest extends VcsGameTest {
 			// Nothing touches the box, so the commit message is all there is.
 			assertMessages(committed, List.of("Committed " + BUILD_NAME + "/" + Build.MAIN + " as build " + BUILD_NAME + " v2"));
 
-			// Each further commit bumps the version. A block touching the box only at a corner is outside it, so the
-			// version is written without it and a yellow warning says so.
+			// Nothing inside the box has changed since v2, so there is nothing to commit, even with a block now
+			// touching the box only at a corner, which is outside it. With a tag, the refusal points at /vcs tag.
 			BlockPos outside = max.offset(1, 1, 1);
 			setBlock(singleplayer, outside, Blocks.GOLD_BLOCK.defaultBlockState());
+			assertMessages(run(context, "vcs commit"), List.of("Nothing to commit: " + BUILD_NAME + "/" + Build.MAIN + " is the same as v2"));
+			assertMessages(run(context, "vcs commit 2.0.0"),
+				List.of("Nothing to commit: " + BUILD_NAME + "/" + Build.MAIN + " is the same as v2; run /vcs tag 2 2.0.0 to tag that version"));
+			if (Files.exists(schematic(BUILD_NAME, 3))) {
+				throw new AssertionError("Commit without changes must not write " + schematic(BUILD_NAME, 3));
+			}
+
+			// A change inside the box bumps the version. The block touching the box is left out of it, and a yellow
+			// warning says so.
+			setBlock(singleplayer, min, Blocks.DIAMOND_BLOCK.defaultBlockState());
 			List<Component> warned = run(context, "vcs commit");
 			Clipboard v3 = read(schematic(BUILD_NAME, 3));
 			assertOrigin(v3, expectedOrigin);
 			assertSize(v3, BlockVector3.at(3, 2, 2));
 			assertBlock(v3, opposite, BlockTypes.DIAMOND_BLOCK);
+			assertBlock(v3, adapter.adapt(min), BlockTypes.DIAMOND_BLOCK);
 			assertMessages(warned, List.of("Committed " + BUILD_NAME + "/" + Build.MAIN + " as build " + BUILD_NAME + " v3", VcsCommandCommit.notEnclosedWarning().getString()));
 			if (!TextColor.fromLegacyFormat(ChatFormatting.YELLOW).equals(warned.get(1).getStyle().getColor())) {
 				throw new AssertionError("Expected the warning to be yellow but its style is " + warned.get(1).getStyle());

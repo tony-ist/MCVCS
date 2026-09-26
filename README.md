@@ -159,14 +159,12 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Display builds and versions on the client in overlay. Also show rotating 3D render of the build. Make buttons in overlay to select, checkout, diff and preview builds.
 - Make automatic releases on github by reading tags
 - Make version automatically in format mcvcs-fabric-1.2.0+mc26.1.2
-- Add shrink command to shrink selection to bounding box
+- Rename "expand" command to "fit". It should either shrink or expand the selection to fit the build.
 - vcs select, vcs select buildname should disarm punch
-- In mcvcs folder name builds as buildname-v2 instead of just v2
-- Allow change build box to new worldedit selection, think about shrinking when blocks get excluded. vcs shrink command
+- Allow change build box to new worldedit selection
 - Command /vcs move initiates moving preview for current placement allowing to change its position and press 5 moves it physically in the world
 - Submodules for build. One build can have submodules inside its box. Each submodule is itself a build. When we place parent build, all submodule placements appear inside. Bounding box for parent build includes all bounding boxes for submodules.
 - Add hotkeys to select next and previous version preview
-- Commit command should not commit build when diff is empty
 - Hotkeys that move the preview should not require looking at an edge, but only looking at projection of that edge. Easier to move small builds that way.
 
 ### Nice to have
