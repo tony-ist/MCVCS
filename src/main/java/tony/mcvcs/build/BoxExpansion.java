@@ -55,6 +55,26 @@ public record BoxExpansion(BuildBox from, BuildBox to, boolean enclosed) {
 		return nonAirInShell(box, level) == null;
 	}
 
+	/**
+	 * The smallest box holding every block inside {@code box} in {@code level} that is not air, or null if the box
+	 * holds nothing but air. Once {@code box} is enclosed by air, this box is too, so it is what a build that has been
+	 * expanded shrinks to. Reads the whole box; on the server this loads any chunk it touches.
+	 */
+	public static @Nullable BuildBox nonAirWithin(BuildBox box, Level level) {
+		BlockPos.MutableBlockPos min = new BlockPos.MutableBlockPos(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
+		BlockPos.MutableBlockPos max = new BlockPos.MutableBlockPos(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE);
+		boolean found = false;
+		for (BlockPos pos : BlockPos.betweenClosed(box.min(), box.max())) {
+			if (level.getBlockState(pos).isAir()) {
+				continue;
+			}
+			found = true;
+			min.set(Math.min(min.getX(), pos.getX()), Math.min(min.getY(), pos.getY()), Math.min(min.getZ(), pos.getZ()));
+			max.set(Math.max(max.getX(), pos.getX()), Math.max(max.getY(), pos.getY()), Math.max(max.getZ(), pos.getZ()));
+		}
+		return found ? new BuildBox(min.immutable(), max.immutable()) : null;
+	}
+
 	/** Whether the box grew at all. */
 	public boolean grew() {
 		return !from.equals(to);

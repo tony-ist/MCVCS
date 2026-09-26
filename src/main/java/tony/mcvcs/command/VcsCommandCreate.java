@@ -86,7 +86,7 @@ public final class VcsCommandCreate {
 	/**
 	 * Creates the build called {@code buildName} from the block at {@code pos} in {@code level}, the world
 	 * {@code player} clicked it in: the box is the one block grown until only air surrounds it, see {@link BoxExpansion},
-	 * so it takes in everything connected to the block, the way {@code /vcs expand} would. Nothing is created if that
+	 * so it takes in everything connected to the block, the way {@code /vcs fit} would. Nothing is created if that
 	 * would go past {@link BoxExpansion#MAX_VOLUME} blocks; the player is told to select the build with WorldEdit instead.
 	 * The name is checked again here, since another player may have used it while the click was waited for.
 	 */

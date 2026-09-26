@@ -33,7 +33,7 @@ public final class VcsCommandHelp {
 		VcsCommandPreview.HELP,
 		VcsCommandLoad.HELP,
 		VcsCommandDiff.HELP,
-		VcsCommandExpand.HELP,
+		VcsCommandFit.HELP,
 		VcsCommandCheckout.HELP,
 		VcsCommandDelete.HELP,
 		VcsCommandDelete.CONFIRM_HELP,

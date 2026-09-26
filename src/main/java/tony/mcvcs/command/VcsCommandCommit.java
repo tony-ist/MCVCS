@@ -33,7 +33,7 @@ import com.sk89q.worldedit.fabric.FabricAdapter;
  * {@code /vcs commit [tagname]}: saves what is inside the selected placement's box as the build's next version, tagged
  * with {@code tagname} if one is given, see {@link VcsCommandTag}. The box is the
  * one the placement holds, not the player's WorldEdit selection. If anything other than air is touching the box, the
- * version is saved all the same but a yellow warning points the player at {@code /vcs expand}. A box that holds
+ * version is saved all the same but a yellow warning points the player at {@code /vcs fit}. A box that holds
  * exactly the version the placement is at has nothing to commit, and no version is saved.
  * <p>
  * Versions belong to the build, not to the placement they were committed from: every other placement of the build
@@ -51,8 +51,8 @@ public final class VcsCommandCommit {
 	/** What the command says, in yellow, after committing a placement that has blocks touching its box. */
 	public static MutableComponent notEnclosedWarning() {
 		return Component.literal("Warning: the build is not enclosed by air, so blocks touching its box were left out; run ")
-			.append(ChatButtons.command("/vcs expand"))
-			.append(" to expand the build area")
+			.append(ChatButtons.command("/vcs fit"))
+			.append(" to fit the build area to the build")
 			.withStyle(ChatFormatting.YELLOW);
 	}
 

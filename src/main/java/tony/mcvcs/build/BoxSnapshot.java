@@ -63,7 +63,7 @@ public record BoxSnapshot(BuildBox box, BlockState[] blocks, Int2ObjectMap<Compo
 	/**
 	 * The blocks of {@code clipboard}, a version's schematic, laid inside {@code box} over the world box
 	 * {@code covered}, with air everywhere else in the box. A version smaller than the box it is looked at through,
-	 * such as one saved before {@code /vcs expand} grew the box, sits where the placement puts it and the rest of
+	 * such as one saved before {@code /vcs fit} grew the box, sits where the placement puts it and the rest of
 	 * the box counts as air.
 	 * <p>
 	 * A schematic carries the world coordinates it was copied from, but they are the ones of the placement it was

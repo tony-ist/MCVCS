@@ -29,7 +29,7 @@ import net.minecraft.world.level.block.Blocks;
 
 /**
  * {@code /vcs weselect} sets the player's WorldEdit selection to the selected build's box, whether they had no
- * selection or one somewhere else, and follows the box when {@code /vcs expand} grows it. Without a selected build
+ * selection or one somewhere else, and follows the box when {@code /vcs fit} grows it. Without a selected build
  * it refuses and leaves the WorldEdit selection alone.
  */
 @SuppressWarnings("UnstableApiUsage")
@@ -51,7 +51,7 @@ public class VcsWeselectCommandGameTest extends VcsGameTest {
 			singleplayer.getClientLevel().waitForChunksRender();
 
 			// A 2x2x2 stone cube hovering one block above the ground in front of the player, so nothing touches it and
-			// /vcs expand has nothing to take in until the test puts a block against it. No other test builds here:
+			// /vcs fit has nothing to take in until the test puts a block against it. No other test builds here:
 			// build folders outlive a run and are only cleared by name, so two tests sharing a spot can collide over it.
 			BlockPos min = playerPos(singleplayer).offset(6, 1, -6);
 			BlockPos max = min.offset(1, 1, 1);
@@ -88,11 +88,11 @@ public class VcsWeselectCommandGameTest extends VcsGameTest {
 			lookAt(context, min, max);
 			screenshotLastFrame(context, "mcvcs-vcs-weselect");
 
-			// The box is the build's, not the one the player had when it was created: after /vcs expand grows it, the
+			// The box is the build's, not the one the player had when it was created: after /vcs fit grows it, the
 			// WorldEdit selection follows the grown box.
 			BlockPos corner = max.offset(1, 1, 1);
 			setBlock(singleplayer, corner, Blocks.GOLD_BLOCK.defaultBlockState());
-			runCommand(context, "vcs expand");
+			runCommand(context, "vcs fit");
 			context.waitTicks(5);
 			BuildBox expanded = new BuildBox(min, corner);
 			runCommand(context, "vcs weselect");

@@ -54,7 +54,7 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
  * {@code /vcs checkout <version | latest> [-f]} empties the selected build's box and puts a version back in it without
  * block updates, so hovering sand stays up and an observer watching a block does not fire its piston; refuses while
  * the box holds uncommitted changes unless {@code -f} is given, which overwrites them; stops any preview and diff
- * highlighting the player had up; and puts a version committed before {@code /vcs expand} back where it was built,
+ * highlighting the player had up; and puts a version committed before {@code /vcs fit} back where it was built,
  * with the rest of the grown box left empty.
  */
 @SuppressWarnings("UnstableApiUsage")
@@ -207,7 +207,7 @@ public class VcsCheckoutCommandGameTest extends VcsGameTest {
 			// v1 then empties the whole grown box and puts v1 back at the place it was built, so the outer layer is air.
 			BlockPos corner = max.offset(1, 1, 1);
 			setBlock(singleplayer, corner, Blocks.GOLD_BLOCK.defaultBlockState());
-			runCommand(context, "vcs expand");
+			runCommand(context, "vcs fit");
 			read(schematic(BUILD_NAME, 3));
 			BuildBox expanded = new BuildBox(min, corner);
 			assertBuild(singleplayer, BUILD_NAME, 3, 3, expanded);

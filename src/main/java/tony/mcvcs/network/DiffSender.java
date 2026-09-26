@@ -37,14 +37,15 @@ public final class DiffSender {
 
 	/**
 	 * Streams {@code diff}, what is inside {@code placement} compared against version {@code version} of its build,
-	 * to {@code player} so the client highlights it inside the placement's box.
+	 * to {@code player} so the client highlights it inside the box it was taken over, see
+	 * {@link BuildPlacement#viewBoxOf}.
 	 *
 	 * @throws IllegalArgumentException if the diff does not cover the placement's box
 	 */
 	public static void send(ServerPlayer player, BuildPlacement placement, int version, BuildDiff diff) {
-		BuildBox box = placement.box();
-		if (!diff.box().equals(box)) {
-			throw new IllegalArgumentException("Diff covers " + diff.box() + " but '" + placement.label() + "' covers " + box);
+		BuildBox box = diff.box();
+		if (!box.contains(placement.box())) {
+			throw new IllegalArgumentException("Diff covers " + box + " but '" + placement.label() + "' covers " + placement.box());
 		}
 
 		List<BlockChange> changes = diff.changes();

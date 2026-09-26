@@ -32,7 +32,10 @@ import tony.mcvcs.network.DiffSender;
  * highlighting.
  * <p>
  * A version smaller than the box is laid inside it where the placement holds it and the rest of the box counts as
- * air, so a version from before an expand shows the blocks that expand took in as added.
+ * air, so a version from before {@code /vcs fit} grew the box shows the blocks it took in as added. A version bigger
+ * than the box, such as one from before {@code /vcs fit} shrank it, is compared over both boxes together, see
+ * {@link BuildPlacement#viewBoxOf}, so its blocks outside the box show as removed, or as changed if something else
+ * stands there now, whether or not that belongs to another placement.
  */
 public final class VcsCommandDiff {
 	static final VcsHelp HELP = new VcsHelp("diff", "/vcs diff [version | tag | off]",
@@ -70,14 +73,8 @@ public final class VcsCommandDiff {
 			return 0;
 		}
 
-		BuildBox box = placement.box();
+		BuildBox box = placement.viewBoxOf(against);
 		BuildBox covered = placement.boxOf(against);
-		if (!box.contains(covered)) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(build.name())).append(" v" + against + " is " + VcsMessages.size(covered)
-				+ ", which does not fit the " + VcsMessages.size(box) + " box of ").append(VcsMessages.placement(placement))
-				.append("; run ").append(ChatButtons.command("/vcs checkout " + against)).append(" to see it here instead"));
-			return 0;
-		}
 
 		BuildDiff diff;
 		try {

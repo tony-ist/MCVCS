@@ -13,7 +13,7 @@
 			"tony.mcvcs.gametest.VcsPreviewCommandGameTest",
 			"tony.mcvcs.gametest.VcsLoadCommandGameTest",
 			"tony.mcvcs.gametest.VcsDiffCommandGameTest",
-			"tony.mcvcs.gametest.VcsExpandCommandGameTest",
+			"tony.mcvcs.gametest.VcsFitCommandGameTest",
 			"tony.mcvcs.gametest.VcsCheckoutCommandGameTest",
 			"tony.mcvcs.gametest.VcsSelectionBoxGameTest",
 			"tony.mcvcs.gametest.VcsBuildLabelGameTest",

@@ -22,7 +22,7 @@ import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.world.World;
 
 /**
- * Saves a build's box as one of its versions, the way {@code /vcs create}, {@code /vcs commit} and {@code /vcs expand}
+ * Saves a build's box as one of its versions, the way {@code /vcs create}, {@code /vcs commit} and {@code /vcs fit}
  * all do: the box is copied into a schematic anchored at {@link #ORIGIN_CORNER} and written to {@link BuildStorage}.
  * Also holds what the copy keeps, see {@link #COPY_ENTITIES} and {@link #COPY_BIOMES}, which {@code /vcs checkout}
  * follows when it pastes a version back.

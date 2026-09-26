@@ -31,6 +31,8 @@ import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.ClientPlacement;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.diff.DiffManager;
+import tony.mcvcs.client.preview.ClientPreview;
+import tony.mcvcs.client.preview.PreviewManager;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.fabric.FabricAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -39,14 +41,15 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * {@code /vcs expand} grows the selected build's box until only air surrounds it, taking in blocks that touch it
- * diagonally and blocks that touch those, and saves the grown box as the next version. A build already enclosed by
- * air is left alone, and one whose growth would reach into another build is refused.
+ * {@code /vcs fit} grows the selected build's box until only air surrounds it, taking in blocks that touch it
+ * diagonally and blocks that touch those, shrinks it where its sides hold only air, and saves the fitted box as the
+ * next version. A build its box already fits is left alone, and one whose growth would reach into another build is
+ * refused.
  */
 @SuppressWarnings("UnstableApiUsage")
-public class VcsExpandCommandGameTest extends VcsGameTest {
-	private static final String BUILD_NAME = "gametest-expand";
-	private static final String NEIGHBOUR_NAME = "gametest-expand-neighbour";
+public class VcsFitCommandGameTest extends VcsGameTest {
+	private static final String BUILD_NAME = "gametest-fit";
+	private static final String NEIGHBOUR_NAME = "gametest-fit-neighbour";
 
 	/** Every game message the client has received, filled on the client thread. */
 	private static final List<Component> RECEIVED = new ArrayList<>();
@@ -74,9 +77,9 @@ public class VcsExpandCommandGameTest extends VcsGameTest {
 			runCommand(context, "vcs create " + BUILD_NAME + " -we");
 			read(schematic(BUILD_NAME, 1));
 
-			// Nothing touches the box, so there is nothing to expand and no version is written.
-			List<Component> enclosed = run(context, "vcs expand");
-			assertOnlyMessage(enclosed, "Placement " + BUILD_NAME + "/" + Build.MAIN + " is already enclosed by air; nothing to expand");
+			// Nothing touches the box and the cube fills it, so there is nothing to fit and no version is written.
+			List<Component> enclosed = run(context, "vcs fit");
+			assertOnlyMessage(enclosed, "Placement " + BUILD_NAME + "/" + Build.MAIN + " already fits its build; nothing to change");
 			assertNoSchematic(BUILD_NAME, 2);
 			assertBox(context, singleplayer, BUILD_NAME, 1, box);
 
@@ -90,7 +93,7 @@ public class VcsExpandCommandGameTest extends VcsGameTest {
 			setBlock(singleplayer, west, Blocks.GOLD_BLOCK.defaultBlockState());
 			BuildBox expanded = new BuildBox(west, beyond);
 
-			List<Component> grown = run(context, "vcs expand");
+			List<Component> grown = run(context, "vcs fit");
 			assertOnlyMessage(grown, "Expanded " + BUILD_NAME + "/" + Build.MAIN + " from 2x2x2 (8 blocks) to 5x4x4 (80 blocks) and committed it as v2");
 			assertBox(context, singleplayer, BUILD_NAME, 2, expanded);
 
@@ -112,11 +115,11 @@ public class VcsExpandCommandGameTest extends VcsGameTest {
 			}
 
 			lookAt(context, west, beyond);
-			screenshotLastFrame(context, "mcvcs-vcs-expand");
+			screenshotLastFrame(context, "mcvcs-vcs-fit");
 
-			// The same again is a no-op: the grown box is enclosed by air.
-			List<Component> again = run(context, "vcs expand");
-			assertOnlyMessage(again, "Placement " + BUILD_NAME + "/" + Build.MAIN + " is already enclosed by air; nothing to expand");
+			// The same again is a no-op: the grown box is enclosed by air and has blocks on every side.
+			List<Component> again = run(context, "vcs fit");
+			assertOnlyMessage(again, "Placement " + BUILD_NAME + "/" + Build.MAIN + " already fits its build; nothing to change");
 			assertNoSchematic(BUILD_NAME, 3);
 
 			// A second build two blocks east of the first, filled with stone, and a block in the gap between them. The
@@ -132,10 +135,58 @@ public class VcsExpandCommandGameTest extends VcsGameTest {
 			setBlock(singleplayer, gap, Blocks.GOLD_BLOCK.defaultBlockState());
 			runCommand(context, "vcs select " + BUILD_NAME);
 
-			List<Component> refused = run(context, "vcs expand");
-			assertOnlyMessage(refused, "Expanding " + BUILD_NAME + "/" + Build.MAIN + " to 8x4x4 would overlap " + NEIGHBOUR_NAME + "/" + Build.MAIN + "; placements may not intersect");
+			List<Component> refused = run(context, "vcs fit");
+			assertOnlyMessage(refused, "Fitting " + BUILD_NAME + "/" + Build.MAIN + " to 8x4x4 would overlap " + NEIGHBOUR_NAME + "/" + Build.MAIN + "; placements may not intersect");
 			assertNoSchematic(BUILD_NAME, 3);
 			assertBox(context, singleplayer, BUILD_NAME, 2, expanded);
+
+			// With the gold blocks gone, the grown box holds only the stone cube and air along its sides, so the box
+			// shrinks back to the cube as v3.
+			for (BlockPos gold : List.of(corner, beyond, west, gap)) {
+				setBlock(singleplayer, gold, Blocks.AIR.defaultBlockState());
+			}
+			List<Component> shrunk = run(context, "vcs fit");
+			assertOnlyMessage(shrunk, "Shrank " + BUILD_NAME + "/" + Build.MAIN + " from 5x4x4 (80 blocks) to 2x2x2 (8 blocks) and committed it as v3");
+			assertBox(context, singleplayer, BUILD_NAME, 3, box);
+			assertSize(read(schematic(BUILD_NAME, 3)), BlockVector3.at(2, 2, 2));
+
+			// v2 is bigger than the shrunk box, so it is looked at through both boxes together. A block put where v2
+			// had air, outside the box, stands in for something built next to the placement since.
+			BlockPos outside = max.offset(1, 0, 0);
+			setBlock(singleplayer, outside, Blocks.STONE.defaultBlockState());
+			List<Component> diffed = run(context, "vcs diff 2");
+			assertOnlyMessage(diffed, "4 blocks in " + BUILD_NAME + "/" + Build.MAIN + " differ from v2 (1 added, 3 removed, 0 changed)");
+			context.waitFor(client -> DiffManager.active() != null);
+			BuildBox diffBox = context.computeOnClient(client -> DiffManager.active().diff().box());
+			if (!diffBox.equals(expanded)) {
+				throw new AssertionError("Expected the diff against v2 to cover " + expanded + " but got " + diffBox);
+			}
+			runCommand(context, "vcs diff off");
+
+			// The preview of v2 covers the same box: the gold blocks are back and the block next to the placement,
+			// which v2 does not have, is hidden.
+			runCommand(context, "vcs preview 2");
+			context.waitFor(client -> PreviewManager.active() != null);
+			ClientPreview preview = context.computeOnClient(client -> PreviewManager.active());
+			if (!preview.box().equals(expanded) || !preview.stateAt(corner).is(Blocks.GOLD_BLOCK) || !preview.stateAt(west).is(Blocks.GOLD_BLOCK)
+				|| !preview.stateAt(outside).isAir() || !preview.stateAt(min).is(Blocks.STONE)) {
+				throw new AssertionError("Expected the preview of v2 to show it over " + expanded + " but got " + preview);
+			}
+			lookAt(context, west, beyond);
+			screenshotLastFrame(context, "mcvcs-vcs-fit-preview");
+			runCommand(context, "vcs preview off");
+			context.waitFor(client -> PreviewManager.active() == null);
+			setBlock(singleplayer, outside, Blocks.AIR.defaultBlockState());
+
+			// Digging out the cube's east face and putting a block against its west one grows the box on one side and
+			// shrinks it on the other in the same fit.
+			for (BlockPos pos : BlockPos.betweenClosed(new BlockPos(max.getX(), min.getY(), min.getZ()), max)) {
+				setBlock(singleplayer, pos.immutable(), Blocks.AIR.defaultBlockState());
+			}
+			setBlock(singleplayer, west, Blocks.GOLD_BLOCK.defaultBlockState());
+			List<Component> moved = run(context, "vcs fit");
+			assertOnlyMessage(moved, "Fitted " + BUILD_NAME + "/" + Build.MAIN + " from 2x2x2 (8 blocks) to 2x2x2 (8 blocks) and committed it as v4");
+			assertBox(context, singleplayer, BUILD_NAME, 4, new BuildBox(west, max.offset(-1, 0, 0)));
 
 			// Without the world: the limit holds the box where it is and says so.
 			assertLimit(singleplayer, expanded);

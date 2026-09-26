@@ -48,13 +48,12 @@ public final class PreviewSender {
 
 	/**
 	 * Streams {@code clipboard}, version {@code version} of {@code placement}'s build, to {@code player} so the client
-	 * shows it inside the placement's box. The version is laid where the placement holds it, with air around it if it
-	 * is smaller than the box, see {@link BoxSnapshot#ofClipboard}.
-	 *
-	 * @throws IllegalArgumentException if the version does not fit the placement's box
+	 * shows it inside the placement's box, or over the version's own box as well if it reaches past that, see
+	 * {@link BuildPlacement#viewBoxOf}. The version is laid where the placement holds it, with air around it where it
+	 * does not reach, see {@link BoxSnapshot#ofClipboard}.
 	 */
 	public static void send(ServerPlayer player, BuildPlacement placement, int version, Clipboard clipboard) {
-		BuildBox box = placement.box();
+		BuildBox box = placement.viewBoxOf(version);
 		BoxSnapshot snapshot = BoxSnapshot.ofClipboard(box, clipboard, placement.boxOf(version));
 		ServerPlayNetworking.send(player, new PreviewBeginPayload(placement.label(), version, placement.dimension(), box));
 		stream(player, snapshot);

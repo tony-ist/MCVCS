@@ -25,7 +25,9 @@ import com.sk89q.worldedit.extent.clipboard.Clipboard;
  * the real blocks again.
  * <p>
  * The version is drawn where the selected placement would hold it, so previewing at one placement says nothing about
- * the others. A version too big for the box it is previewed in is refused; check it out to see it at its own size.
+ * the others. A version bigger than the box, such as one from before {@code /vcs fit} shrank it, is drawn over both
+ * boxes together, see {@link BuildPlacement#viewBoxOf}: past the placement's box the real blocks are hidden too, even
+ * those of another placement, so what shows is the version alone.
  */
 public final class VcsCommandPreview {
 	static final VcsHelp HELP = new VcsHelp("preview", "/vcs preview <version | tag | off>",
@@ -57,14 +59,7 @@ public final class VcsCommandPreview {
 		}
 		int version = resolved.get();
 
-		BuildBox box = placement.box();
-		BuildBox covered = placement.boxOf(version);
-		if (!box.contains(covered)) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(build.name())).append(" v" + version + " is " + VcsMessages.size(covered)
-				+ ", which does not fit the " + VcsMessages.size(box) + " box of ").append(VcsMessages.placement(placement))
-				.append("; run ").append(ChatButtons.command("/vcs checkout " + version)).append(" to see it here instead"));
-			return 0;
-		}
+		BuildBox box = placement.viewBoxOf(version);
 
 		try {
 			Clipboard clipboard = BuildStorage.readSchematic(build.name(), version);

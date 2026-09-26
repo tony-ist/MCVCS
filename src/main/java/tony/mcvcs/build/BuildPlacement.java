@@ -59,6 +59,16 @@ public record BuildPlacement(Build build, String name, Placement placement) {
 		return build.extent(version).at(origin());
 	}
 
+	/**
+	 * The box {@code version} is looked at through here, by {@code /vcs diff} and {@code /vcs preview}: the current
+	 * {@link #box} together with {@link #boxOf} that version, so a version bigger than the box, such as one committed
+	 * before {@code /vcs fit} shrank it, is seen whole. That may reach past the placement's own blocks into whatever
+	 * stands around it.
+	 */
+	public BuildBox viewBoxOf(int version) {
+		return box().union(boxOf(version));
+	}
+
 	/** The same placement seen through {@code build}, e.g. after a commit has given the build another version. */
 	public BuildPlacement in(Build build) {
 		return new BuildPlacement(build, name, build.placements().get(name));
