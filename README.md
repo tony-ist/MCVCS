@@ -92,6 +92,8 @@ Previews are downloaded from the server when the overlay opens, with loading dot
 
 The list is fetched when the overlay opens and is not updated while it stays open. The `Refresh` button in the top right corner fetches it again, picking up new builds and new commits, and retries any preview that failed to download.
 
+A build longer than 128 blocks along any side is previewed at reduced detail, since its preview gets less than a pixel per block anyway. It is cut into cubes, 2x2x2 blocks for a build up to 256 blocks long, 3x3x3 up to 384 and so on, so that the longest side is at most 128 of them, and each cube is drawn as one block that is as big as the cube. That block is a full solid block of the cube if it has one, so thin walls stay visible, otherwise any other block of it, otherwise air. The server does the sampling, so a big build also downloads that much faster. A preview whose geometry would still take more than about 110 MiB of video memory, such as a huge field of redstone dust or glass panes, shows `Too detailed to preview` instead.
+
 The preview draws block models only, lit as in full daylight. Chests, signs and other block entities, and water and lava, are left out. The overlay needs the same permission as `/vcs`, so a player without it is told so instead. On a server without the mod, or with an older version of it, `B` says so on the action bar and opens nothing.
 
 ## Client settings
@@ -174,8 +176,9 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
+- Builds overlay: show buttons in cells: tp and select the build. After that add ability to preview any version of the build
+- Preview of huge builds is laggy when moving it. Maybe make debounce: move only box and rerender the build only after some time 
 - Aliases for commands to type them faster
-- Builds overlay: show every version of a build, not only the newest, and add buttons to select, checkout, diff and preview builds.
 - Make automatic releases on github by reading tags
 - Make version automatically in format mcvcs-fabric-1.2.0+mc26.1.2
 - Command /vcs move initiates moving preview for current placement allowing to change its position with numpad keys and press 5 moves it physically in the world

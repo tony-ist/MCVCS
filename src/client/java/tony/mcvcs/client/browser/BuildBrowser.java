@@ -16,6 +16,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import org.jspecify.annotations.Nullable;
 
 import tony.mcvcs.MCVCS;
+import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.network.BuildListPayload;
 import tony.mcvcs.network.BuildListRequestPayload;
@@ -73,14 +74,14 @@ public final class BuildBrowser {
 		ClientPlayNetworking.registerGlobalReceiver(ThumbnailBeginPayload.TYPE, (payload, context) -> {
 			Thumbnail thumbnail = inFlight(payload.build(), payload.version());
 			if (thumbnail != null) {
-				thumbnail.begin(payload.extent());
+				thumbnail.begin(payload.extent(), payload.scale());
 			}
 		});
 		ClientPlayNetworking.registerGlobalReceiver(ThumbnailBlocksPayload.TYPE, (payload, context) -> blocks(payload));
 		ClientPlayNetworking.registerGlobalReceiver(ThumbnailFailedPayload.TYPE, (payload, context) -> {
 			Thumbnail thumbnail = inFlight(payload.build(), payload.version());
 			if (thumbnail != null) {
-				thumbnail.fail(payload.reason());
+				thumbnail.fail(payload.reason(), true);
 			}
 		});
 		// Previews belong to the server they came from; the next one may have other builds under the same names.
@@ -108,9 +109,12 @@ public final class BuildBrowser {
 		return builds;
 	}
 
-	/** Asks the server for the builds again; previews that failed are asked for again when the list arrives. */
+	/**
+	 * Asks the server for the builds again; previews that failed to arrive are asked for again when the list arrives,
+	 * but not those of versions too detailed to preview, which would only fail again.
+	 */
 	public static void refresh() {
-		THUMBNAILS.values().removeIf(thumbnail -> thumbnail.state() == Thumbnail.State.FAILED);
+		THUMBNAILS.values().removeIf(thumbnail -> thumbnail.state() == Thumbnail.State.FAILED && thumbnail.retryable());
 		listState = ListState.LOADING;
 		ClientPlayNetworking.send(BuildListRequestPayload.INSTANCE);
 	}
@@ -187,14 +191,24 @@ public final class BuildBrowser {
 			client.getModelManager().getBlockStateModelSet(), client.getBlockColors(),
 			client.options.ambientOcclusion().get(), client.options.cutoutLeaves().get(), lighting, biome);
 		int started = generation;
+		BuildBox grid = thumbnail.grid();
+		int scale = thumbnail.scale();
+		if (grid == null) {
+			thumbnail.fail("Malformed preview", true);
+			return;
+		}
 
 		MESHER.execute(() -> {
 			ThumbnailMesher.Result result;
 			try {
-				result = ThumbnailMesher.mesh(thumbnail.key().extent(), blocks, context);
+				result = ThumbnailMesher.mesh(grid, blocks, context);
+			} catch (ThumbnailMesher.TooDetailedException e) {
+				MCVCS.LOGGER.warn("Not previewing '{}' v{}: more than {} vertices", thumbnail.key().build(), thumbnail.key().version(), ThumbnailMesher.MAX_VERTICES);
+				client.execute(() -> thumbnail.fail(e.getMessage(), false));
+				return;
 			} catch (RuntimeException e) {
 				MCVCS.LOGGER.error("Failed to build the preview of '{}' v{}", thumbnail.key().build(), thumbnail.key().version(), e);
-				client.execute(() -> thumbnail.fail("Failed to build preview"));
+				client.execute(() -> thumbnail.fail("Failed to build preview", true));
 				return;
 			}
 			client.execute(() -> {
@@ -202,7 +216,7 @@ public final class BuildBrowser {
 					result.free();
 					return;
 				}
-				thumbnail.ready(ThumbnailMesh.upload(result, thumbnail.key().extent()));
+				thumbnail.ready(ThumbnailMesh.upload(result, grid, scale));
 			});
 		});
 	}

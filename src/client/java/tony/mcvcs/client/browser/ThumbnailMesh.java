@@ -39,17 +39,22 @@ public final class ThumbnailMesh implements AutoCloseable {
 	}
 
 	private final List<Layer> layers;
-	/** Width, height and depth of the version in blocks; its vertices run from the origin to here. */
+	/** Width, height and depth of the grid the mesh was built from, in its own blocks; its vertices run from the origin to here. */
 	private final Vector3f size;
+	/** How many of the version's blocks each block of the mesh stands for along each side, see {@link tony.mcvcs.build.PreviewGrid}. */
+	private final int scale;
 	private boolean closed;
 
-	private ThumbnailMesh(List<Layer> layers, Vector3f size) {
+	private ThumbnailMesh(List<Layer> layers, Vector3f size, int scale) {
 		this.layers = layers;
 		this.size = size;
+		this.scale = scale;
 	}
 
-	/** Puts {@code result}, the version of extent {@code extent}, on the GPU and frees the memory it was built in. */
-	static ThumbnailMesh upload(ThumbnailMesher.Result result, BuildBox extent) {
+	/**
+	 * Puts {@code result}, meshed from {@code grid} at {@code scale}, on the GPU and frees the memory it was built in.
+	 */
+	static ThumbnailMesh upload(ThumbnailMesher.Result result, BuildBox grid, int scale) {
 		GpuDevice device = RenderSystem.getDevice();
 		List<Layer> layers = new ArrayList<>();
 		try {
@@ -60,7 +65,7 @@ public final class ThumbnailMesh implements AutoCloseable {
 		} finally {
 			result.free();
 		}
-		return new ThumbnailMesh(List.copyOf(layers), new Vector3f(extent.sizeX(), extent.sizeY(), extent.sizeZ()));
+		return new ThumbnailMesh(List.copyOf(layers), new Vector3f(grid.sizeX(), grid.sizeY(), grid.sizeZ()), scale);
 	}
 
 	/** The pipeline the game draws moving blocks of that layer with: block shading, no chunk offset, no fog of its own. */
@@ -77,9 +82,17 @@ public final class ThumbnailMesh implements AutoCloseable {
 		return layers.isEmpty();
 	}
 
-	/** The version's size in blocks along x, y and z. */
+	/**
+	 * The size of the mesh along x, y and z in its own blocks, which are {@link #scale()} of the version's blocks a
+	 * side; the version's own size when it was previewed whole.
+	 */
 	public Vector3f size() {
 		return new Vector3f(size);
+	}
+
+	/** How many of the version's blocks each block of the mesh stands for along each side; 1 for all but big builds. */
+	public int scale() {
+		return scale;
 	}
 
 	/**

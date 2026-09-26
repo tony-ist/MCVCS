@@ -29,7 +29,7 @@ import org.jspecify.annotations.Nullable;
  */
 public record BoxExpansion(BuildBox from, BuildBox to, boolean enclosed) {
 	/** The most blocks a box may cover after expansion; an expansion that would go past this is given up. */
-	public static final long MAX_VOLUME = 5_000_000;
+	public static final long MAX_VOLUME = 20_000_000;
 
 	/** Expands {@code box} in {@code level} as described on this class. */
 	public static BoxExpansion of(BuildBox box, Level level) {

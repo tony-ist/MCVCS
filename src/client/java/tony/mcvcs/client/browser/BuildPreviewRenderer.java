@@ -54,7 +54,9 @@ public final class BuildPreviewRenderer extends PictureInPictureRenderer<BuildPr
 		}
 
 		ThumbnailMesh mesh = state.mesh();
-		Vector3f size = mesh.size();
+		// A big build's mesh is a coarser grid of it; scaled back up, it stands as large as the build itself.
+		int scale = mesh.scale();
+		Vector3f size = mesh.size().mul(scale);
 		float radius = size.length() / 2.0f * (1.0f + MARGIN);
 		float width = state.x1() - state.x0();
 		float height = state.y1() - state.y0();
@@ -70,7 +72,8 @@ public final class BuildPreviewRenderer extends PictureInPictureRenderer<BuildPr
 			.translate(0.0f, 0.0f, -distance)
 			.rotateX((float) Math.toRadians(TILT))
 			.rotateY((float) Math.toRadians(state.yaw()))
-			.translate(-size.x / 2.0f, -size.y / 2.0f, -size.z / 2.0f);
+			.translate(-size.x / 2.0f, -size.y / 2.0f, -size.z / 2.0f)
+			.scale(scale);
 		mesh.draw(modelView, projectionBuffer.getBuffer(projection), color, RenderSystem.outputDepthTextureOverride);
 		drawn = state;
 	}

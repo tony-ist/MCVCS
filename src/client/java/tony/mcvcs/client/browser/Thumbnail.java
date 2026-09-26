@@ -7,6 +7,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import org.jspecify.annotations.Nullable;
 
 import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.PreviewGrid;
 import tony.mcvcs.network.ThumbnailBlocksPayload;
 
 /**
@@ -32,7 +33,13 @@ public final class Thumbnail {
 	private final Key key;
 	private State state = State.REQUESTED;
 	private @Nullable String failure;
-	/** The blocks received so far, filling the key's extent; null before the first and once meshed. */
+	/** Whether asking again could help, so a refresh should; not when the version itself is too much to preview. */
+	private boolean retryable;
+	/** The grid the blocks fill, the version's extent at scale 1 or a coarser grid of it, see {@link PreviewGrid}. */
+	private @Nullable BuildBox grid;
+	/** How many of the version's blocks each block of {@link #grid} stands for along each side. */
+	private int scale = 1;
+	/** The blocks received so far, filling {@link #grid}; null before the first and once meshed. */
 	private BlockState @Nullable [] blocks;
 	private long received;
 	private @Nullable ThumbnailMesh mesh;
@@ -66,19 +73,41 @@ public final class Thumbnail {
 		return mesh;
 	}
 
-	/** How much of the preview has arrived, from 0 to 1. */
-	public float progress() {
-		long volume = key.extent().volume();
-		return volume == 0 ? 1.0f : (float) received / volume;
+	/** Whether a refresh should ask for the preview again, while it is {@link State#FAILED}. */
+	public boolean retryable() {
+		return retryable;
 	}
 
-	/** The server has started sending the blocks, which will fill {@code extent}. */
-	void begin(BuildBox extent) {
+	/** The grid the blocks fill, once they have started arriving. */
+	public @Nullable BuildBox grid() {
+		return grid;
+	}
+
+	/** How many of the version's blocks each block of the preview stands for along each side; 1 for all but big builds. */
+	public int scale() {
+		return scale;
+	}
+
+	/** How much of the preview has arrived, from 0 to 1. */
+	public float progress() {
+		BuildBox filling = grid;
+		long volume = filling == null ? 0 : filling.volume();
+		return volume == 0 ? 0.0f : (float) received / volume;
+	}
+
+	/** The server has started sending the blocks of {@code extent}, sampled at {@code scale}, see {@link PreviewGrid}. */
+	void begin(BuildBox extent, int scale) {
 		if (!extent.equals(key.extent())) {
-			fail("Build changed; refresh");
+			fail("Build changed", true);
 			return;
 		}
-		blocks = new BlockState[Math.toIntExact(extent.volume())];
+		if (scale < 1) {
+			fail("Malformed preview", true);
+			return;
+		}
+		this.scale = scale;
+		grid = PreviewGrid.grid(extent, scale);
+		blocks = new BlockState[Math.toIntExact(grid.volume())];
 		Arrays.fill(blocks, Blocks.AIR.defaultBlockState());
 		received = 0;
 		state = State.DOWNLOADING;
@@ -99,7 +128,7 @@ public final class Thumbnail {
 				target[slice.offset() + i] = slice.state(i);
 			}
 		} catch (IndexOutOfBoundsException e) {
-			fail("Malformed preview");
+			fail("Malformed preview", true);
 			return null;
 		}
 		received += slice.indices().length;
@@ -117,9 +146,14 @@ public final class Thumbnail {
 		state = State.READY;
 	}
 
-	void fail(String reason) {
+	/**
+	 * @param retryable whether asking again could help: true when the download went wrong, false when the version
+	 *                  itself cannot be previewed, which a refresh would only find out again
+	 */
+	void fail(String reason, boolean retryable) {
 		blocks = null;
 		failure = reason;
+		this.retryable = retryable;
 		state = State.FAILED;
 	}
 

@@ -142,7 +142,7 @@ public final class BuildBrowserScreen extends Screen {
 				case REQUESTED -> loading(graphics, centerX, centerY, "Waiting");
 				case DOWNLOADING -> loading(graphics, centerX, centerY, "Downloading " + (int) (thumbnail.progress() * 100) + "%");
 				case MESHING -> loading(graphics, centerX, centerY, "Preparing");
-				case FAILED -> wrapped(graphics, thumbnail.failure() + "; refresh to try again", x, y, size, RED);
+				case FAILED -> wrapped(graphics, thumbnail.failure() + (thumbnail.retryable() ? "; refresh to try again" : ""), x, y, size, RED);
 				case READY -> {
 					ThumbnailMesh mesh = thumbnail.mesh();
 					if (mesh == null || mesh.isEmpty()) {

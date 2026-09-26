@@ -19,6 +19,7 @@ import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.BuildStorage;
+import tony.mcvcs.build.PreviewGrid;
 import tony.mcvcs.command.VcsCommand;
 
 /**
@@ -27,7 +28,7 @@ import tony.mcvcs.command.VcsCommand;
  * {@link ThumbnailBlocksPayload}s, or a {@link ThumbnailFailedPayload}.
  * <p>
  * Both answer only players who may run {@code /vcs}, since the blocks of every build are as much the mod's data as
- * the commands are. Reading a schematic and cutting it into slices can take a while for a big build, so it is done on
+ * the commands are. A big version is sent as a coarser grid of itself, see {@link PreviewGrid}. Reading a schematic and cutting it into slices can take a while for a big build, so it is done on
  * a thread of its own, one request after another: a version's schematic is never rewritten once saved, so nothing on
  * the server thread can change it underneath. Payloads may be sent from any thread.
  */
@@ -93,11 +94,12 @@ public final class BuildBrowserSender {
 		}
 
 		BuildBox extent = build.extent(version);
+		int scale = PreviewGrid.scaleFor(extent);
 		READER.execute(() -> {
 			try {
 				Clipboard clipboard = BuildStorage.readSchematic(name, version);
-				BoxSnapshot snapshot = BoxSnapshot.ofClipboard(extent, clipboard, extent);
-				ServerPlayNetworking.send(player, new ThumbnailBeginPayload(name, version, extent));
+				BoxSnapshot snapshot = PreviewGrid.sample(clipboard, extent, scale);
+				ServerPlayNetworking.send(player, new ThumbnailBeginPayload(name, version, extent, scale));
 				PreviewSender.slices(snapshot, (offset, palette, indices, last) ->
 					ServerPlayNetworking.send(player, new ThumbnailBlocksPayload(name, version, offset, palette, indices, last)));
 			} catch (NoSuchFileException e) {

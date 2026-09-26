@@ -49,6 +49,20 @@ import tony.mcvcs.build.BuildBox;
 final class ThumbnailMesher {
 	/** Block light and sky light both at 15. */
 	private static final int FULL_BRIGHT = 0xF000F0;
+	/**
+	 * Most vertices a preview may have, over all its layers: about 110 MiB of GPU memory. A grid of at most
+	 * {@link tony.mcvcs.build.PreviewGrid#MAX_SIDE} a side stays well under it unless it is dense with blocks whose
+	 * faces are never hidden, such as redstone dust, glass panes or leaves; past it, the preview is refused rather
+	 * than let one cell take the memory of hundreds.
+	 */
+	static final int MAX_VERTICES = 4 * 1024 * 1024;
+
+	/** A version with more geometry than {@link #MAX_VERTICES}. */
+	static final class TooDetailedException extends RuntimeException {
+		TooDetailedException() {
+			super("Too detailed to preview");
+		}
+	}
 
 	private ThumbnailMesher() {
 	}
@@ -77,6 +91,8 @@ final class ThumbnailMesher {
 
 	/**
 	 * Meshes {@code blocks}, which fill {@code extent} in {@link BuildBox} order.
+	 *
+	 * @throws TooDetailedException if the mesh would have more than {@link #MAX_VERTICES} vertices
 	 */
 	static Result mesh(BuildBox extent, BlockState[] blocks, Context context) {
 		VersionBlocks level = new VersionBlocks(extent, blocks, context.lighting(), context.biome());
@@ -84,11 +100,14 @@ final class ThumbnailMesher {
 		Map<ChunkSectionLayer, ByteBufferBuilder> buffers = new EnumMap<>(ChunkSectionLayer.class);
 		Map<ChunkSectionLayer, BufferBuilder> builders = new EnumMap<>(ChunkSectionLayer.class);
 
+		int[] vertices = {0};
 		BlockQuadOutput output = (x, y, z, quad, instance) -> {
+			count(vertices);
 			instance.setLightCoords(FULL_BRIGHT);
 			builder(buffers, builders, quad.materialInfo().layer()).putBlockBakedQuad(x, y, z, quad, instance);
 		};
 		BlockQuadOutput opaqueOutput = (x, y, z, quad, instance) -> {
+			count(vertices);
 			instance.setLightCoords(FULL_BRIGHT);
 			builder(buffers, builders, ChunkSectionLayer.SOLID).putBlockBakedQuad(x, y, z, quad, instance);
 		};
@@ -131,6 +150,14 @@ final class ThumbnailMesher {
 		} finally {
 			BlockModelLighter.clearCache();
 			buffers.values().forEach(ByteBufferBuilder::close);
+		}
+	}
+
+	/** Counts the four vertices of one more quad, refusing the preview once there are more than {@link #MAX_VERTICES}. */
+	private static void count(int[] vertices) {
+		vertices[0] += 4;
+		if (vertices[0] > MAX_VERTICES) {
+			throw new TooDetailedException();
 		}
 	}
 

@@ -20,6 +20,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 import org.lwjgl.glfw.GLFW;
 
+import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.PreviewGrid;
 import tony.mcvcs.client.browser.BuildBrowser;
 import tony.mcvcs.client.browser.BuildBrowserKey;
 import tony.mcvcs.client.browser.BuildBrowserScreen;
@@ -31,19 +33,22 @@ import tony.mcvcs.network.BuildSummary;
 
 /**
  * The builds overlay: {@code B} opens it with every build of the world in a grid, each showing its newest committed
- * version, name and tags; a build too big to download by itself waits for a click; the refresh button picks up a new
+ * version, name and tags; a build too big to download by itself waits for a click; a very long one arrives as a
+ * coarser grid of itself; the refresh button picks up a new
  * commit; clicking a build starts {@code /vcs place} of it; and a player who may not run {@code /vcs} is told so.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsBuildBrowserGameTest extends VcsGameTest {
 	private static final String SMALL = "gametest-browser-tower";
 	private static final String BIG = "gametest-browser-hall";
+	/** Longer than {@link PreviewGrid#MAX_SIDE}, so its preview is sampled at every second block. */
+	private static final String LONG = "gametest-browser-bridge";
 
 	@Override
 	protected void run(ClientGameTestContext context) {
 		checkKey(context);
 
-		resetBuilds(SMALL, BIG);
+		resetBuilds(SMALL, BIG, LONG);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 			// Held still, so the screenshots show the same side every run; the big build's 48 blocks are past the limit.
@@ -66,6 +71,16 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			select(singleplayer, hallMin, hallMax);
 			runCommand(context, "vcs create " + BIG + " -we");
 			read(schematic(BIG, 1));
+
+			// A 140x3x3 bridge of stone bricks with a gold stripe along its top: longer than a preview is ever sent whole,
+			// so it arrives as a 70x2x2 grid of every second block.
+			BlockPos bridgeMin = playerPos(singleplayer).offset(-70, 10, -12);
+			BlockPos bridgeMax = bridgeMin.offset(139, 2, 2);
+			fillBox(singleplayer, bridgeMin, bridgeMax, Blocks.STONE_BRICKS.defaultBlockState(), bridgeMin, Blocks.STONE_BRICKS.defaultBlockState());
+			fillBox(singleplayer, bridgeMin.offset(0, 2, 1), bridgeMax.offset(0, 0, -1), Blocks.GOLD_BLOCK.defaultBlockState(), bridgeMin.offset(0, 2, 1), Blocks.GOLD_BLOCK.defaultBlockState());
+			select(singleplayer, bridgeMin, bridgeMax);
+			runCommand(context, "vcs create " + LONG + " -we");
+			read(schematic(LONG, 1));
 
 			// A second version of the tower, tagged, so its cell shows the newest version with its tag.
 			setBlock(singleplayer, towerMax, Blocks.GOLD_BLOCK.defaultBlockState());
@@ -91,6 +106,15 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			context.waitForScreen(BuildBrowserScreen.class);
 			if (context.computeOnClient(client -> PreviewManager.place()) != null) {
 				throw new AssertionError("Expected the first click on a placeholder to download the preview, not to place the build");
+			}
+
+			// The bridge is too long to send whole: it arrives as a grid of every second block, drawn at full size.
+			click(context, LONG);
+			waitForReady(context, LONG, 1);
+			BuildBox grid = context.computeOnClient(client -> BuildBrowser.thumbnail(summary(LONG)).grid());
+			int scale = context.computeOnClient(client -> BuildBrowser.thumbnail(summary(LONG)).scale());
+			if (scale != 2 || grid == null || grid.sizeX() != 70 || grid.sizeY() != 2 || grid.sizeZ() != 2) {
+				throw new AssertionError("Expected the bridge's preview as a 70x2x2 grid at scale 2 but got " + grid + " at scale " + scale);
 			}
 
 			// The previews turn: two frames a moment apart show them from different sides.
