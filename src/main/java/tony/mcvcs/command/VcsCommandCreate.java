@@ -63,7 +63,7 @@ public final class VcsCommandCreate {
 			return 0;
 		}
 		if (!useSelection) {
-			PendingClick.arm(player, (clicker, level, pos) -> createFromBlock(clicker, level, buildName, placementName, pos));
+			PendingClick.arm(player, Component.literal("Punch a block of the build to create ").append(VcsMessages.name(buildName)), (clicker, level, pos) -> createFromBlock(clicker, level, buildName, placementName, pos));
 			source.sendSuccess(() -> Component.literal("Punch a block of the build, or right-click it with an empty hand, to create build ")
 				.append(VcsMessages.name(buildName)).append(" from it and everything connected to it"), false);
 			return 1;

@@ -164,8 +164,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Command /vcs move initiates moving preview for current placement allowing to change its position with numpad keys and press 5 moves it physically in the world
 - Submodules for build. One build can have submodules inside its box. Each submodule is itself a build. When we place parent build, all submodule placements appear inside. Bounding box for parent build includes all bounding boxes for submodules. Think about what happens when submodule and parent intersect not fullly.
 - Add hotkeys to select next and previous version preview (could be made obsolete by UI Overlay)
-- Hotkeys that move the preview should not require looking at an edge, but only looking at projection of that edge. Easier to move small builds that way.
-- Add some effect when punching is armed
 
 ### Nice to have
 

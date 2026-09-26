@@ -36,6 +36,7 @@ import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.BuildStorage;
 import tony.mcvcs.build.ClientPlacement;
 import tony.mcvcs.client.build.ClientPlacements;
+import tony.mcvcs.client.selection.PendingClickHighlight;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.fabric.FabricAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -63,7 +64,7 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 	private static final List<Component> RECEIVED = new ArrayList<>();
 
 	static {
-		ClientReceiveMessageEvents.GAME.register((message, overlay) -> RECEIVED.add(message));
+		ClientReceiveMessageEvents.GAME.register((message, overlay) -> { if (!overlay) RECEIVED.add(message); });
 	}
 
 	@Override
@@ -99,10 +100,16 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 			List<Component> armed = run(context, "vcs create " + PUNCHED_NAME);
 			assertOnlyMessage(armed, "Punch a block of the build, or right-click it with an empty hand, to create build " + PUNCHED_NAME);
 			assertNoBuild(PUNCHED_NAME);
+			// While the click is waited for, the action bar says so, and the block under the crosshair is outlined.
+			assertArmed(context, "Punch a block of the build to create " + PUNCHED_NAME);
+			lookAt(context, min, max);
+			context.waitTicks(40);
+			assertArmed(context, "Punch a block of the build to create " + PUNCHED_NAME);
+			screenshotLastFrame(context, "mcvcs-vcs-create-armed");
 
 			// Punching the cube creates the build from the whole 3x3x3 it forms with the gold block, and breaks nothing.
-			lookAt(context, min, max);
 			List<Component> created = click(context, options -> options.keyAttack);
+			assertDisarmed(context);
 			assertOnlyMessage(created, "Created build " + PUNCHED_NAME + " as placement " + Build.MAIN + " (3x3x3, 27 blocks) at");
 			assertBox(context, singleplayer, PUNCHED_NAME, punched);
 			assertState(singleplayer, min, Blocks.STONE.defaultBlockState());
@@ -194,6 +201,26 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 	private static void assertNoMessage(List<Component> messages) {
 		if (!messages.isEmpty()) {
 			throw new AssertionError("Expected no message but got " + messages.stream().map(Component::getString).toList());
+		}
+	}
+
+	/** The action bar shows {@code hint} and the client knows a click is waited for, so it outlines the block in sight. */
+	private static void assertArmed(ClientGameTestContext context, String hint) {
+		context.waitFor(client -> PendingClickHighlight.armed());
+		String message = context.computeOnClient(VcsTestSupport::overlayMessage);
+		if (!hint.equals(message)) {
+			throw new AssertionError("Expected the action bar to say '" + hint + "' but it says '" + message + "'");
+		}
+	}
+
+	/** The hint is off the action bar and the client no longer outlines anything. */
+	private static void assertDisarmed(ClientGameTestContext context) {
+		if (context.computeOnClient(client -> PendingClickHighlight.armed())) {
+			throw new AssertionError("Expected the client to stop outlining the block once it was clicked");
+		}
+		String message = context.computeOnClient(VcsTestSupport::overlayMessage);
+		if (message != null && !message.isEmpty()) {
+			throw new AssertionError("Expected the action bar to be cleared but it says '" + message + "'");
 		}
 	}
 

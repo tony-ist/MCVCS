@@ -37,7 +37,7 @@ public final class VcsCommandSelect {
 	/** {@code /vcs select}: the placement of whichever block the player punches next. */
 	static int run(CommandSourceStack source) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
-		PendingClick.arm(player, VcsCommandSelect::selectAt);
+		PendingClick.arm(player, Component.literal("Punch a block of a placement to select it"), VcsCommandSelect::selectAt);
 		source.sendSuccess(() -> Component.literal("Punch a block of a placement, or right-click it with an empty hand, to select it"), false);
 		return 1;
 	}
@@ -60,7 +60,8 @@ public final class VcsCommandSelect {
 			return 0;
 		}
 		if (build.placements().size() > 1) {
-			PendingClick.arm(player, VcsCommandSelect::selectAt);
+			PendingClick.arm(player, Component.literal("Punch a block of a placement of ").append(VcsMessages.name(buildName)).append(" to select it"),
+				VcsCommandSelect::selectAt);
 			source.sendSuccess(() -> Component.literal("Build ").append(VcsMessages.name(buildName)).append(" has " + build.placements().size()
 				+ " placements (" + String.join(", ", build.placementNames()) + "); punch a block of the one you want to select it"), false);
 			return 1;

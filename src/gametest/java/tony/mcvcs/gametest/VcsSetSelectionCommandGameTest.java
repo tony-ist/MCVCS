@@ -48,7 +48,7 @@ public class VcsSetSelectionCommandGameTest extends VcsGameTest {
 	private static final List<Component> RECEIVED = new ArrayList<>();
 
 	static {
-		ClientReceiveMessageEvents.GAME.register((message, overlay) -> RECEIVED.add(message));
+		ClientReceiveMessageEvents.GAME.register((message, overlay) -> { if (!overlay) RECEIVED.add(message); });
 	}
 
 	@Override

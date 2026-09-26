@@ -11,6 +11,7 @@ import tony.mcvcs.client.place.PlacePreviewRenderer;
 import tony.mcvcs.client.place.PlacePreviewStatus;
 import tony.mcvcs.client.preview.PreviewManager;
 import tony.mcvcs.client.build.ClientPlacements;
+import tony.mcvcs.client.selection.PendingClickHighlight;
 import tony.mcvcs.client.selection.SelectHotkey;
 import tony.mcvcs.client.selection.SelectionBoxRenderer;
 
@@ -23,6 +24,7 @@ public class MCVCSClient implements ClientModInitializer {
 		ClientPlacements.register();
 		SelectionBoxRenderer.register();
 		SelectHotkey.register();
+		PendingClickHighlight.register();
 		PlacePreviewKeys.register();
 		PlacePreviewStatus.register();
 		PlacePreviewRenderer.register();
