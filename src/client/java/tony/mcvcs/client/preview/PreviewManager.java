@@ -18,6 +18,8 @@ import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongList;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import tony.mcvcs.MCVCS;
+import tony.mcvcs.client.place.PlacePreviewKeys;
+import tony.mcvcs.client.place.PlacePreviewStatus;
 import tony.mcvcs.network.PlacePreviewBeginPayload;
 import tony.mcvcs.network.PlacePreviewClearPayload;
 import tony.mcvcs.network.PreviewBeginPayload;
@@ -147,6 +149,8 @@ public final class PreviewManager {
 			pending = null;
 			if (target.place) {
 				showPlace(new PlacePreview(target.build(), target.force), client);
+				PlacePreviewStatus.refresh(client);
+				PlacePreviewKeys.announce(client);
 			} else {
 				showVersion(target.build(), client);
 			}

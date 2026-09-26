@@ -232,14 +232,27 @@ public final class PlacePreviewKeys {
 
 		// The move changed what the copy stands over, and the message about to be sent reports it.
 		PlacePreviewStatus.refresh(client);
-		player.sendOverlayMessage(moved(preview, min));
+		announce(client);
 	}
 
-	/** What the action bar says after a move: where the copy now starts, and why it could not be placed there. */
-	private static MutableComponent moved(PlacePreview preview, BlockPos min) {
-		MutableComponent message = Component.literal(preview.blocks().name() + " at " + min.toShortString());
+	/**
+	 * Puts on the action bar which build is being placed and how to move it, followed by why it could not be placed
+	 * where it stands, if it could not. Said when the copy first appears and again after every move.
+	 */
+	public static void announce(Minecraft client) {
+		PlacePreview preview = PreviewManager.place();
+		LocalPlayer player = client.player;
+		if (preview != null && player != null) {
+			player.sendOverlayMessage(placing(preview));
+		}
+	}
+
+	/** What {@link #announce} says, e.g. {@code Placing tower/main - Left Alt + Mouse Wheel to Move}. */
+	private static MutableComponent placing(PlacePreview preview) {
+		MutableComponent message = Component.literal("Placing " + preview.blocks().name() + " - ")
+			.append(SCROLL.getTranslatedKeyMessage()).append(" + Mouse Wheel to Move");
 		Status status = PlacePreviewStatus.status();
-		String reason = status == null ? null : status.reason();
+		String reason = status == null || !status.box().equals(preview.box()) ? null : status.reason();
 		if (reason != null) {
 			message.append(Component.literal(" - " + reason).withStyle(ChatFormatting.RED));
 		}
