@@ -37,6 +37,7 @@ import tony.mcvcs.build.Placement;
  * <li>{@code /vcs load [version | tag]}: {@link VcsCommandLoad}</li>
  * <li>{@code /vcs diff [version | tag | off]}: {@link VcsCommandDiff}</li>
  * <li>{@code /vcs fit}: {@link VcsCommandFit}</li>
+ * <li>{@code /vcs setSelection}: {@link VcsCommandSetSelection}</li>
  * <li>{@code /vcs checkout <version | tag | latest> [-f]}: {@link VcsCommandCheckout}</li>
  * <li>{@code /vcs delete <buildname> [-c]} and {@code /vcs confirmDelete}: {@link VcsCommandDelete}</li>
  * <li>{@code /vcs tp [buildname [placementname]]}: {@link VcsCommandTp}</li>
@@ -143,6 +144,8 @@ public final class VcsCommand {
 						.executes(context -> VcsCommandDiff.run(context.getSource(), VersionRef.of(context)))))
 				.then(sub(VcsCommandFit.HELP)
 					.executes(context -> VcsCommandFit.run(context.getSource())))
+				.then(sub(VcsCommandSetSelection.HELP)
+					.executes(context -> VcsCommandSetSelection.run(context.getSource())))
 				.then(sub(VcsCommandCheckout.HELP)
 					.then(Commands.literal("latest")
 						.executes(context -> VcsCommandCheckout.run(context.getSource(), LATEST, false))

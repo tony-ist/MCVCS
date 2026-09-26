@@ -34,6 +34,7 @@ public final class VcsCommandHelp {
 		VcsCommandLoad.HELP,
 		VcsCommandDiff.HELP,
 		VcsCommandFit.HELP,
+		VcsCommandSetSelection.HELP,
 		VcsCommandCheckout.HELP,
 		VcsCommandDelete.HELP,
 		VcsCommandDelete.CONFIRM_HELP,

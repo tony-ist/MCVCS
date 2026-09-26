@@ -22,8 +22,8 @@ import tony.mcvcs.network.ChatButtons;
 /**
  * {@code /vcs weselect}: makes the selected placement's box the player's WorldEdit selection, the corners set as
  * {@code //pos1} and {@code //pos2} would set them, so WorldEdit commands act on exactly that copy of the build. The
- * placement itself is not touched: its box only ever changes through {@code /vcs fit} and {@code /vcs checkout},
- * so moving the WorldEdit selection afterwards cannot move it.
+ * placement itself is not touched: its box only ever changes through {@code /vcs fit}, {@code /vcs setSelection}
+ * and {@code /vcs checkout}, so moving the WorldEdit selection afterwards does not move it by itself.
  */
 public final class VcsCommandWeselect {
 	static final VcsHelp HELP = new VcsHelp("weselect", "/vcs weselect",
