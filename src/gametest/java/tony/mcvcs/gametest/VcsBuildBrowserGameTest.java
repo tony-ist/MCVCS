@@ -21,12 +21,14 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 import org.lwjgl.glfw.GLFW;
 
+import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.ClientPlacement;
 import tony.mcvcs.build.PreviewGrid;
 import tony.mcvcs.client.browser.BuildBrowser;
 import tony.mcvcs.client.browser.BuildBrowserKey;
 import tony.mcvcs.client.browser.BuildBrowserScreen;
+import tony.mcvcs.client.browser.PlacementPickerScreen;
 import tony.mcvcs.client.browser.Thumbnail;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.config.ClientConfig;
@@ -38,7 +40,8 @@ import tony.mcvcs.network.BuildSummary;
  * The builds overlay: {@code B} opens it with every build of the world in a grid, each showing its newest committed
  * version, name and tags; a build too big to download by itself waits for a click; a very long one arrives as a
  * coarser grid of itself; the refresh button picks up a new commit; the buttons a hovered cell shows select the build,
- * start {@code /vcs place} of it and teleport onto it, the first two greyed out for a build placed nowhere; and a player
+ * start {@code /vcs place} of it and teleport onto it, the first two asking which placement for a build with several and
+ * greyed out for a build placed nowhere; and a player
  * who may not run {@code /vcs} is told so.
  */
 @SuppressWarnings("UnstableApiUsage")
@@ -174,8 +177,43 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			context.runOnClient(client -> client.player.setXRot(90.0f));
 			context.waitTicks(5);
 			context.takeScreenshot("mcvcs-builds-overlay-placing");
-			runCommand(context, "vcs cancelPlace");
+			// Placed for good, so the tower has a second placement, p2, which the confirmation selects.
+			runCommand(context, "vcs confirmPlace -f");
+			context.waitFor(client -> ClientPlacements.all().stream().filter(placement -> placement.build().equals(SMALL)).count() == 2);
 			context.runOnClient(client -> client.player.setXRot(0.0f));
+
+			// With two placements, Select asks which one, headed with the build's name; Escape goes back to the overlay.
+			open(context);
+			clickButton(context, SMALL, BuildBrowserScreen.SELECT);
+			context.waitForScreen(PlacementPickerScreen.class);
+			String header = context.computeOnClient(client -> client.screen.getTitle().getString());
+			if (!header.contains(SMALL)) {
+				throw new AssertionError("Expected the placement picker's header to name " + SMALL + " but it says " + header);
+			}
+			moveAway(context);
+			context.waitTicks(2);
+			context.takeScreenshot("mcvcs-builds-overlay-picker");
+			context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+			context.waitForScreen(BuildBrowserScreen.class);
+
+			// Clicking a placement closes both and selects it.
+			clickButton(context, SMALL, BuildBrowserScreen.SELECT);
+			context.waitForScreen(PlacementPickerScreen.class);
+			clickRow(context, Build.MAIN);
+			context.waitFor(client -> client.screen == null);
+			context.waitFor(client -> {
+				ClientPlacement selected = ClientPlacements.selected();
+				return selected != null && selected.label().equals(SMALL + "/" + Build.MAIN);
+			});
+
+			// TP asks the same way and teleports on top of the placement picked.
+			open(context);
+			clickButton(context, SMALL, BuildBrowserScreen.TP);
+			context.waitForScreen(PlacementPickerScreen.class);
+			clickRow(context, Build.MAIN);
+			context.waitFor(client -> client.screen == null);
+			BlockPos onTower = new BlockPos(towerMin.getX() + 1, towerMax.getY() + 1, towerMin.getZ() + 1);
+			context.waitFor(client -> client.player.blockPosition().equals(onTower));
 
 			// TP closes the overlay and puts the player on top of the bridge, at its centre.
 			open(context);
@@ -185,6 +223,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			context.waitFor(client -> client.player.blockPosition().equals(onBridge));
 
 			// A build placed nowhere has Select and TP greyed out, and pressing one does nothing.
+			runCommand(context, "vcs select " + BIG);
 			runCommand(context, "vcs unplace -k");
 			open(context);
 			context.waitFor(client -> {
@@ -302,6 +341,18 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			return found.getRectangle();
 		});
 		clickAt(context, button.left() + button.width() / 2.0, button.top() + button.height() / 2.0);
+	}
+
+	/** Clicks the row of the placement called {@code name} in the placement picker. */
+	private static void clickRow(ClientGameTestContext context, String name) {
+		ScreenRectangle row = context.computeOnClient(client -> {
+			ScreenRectangle found = client.screen instanceof PlacementPickerScreen screen ? screen.rowOf(name) : null;
+			if (found == null) {
+				throw new AssertionError("Expected a row for " + name + " on " + client.screen);
+			}
+			return found;
+		});
+		clickAt(context, row.left() + row.width() / 2.0, row.top() + row.height() / 2.0);
 	}
 
 	private static ScreenRectangle cellOf(ClientGameTestContext context, String name) {

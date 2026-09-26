@@ -90,11 +90,11 @@ Hovering a cell turns it blue and replaces its preview with three buttons stacke
 
 | Button | Runs | What it does |
 | --- | --- | --- |
-| `Select` | `/vcs select <buildname>` | Selects the build's placement; if it has several, punch the one you want |
-| `TP` | `/vcs tp <buildname>` | Teleports you on top of its `main` placement, or its first if it has none called `main` |
+| `Select` | `/vcs select <buildname> <placementname>` | Selects the build's placement |
+| `TP` | `/vcs tp <buildname> <placementname>` | Teleports you on top of the build's placement |
 | `Place` | `/vcs place <buildname> <version>` | Places a copy of the version the cell shows below your feet, ready to be lined up with the numpad keys |
 
-`Select` and `TP` are greyed out for a build that is not placed anywhere.
+`Select` and `TP` are greyed out for a build that is not placed anywhere. For a build with several placements they first open a window headed with the build's name, listing each placement's name and the corner its box starts at, with its dimension if that is not the overworld; your selected placement is in yellow. Clicking one closes the window and the overlay and selects that placement or teleports onto it. `Cancel`, `Esc` or a click outside the window goes back to the overlay, and `B` closes both.
 
 Previews are downloaded from the server when the overlay opens, with loading dots and `Downloading` in each cell, then the percentage downloaded, until its preview is ready. A version never changes once committed, so each preview is downloaded once and kept until you leave the server; opening the overlay again shows it straight away. A build bigger than `autoDownloadLimit` blocks (see [Client settings](#client-settings)) is not downloaded by itself: its cell says `Click to download the preview` with its size, and clicking the cell anywhere but on its buttons downloads it.
 
@@ -184,7 +184,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
-- Builds overlay: add ability to preview any version of the build
 - Preview of huge builds is laggy when moving it. Maybe make debounce: move only box and rerender the build only after some time 
 - Aliases for commands to type them faster
 - Make automatic releases on github by reading tags
@@ -192,6 +191,8 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Command /vcs move initiates moving preview for current placement allowing to change its position with numpad keys and press 5 moves it physically in the world
 - Submodules for build. One build can have submodules inside its box. Each submodule is itself a build. When we place parent build, all submodule placements appear inside. Bounding box for parent build includes all bounding boxes for submodules. Think about what happens when submodule and parent intersect not fullly.
 - Add hotkeys to select next and previous version preview (could be made obsolete by UI Overlay)
+- Renaming builds and placements
+- Delete button for builds in overlay
 
 ### Nice to have
 

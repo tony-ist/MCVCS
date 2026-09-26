@@ -1,6 +1,7 @@
 package tony.mcvcs.client.browser;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
 
@@ -20,7 +21,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.util.Util;
 import org.jspecify.annotations.Nullable;
 
-import tony.mcvcs.build.Build;
 import tony.mcvcs.build.ClientPlacement;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.config.ClientConfig;
@@ -34,7 +34,8 @@ import tony.mcvcs.network.BuildSummary;
  * Hovering a cell swaps its preview for three buttons, each closing the overlay and running a command as if typed:
  * {@code Select} runs {@code /vcs select} for the build, {@code TP} runs {@code /vcs tp} to it, and {@code Place} runs
  * {@code /vcs place} for the version the cell shows, so the copy shows up where the player stands, ready to be lined
- * up. A build with no placements has the first two greyed out. A build bigger than
+ * up. A build with no placements has the first two greyed out; for one with several, they first ask which placement
+ * is meant, see {@link PlacementPickerScreen}. A build bigger than
  * {@link ClientConfig.Settings#autoDownloadLimit} shows a placeholder instead of its preview until the cell is clicked
  * outside its buttons, which downloads the preview.
  * <p>
@@ -74,8 +75,8 @@ public final class BuildBrowserScreen extends Screen {
 	private static final int BUTTON_PADDING = 16;
 
 	private double scroll;
-	private final Button select = Button.builder(Component.literal(SELECT), button -> run(build -> "vcs select " + build.name())).build();
-	private final Button tp = Button.builder(Component.literal(TP), button -> run(build -> "vcs tp " + build.name())).build();
+	private final Button select = Button.builder(Component.literal(SELECT), button -> choose(PlacementPickerScreen.Action.SELECT)).build();
+	private final Button tp = Button.builder(Component.literal(TP), button -> choose(PlacementPickerScreen.Action.TP)).build();
 	private final Button place = Button.builder(Component.literal(PLACE), button -> run(build -> "vcs place " + build.name() + " " + build.version())).build();
 	/** The build whose cell the buttons are on, or null while no cell is hovered and they are hidden. */
 	private @Nullable BuildSummary buttonsFor;
@@ -84,9 +85,15 @@ public final class BuildBrowserScreen extends Screen {
 		super(Component.literal("MCVCS Builds"));
 	}
 
+	/** Whether the list has been asked for since this overlay opened; coming back to it from the picker keeps it. */
+	private boolean listed;
+
 	@Override
 	public void added() {
-		BuildBrowser.refresh();
+		if (!listed) {
+			listed = true;
+			BuildBrowser.refresh();
+		}
 	}
 
 	@Override
@@ -280,6 +287,26 @@ public final class BuildBrowserScreen extends Screen {
 		return true;
 	}
 
+	/**
+	 * Runs {@code action} for the build the buttons are on: straight away if it has at most one placement, which the
+	 * command then finds by itself or says there is none, otherwise once {@link PlacementPickerScreen} is told which.
+	 */
+	private void choose(PlacementPickerScreen.Action action) {
+		BuildSummary build = buttonsFor;
+		if (build == null || minecraft == null) {
+			return;
+		}
+		List<ClientPlacement> placements = ClientPlacements.all().stream()
+			.filter(placement -> placement.build().equals(build.name()))
+			.sorted(Comparator.comparing(ClientPlacement::placement))
+			.toList();
+		if (placements.size() > 1) {
+			minecraft.setScreen(new PlacementPickerScreen(this, build.name(), action, placements));
+		} else {
+			run(target -> action.command() + " " + target.name());
+		}
+	}
+
 	/** Closes the overlay and runs the command {@code command} makes for the build the buttons are on, as if typed. */
 	private void run(Function<BuildSummary, String> command) {
 		BuildSummary build = buttonsFor;
@@ -328,11 +355,11 @@ public final class BuildBrowserScreen extends Screen {
 			select.active = placed;
 			select.setTooltip(!placed ? notPlaced : Tooltip.create(Component.literal(build.placements() == 1
 				? "Select its placement"
-				: "Select one of its " + build.placements() + " placements: punch a block of the one you want")));
+				: "Choose which of its " + build.placements() + " placements to select")));
 			tp.active = placed;
 			tp.setTooltip(!placed ? notPlaced : Tooltip.create(Component.literal(build.placements() == 1
 				? "Teleport on top of its placement"
-				: "Teleport on top of its " + Build.MAIN + " placement, or its first if it has none")));
+				: "Choose which of its " + build.placements() + " placements to teleport onto")));
 			place.setTooltip(Tooltip.create(Component.literal("Place a copy of v" + build.version() + " where you stand")));
 		}
 		for (Button button : buttons()) {
