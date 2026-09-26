@@ -24,7 +24,8 @@ import tony.mcvcs.network.ChatButtons;
  * no arguments, or with a build that has more than one placement, the command asks for a block to be punched
  * instead, see {@link PendingClick}: the block is left alone and the placement whose box it is inside becomes the
  * selected one, whichever build that placement belongs to. A build with a single placement selects it straight away,
- * and naming the placement as well always does.
+ * and naming the placement as well always does. Either way, a click an earlier command left waiting for is dropped,
+ * whether or not this one then waits for a click of its own, and even when it fails.
  */
 public final class VcsCommandSelect {
 	static final VcsHelp HELP = new VcsHelp("select", "/vcs select [buildname [placementname]]",
@@ -48,6 +49,7 @@ public final class VcsCommandSelect {
 	 */
 	static int run(CommandSourceStack source, String buildName) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
+		PendingClick.disarm(player);
 		Optional<Build> found = BuildRegistry.find(source.getServer(), buildName);
 		if (found.isEmpty()) {
 			source.sendFailure(Component.literal("No build named ").append(VcsMessages.name(buildName)).append(" in this world; create it with ").append(ChatButtons.command("/vcs create " + buildName)));
@@ -72,6 +74,7 @@ public final class VcsCommandSelect {
 	/** {@code /vcs select <buildname> <placementname>}: that placement, with nothing to punch. */
 	static int run(CommandSourceStack source, String buildName, String placementName) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
+		PendingClick.disarm(player);
 		Optional<Build> build = BuildRegistry.find(source.getServer(), buildName);
 		if (build.isEmpty()) {
 			source.sendFailure(Component.literal("No build named ").append(VcsMessages.name(buildName)).append(" in this world; create it with ").append(ChatButtons.command("/vcs create " + buildName)));

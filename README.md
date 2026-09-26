@@ -160,7 +160,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - UI Overlay: Display builds and versions on the client in overlay. Also show rotating 3D render of the build. Make buttons in overlay to select, checkout, diff and preview builds.
 - Make automatic releases on github by reading tags
 - Make version automatically in format mcvcs-fabric-1.2.0+mc26.1.2
-- vcs select, vcs select buildname should disarm punch
 - Command /vcs move initiates moving preview for current placement allowing to change its position with numpad keys and press 5 moves it physically in the world
 - Submodules for build. One build can have submodules inside its box. Each submodule is itself a build. When we place parent build, all submodule placements appear inside. Bounding box for parent build includes all bounding boxes for submodules. Think about what happens when submodule and parent intersect not fullly.
 - Add hotkeys to select next and previous version preview (could be made obsolete by UI Overlay)

@@ -17,6 +17,8 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
 import tony.mcvcs.client.build.ClientPlacements;
+import tony.mcvcs.client.selection.PendingClickHighlight;
+import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.ClientPlacement;
 import net.minecraft.core.BlockPos;
@@ -78,6 +80,15 @@ public class VcsSelectCommandGameTest extends VcsGameTest {
 
 			// Selecting the second build again shows its latest state, still v1.
 			runCommand(context, "vcs select " + SECOND);
+			assertSelected(waitForSelection(context, SECOND), SECOND, 1, secondBox);
+
+			// Naming what to select drops a punch an earlier /vcs select is waiting for, even when the name is wrong.
+			for (String named : new String[] {"gametest-select-missing", FIRST, SECOND + " " + Build.MAIN}) {
+				runCommand(context, "vcs select");
+				context.waitFor(client -> PendingClickHighlight.armed());
+				runCommand(context, "vcs select " + named);
+				context.waitFor(client -> !PendingClickHighlight.armed());
+			}
 			assertSelected(waitForSelection(context, SECOND), SECOND, 1, secondBox);
 		}
 	}
