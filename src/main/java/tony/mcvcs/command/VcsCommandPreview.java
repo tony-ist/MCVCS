@@ -20,7 +20,7 @@ import tony.mcvcs.network.PreviewSender;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 
 /**
- * {@code /vcs preview <version>}: sends that version's schematic to the player's client, which draws it in place of
+ * {@code /vcs preview <version | tag>}: sends that version's schematic to the player's client, which draws it in place of
  * the real blocks inside the selected placement's box. Nothing in the world changes. {@code /vcs preview off} shows
  * the real blocks again.
  * <p>
@@ -28,14 +28,15 @@ import com.sk89q.worldedit.extent.clipboard.Clipboard;
  * the others. A version too big for the box it is previewed in is refused; check it out to see it at its own size.
  */
 public final class VcsCommandPreview {
-	static final VcsHelp HELP = new VcsHelp("preview", "/vcs preview <version | off>",
+	static final VcsHelp HELP = new VcsHelp("preview", "/vcs preview <version | tag | off>",
 		"show a version in place of the real blocks, on your client only",
-		"Draws that version of the build inside the selected placement's box instead of the real blocks. Nothing in the world changes, and only you see it; the mod has to be installed on your client. /vcs preview off shows the real blocks again.");
+		"Draws that version of the build, given by number or by tag, inside the selected placement's box instead of the real blocks. Nothing in the world changes, and only you see it; the mod has to be installed on your client. /vcs preview off shows the real blocks again.");
 
 	private VcsCommandPreview() {
 	}
 
-	static int run(CommandSourceStack source, int version) throws CommandSyntaxException {
+	/** @param typed the version to preview, by number or tag */
+	static int run(CommandSourceStack source, VersionRef typed) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<BuildPlacement> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
@@ -49,10 +50,12 @@ public final class VcsCommandPreview {
 
 		BuildPlacement placement = selected.get();
 		Build build = placement.build();
-		if (version > build.version()) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(build.name())).append(" only has versions 1 to " + build.version()));
+		// The command always names a version, so the fallback is never used.
+		Optional<Integer> resolved = typed.resolve(source, build, placement.head());
+		if (resolved.isEmpty()) {
 			return 0;
 		}
+		int version = resolved.get();
 
 		BuildBox box = placement.box();
 		BuildBox covered = placement.boxOf(version);
@@ -67,7 +70,7 @@ public final class VcsCommandPreview {
 			Clipboard clipboard = BuildStorage.readSchematic(build.name(), version);
 			PreviewSender.send(player, placement, version, clipboard);
 
-			source.sendSuccess(() -> Component.literal("Previewing ").append(VcsMessages.placement(placement)).append(" at v" + version
+			source.sendSuccess(() -> Component.literal("Previewing ").append(VcsMessages.placement(placement)).append(" at " + build.versionLabel(version)
 				+ " (" + box.volume() + " blocks); run ").append(ChatButtons.command("/vcs preview off")).append(" to stop"), false);
 			return 1;
 		} catch (NoSuchFileException e) {

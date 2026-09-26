@@ -26,7 +26,7 @@ import tony.mcvcs.network.ChatButtons;
 import tony.mcvcs.network.DiffSender;
 
 /**
- * {@code /vcs diff [version]}: compares the blocks currently inside the selected placement's box with that version,
+ * {@code /vcs diff [version | tag]}: compares the blocks currently inside the selected placement's box with that version,
  * or the one the placement holds if no version is given, see {@link Placement#head}, reports how many were added,
  * removed or changed since, and has the player's client highlight them in place. {@code /vcs diff off} stops the
  * highlighting.
@@ -35,9 +35,9 @@ import tony.mcvcs.network.DiffSender;
  * air, so a version from before an expand shows the blocks that expand took in as added.
  */
 public final class VcsCommandDiff {
-	static final VcsHelp HELP = new VcsHelp("diff", "/vcs diff [version | off]",
+	static final VcsHelp HELP = new VcsHelp("diff", "/vcs diff [version | tag | off]",
 		"highlight what changed in the placement since a version",
-		"Compares the provided version (or the one the selected placement holds by default) with what is in its box now. With the mod on your client blocks are highlighted in place: green for added, red for removed, yellow for changed. /vcs diff off removes the highlights.");
+		"Compares the provided version, given by number or by tag (or the one the selected placement holds by default), with what is in its box now. With the mod on your client blocks are highlighted in place: green for added, red for removed, yellow for changed. /vcs diff off removes the highlights.");
 
 	private VcsCommandDiff() {
 	}
@@ -46,9 +46,10 @@ public final class VcsCommandDiff {
 	 * Compares the blocks now inside the selected placement's box with one of the build's versions. The summary goes
 	 * to chat whether or not the player's client has this mod; the highlighting needs it.
 	 *
-	 * @param version the version to compare against, or {@link VcsCommand#LATEST} for the one the placement holds
+	 * @param version the version to compare against, by number or tag, or {@link VersionRef#DEFAULT} for the one the
+	 *                placement holds
 	 */
-	static int run(CommandSourceStack source, int version) throws CommandSyntaxException {
+	static int run(CommandSourceStack source, VersionRef version) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<BuildPlacement> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
@@ -58,11 +59,11 @@ public final class VcsCommandDiff {
 
 		BuildPlacement placement = selected.get();
 		Build build = placement.build();
-		if (version > build.version()) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(build.name())).append(" only has versions 1 to " + build.version()));
+		Optional<Integer> resolved = version.resolve(source, build, placement.head());
+		if (resolved.isEmpty()) {
 			return 0;
 		}
-		int against = version == VcsCommand.LATEST ? placement.head() : version;
+		int against = resolved.get();
 		ServerLevel level = source.getServer().getLevel(placement.dimension());
 		if (level == null) {
 			source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is in " + placement.dimension().identifier() + ", which does not exist here"));

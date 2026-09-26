@@ -36,7 +36,7 @@ import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 
 /**
- * {@code /vcs place <buildname> [version | latest] [placementname] [-f]}: shows another copy of a build where the
+ * {@code /vcs place <buildname> [version | tag | latest] [placementname] [-f]}: shows another copy of a build where the
  * player stands, as a preview only; {@code /vcs confirmPlace [-f]} then puts it into the world as a placement of its
  * own, and {@code /vcs cancelPlace} drops it.
  * <p>
@@ -73,9 +73,9 @@ public final class VcsCommandPlace {
 		}
 	}
 
-	static final VcsHelp HELP = new VcsHelp("place", "/vcs place <buildname> [version | latest] [placementname] [" + VcsCommand.FORCE + "]",
+	static final VcsHelp HELP = new VcsHelp("place", "/vcs place <buildname> [version | tag | latest] [placementname] [" + VcsCommand.FORCE + "]",
 		"show another copy of a build where you stand, ready to be placed",
-		"Shows the selected version of the build where you stand, as a preview only: nothing is put into the world yet. Line it up with the numpad keys (8 and 2 push it away from you and pull it back along the face of the box you look at, 4 and 6 slide it sideways, 7 and 9 raise and lower it, and holding left alt lets the mouse wheel push it away and pull it back off any face of the box, its top and bottom included, where that means down and up), then run /vcs confirmPlace to place it, or /vcs cancelPlace to drop it. The new placement lives its own life: modifications are separate from other placements. However new commits create new versions of the same build. Adding " + VcsCommand.FORCE + " flag will overwrite blocks when placing. Without the mod on your client there is nothing to preview with, so the copy is placed where you stand straight away.");
+		"Shows the given version of the build, by number or by tag, or its latest one, where you stand, as a preview only: nothing is put into the world yet. Line it up with the numpad keys (8 and 2 push it away from you and pull it back along the face of the box you look at, 4 and 6 slide it sideways, 7 and 9 raise and lower it, and holding left alt lets the mouse wheel push it away and pull it back off any face of the box, its top and bottom included, where that means down and up), then run /vcs confirmPlace to place it, or /vcs cancelPlace to drop it. The new placement lives its own life: modifications are separate from other placements. However new commits create new versions of the same build. Adding " + VcsCommand.FORCE + " flag will overwrite blocks when placing. Without the mod on your client there is nothing to preview with, so the copy is placed where you stand straight away.");
 	static final VcsHelp CONFIRM_HELP = new VcsHelp("confirmPlace", "/vcs confirmPlace [" + VcsCommand.FORCE + "]",
 		"place the copy your last /vcs place is showing",
 		"Puts the copy your last /vcs place is showing into the world where you have moved it, as a placement of its own, and selects it. Refuses if it overlaps another placement, and refuses if anything is already standing where it goes unless you add " + VcsCommand.FORCE + " here or gave it to /vcs place, which overwrites those blocks for good.");
@@ -94,11 +94,11 @@ public final class VcsCommandPlace {
 	}
 
 	/**
-	 * @param version       the version to place, or {@link VcsCommand#LATEST} for the build's latest one
+	 * @param version       the version to place, by number or tag, or {@link VersionRef#DEFAULT} for the build's latest one
 	 * @param placementName the name for the new placement, or null for the build's next free one
 	 * @param force         whether to overwrite blocks standing where the copy goes instead of refusing
 	 */
-	static int run(CommandSourceStack source, String buildName, int version, String placementName, boolean force) throws CommandSyntaxException {
+	static int run(CommandSourceStack source, String buildName, VersionRef version, String placementName, boolean force) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<Build> found = BuildRegistry.find(source.getServer(), buildName);
 		if (found.isEmpty()) {
@@ -107,11 +107,11 @@ public final class VcsCommandPlace {
 		}
 
 		Build build = found.get();
-		if (version > build.version()) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" only has versions 1 to " + build.version()));
+		Optional<Integer> resolved = version.resolve(source, build, build.version());
+		if (resolved.isEmpty()) {
 			return 0;
 		}
-		int placed = version == VcsCommand.LATEST ? build.version() : version;
+		int placed = resolved.get();
 		String name = placementName == null ? build.freePlacementName() : placementName;
 		if (!VcsCommandCreate.isPlacementNameValid(source, name)) {
 			return 0;
@@ -140,7 +140,7 @@ public final class VcsCommandPlace {
 			player.getGameProfile().name(), buildName, placed, name, box.min().toShortString(), level.dimension().identifier());
 
 		source.sendSuccess(() -> Component.literal("Showing ").append(VcsMessages.name(buildName + Build.LABEL_SEPARATOR + name))
-			.append(" v" + placed + " (" + VcsMessages.size(box) + ", " + box.volume() + " blocks) at " + box.min().toShortString())
+			.append(" " + build.versionLabel(placed) + " (" + VcsMessages.size(box) + ", " + box.volume() + " blocks) at " + box.min().toShortString())
 			.append("; line it up with the numpad keys, or hold left alt and turn the mouse wheel to push it away and pull it back, then run ").append(ChatButtons.command("/vcs confirmPlace"))
 			.append(" to place it or ").append(ChatButtons.command("/vcs cancelPlace")).append(" to drop it"), false);
 		return 1;
@@ -291,7 +291,7 @@ public final class VcsCommandPlace {
 
 		source.sendSuccess(() -> {
 			MutableComponent message = Component.literal("Placed ").append(VcsMessages.name(buildName + Build.LABEL_SEPARATOR + name))
-				.append(" v" + placed + " (" + VcsMessages.size(box) + ", " + box.volume() + " blocks) at " + box.min().toShortString());
+				.append(" " + build.versionLabel(placed) + " (" + VcsMessages.size(box) + ", " + box.volume() + " blocks) at " + box.min().toShortString());
 			if (inTheWay > 0) {
 				// Only a forced placement gets here; those blocks are gone, and not into WorldEdit's history either.
 				message.append(", overwriting " + inTheWay + (inTheWay == 1 ? " block" : " blocks") + " that stood there");

@@ -21,6 +21,7 @@ public final class VcsCommandHelp {
 	static final List<VcsHelp> ALL = List.of(
 		VcsCommandCreate.HELP,
 		VcsCommandCommit.HELP,
+		VcsCommandTag.HELP,
 		VcsCommandPlace.HELP,
 		VcsCommandPlace.CONFIRM_HELP,
 		VcsCommandPlace.CANCEL_HELP,

@@ -35,8 +35,10 @@ import net.minecraft.world.level.storage.LevelResource;
  * @param versions   the extent of every version from 1 to {@link #version}, in build space
  * @param placements every placement of the build standing in the world, by name; may be empty once they have all
  *                   been {@code /vcs unplace}d, which leaves the versions on disk
+ * @param tags       the version each tag names, by tag, e.g. {@code 2.0.0 -> 2}; a version may have any number of tags
+ *                   but a tag names only one version, see {@link #TAG}
  */
-public record Build(String name, String world, int version, Map<Integer, BuildBox> versions, Map<String, Placement> placements) {
+public record Build(String name, String world, int version, Map<Integer, BuildBox> versions, Map<String, Placement> placements, Map<String, Integer> tags) {
 	/**
 	 * What a build or placement name may look like. The build name becomes the build's folder on disk, so this is
 	 * the set of characters a command word may contain minus anything that could name another folder: no {@code .}
@@ -44,6 +46,12 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 	 * would read as a flag such as {@code -we} or {@code -h}.
 	 */
 	public static final Pattern NAME = Pattern.compile("[A-Za-z0-9_+][A-Za-z0-9_+-]*(\\.[A-Za-z0-9_+-]+)*");
+	/**
+	 * What a version tag may look like, e.g. {@code 2.0.0} or {@code 1.5.4-rc+tick_net}: letters, digits, {@code -},
+	 * {@code _}, {@code +} and {@code .}, which are also exactly what a command word may contain unquoted. Commands take
+	 * a tag wherever they take a version number, so a tag may not be digits alone, which would read as one.
+	 */
+	public static final Pattern TAG = Pattern.compile("(?![0-9]+$)[A-Za-z0-9_+.-]+");
 	/** Name {@code /vcs create} gives the placement it makes, unless another is asked for. */
 	public static final String MAIN = "main";
 	/** What {@code /vcs place} names a placement when it is given no name: this followed by the lowest free number. */
@@ -65,7 +73,9 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 		Codec.STRING.fieldOf("world").forGetter(Build::world),
 		ExtraCodecs.POSITIVE_INT.fieldOf("version").forGetter(Build::version),
 		Codec.unboundedMap(VERSION_KEY, BuildBox.CODEC).fieldOf("versions").forGetter(Build::versions),
-		Codec.unboundedMap(Codec.STRING, Placement.CODEC).fieldOf("placements").forGetter(Build::placements)
+		Codec.unboundedMap(Codec.STRING, Placement.CODEC).fieldOf("placements").forGetter(Build::placements),
+		// Optional so that build.json written before tags existed still loads.
+		Codec.unboundedMap(Codec.STRING, ExtraCodecs.POSITIVE_INT).optionalFieldOf("tags", Map.of()).forGetter(Build::tags)
 	).apply(instance, Build::new));
 
 	public Build {
@@ -73,6 +83,7 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 		// that order, which Map.copyOf does not promise.
 		versions = sorted(versions);
 		placements = sorted(placements);
+		tags = sorted(tags);
 		for (int v = 1; v <= version; v++) {
 			if (!versions.containsKey(v)) {
 				throw new IllegalArgumentException("Build '" + name + "' has versions 1 to " + version + " but no extent for v" + v);
@@ -90,6 +101,20 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 					+ " when build '" + name + "' only has versions 1 to " + version);
 			}
 		}
+		for (Map.Entry<String, Integer> tag : tags.entrySet()) {
+			if (!isValidTag(tag.getKey())) {
+				throw new IllegalArgumentException("Invalid tag '" + tag.getKey() + "' in build '" + name + "'");
+			}
+			if (tag.getValue() > version) {
+				throw new IllegalArgumentException("Tag '" + tag.getKey() + "' cannot name v" + tag.getValue()
+					+ " when build '" + name + "' only has versions 1 to " + version);
+			}
+		}
+	}
+
+	/** A build with no tags yet, as {@code /vcs create} makes one. */
+	public Build(String name, String world, int version, Map<Integer, BuildBox> versions, Map<String, Placement> placements) {
+		this(name, world, version, versions, placements, Map.of());
 	}
 
 	/** An unmodifiable copy of {@code map} in the order of its keys, so the JSON written from it is stable. */
@@ -112,6 +137,11 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 	public static boolean isValidNewName(String name) {
 		char first = name.isEmpty() ? 0 : Character.toLowerCase(name.charAt(0));
 		return first >= 'a' && first <= 'z' && isValidName(name);
+	}
+
+	/** Whether {@code tag} matches {@link #TAG} and so can be given to a version. */
+	public static boolean isValidTag(String tag) {
+		return TAG.matcher(tag).matches();
 	}
 
 	/**
@@ -182,14 +212,14 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 	public Build withPlacement(String name, Placement placement) {
 		Map<String, Placement> updated = new LinkedHashMap<>(placements);
 		updated.put(name, placement);
-		return new Build(this.name, world, version, versions, updated);
+		return new Build(this.name, world, version, versions, updated, tags);
 	}
 
 	/** The build without the placement called {@code name}, as {@code /vcs unplace} leaves it. */
 	public Build withoutPlacement(String name) {
 		Map<String, Placement> updated = new LinkedHashMap<>(placements);
 		updated.remove(name);
-		return new Build(this.name, world, version, versions, updated);
+		return new Build(this.name, world, version, versions, updated, tags);
 	}
 
 	/**
@@ -200,6 +230,29 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 	public Build withNextVersion(BuildBox extent) {
 		Map<Integer, BuildBox> updated = new TreeMap<>(versions);
 		updated.put(version + 1, extent);
-		return new Build(name, world, version + 1, updated, placements);
+		return new Build(name, world, version + 1, updated, placements, tags);
+	}
+
+	/** The version {@code tag} names, if it names one. */
+	public Optional<Integer> taggedVersion(String tag) {
+		return Optional.ofNullable(tags.get(tag));
+	}
+
+	/** Every tag of {@code version}, sorted; empty if it has none. */
+	public List<String> tagsOf(int version) {
+		return tags.entrySet().stream().filter(tag -> tag.getValue() == version).map(Map.Entry::getKey).toList();
+	}
+
+	/** {@code version} as chat shows it: {@code v2}, followed by its tags if it has any, e.g. {@code v2 (2.0.0, stable)}. */
+	public String versionLabel(int version) {
+		List<String> tagsOf = tagsOf(version);
+		return "v" + version + (tagsOf.isEmpty() ? "" : " (" + String.join(", ", tagsOf) + ")");
+	}
+
+	/** The build with {@code tag} naming {@code version}, which must be one of its versions; the tag is moved if it named another. */
+	public Build withTag(String tag, int version) {
+		Map<String, Integer> updated = new LinkedHashMap<>(tags);
+		updated.put(tag, version);
+		return new Build(name, world, this.version, versions, placements, updated);
 	}
 }

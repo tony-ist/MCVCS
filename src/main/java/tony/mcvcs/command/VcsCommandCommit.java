@@ -11,6 +11,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import org.jspecify.annotations.Nullable;
 
 import tony.mcvcs.MCVCS;
 import tony.mcvcs.build.BoxExpansion;
@@ -27,7 +28,8 @@ import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.fabric.FabricAdapter;
 
 /**
- * {@code /vcs commit}: saves what is inside the selected placement's box as the build's next version. The box is the
+ * {@code /vcs commit [tagname]}: saves what is inside the selected placement's box as the build's next version, tagged
+ * with {@code tagname} if one is given, see {@link VcsCommandTag}. The box is the
  * one the placement holds, not the player's WorldEdit selection. If anything other than air is touching the box, the
  * version is saved all the same but a yellow warning points the player at {@code /vcs expand}.
  * <p>
@@ -36,9 +38,9 @@ import com.sk89q.worldedit.fabric.FabricAdapter;
  * the others go on holding whatever version they held.
  */
 public final class VcsCommandCommit {
-	static final VcsHelp HELP = new VcsHelp("commit", "/vcs commit",
+	static final VcsHelp HELP = new VcsHelp("commit", "/vcs commit [tagname]",
 		"save the selected placement as the build's next version",
-		"Saves what is inside the selected placement's box as the build's next version. WorldEdit selection does not matter, only the placement's box is concerned. Every other placement of the build can then check that version out. If anything other than air touches the box, the version is saved all the same but you are warned to run /vcs expand, since those blocks were left out.");
+		"Saves what is inside the selected placement's box as the build's next version. WorldEdit selection does not matter, only the placement's box is concerned. Every other placement of the build can then check that version out. With a tag name, e.g. /vcs commit 2.0.0, the new version is tagged.");
 
 	private VcsCommandCommit() {
 	}
@@ -51,7 +53,8 @@ public final class VcsCommandCommit {
 			.withStyle(ChatFormatting.YELLOW);
 	}
 
-	static int run(CommandSourceStack source) throws CommandSyntaxException {
+	/** @param tag what to tag the new version with, see {@link VcsCommandTag}, or {@code null} for no tag */
+	static int run(CommandSourceStack source, @Nullable String tag) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<BuildPlacement> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
@@ -60,6 +63,12 @@ public final class VcsCommandCommit {
 		}
 
 		BuildPlacement placement = selected.get();
+		// Checked before anything is saved, so a tag that cannot be given leaves no untagged version behind.
+		Optional<MutableComponent> refusal = tag == null ? Optional.empty() : VcsCommandTag.refusal(placement.build(), tag);
+		if (refusal.isPresent()) {
+			source.sendFailure(refusal.get().append("; nothing was committed"));
+			return 0;
+		}
 		ServerLevel level = source.getServer().getLevel(placement.dimension());
 		if (level == null) {
 			source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is in " + placement.dimension().identifier() + ", which does not exist here"));
@@ -72,6 +81,10 @@ public final class VcsCommandCommit {
 		Build build = placement.build().withNextVersion(extent);
 		int version = build.version();
 		build = build.withPlacement(placement.name(), placement.placement().withHead(version));
+		if (tag != null) {
+			build = build.withTag(tag, version);
+		}
+		Build committed = build;
 
 		Player actor = FabricAdapter.get().fromNativePlayer(player);
 		LocalSession session = WorldEdit.getInstance().getSessionManager().get(actor);
@@ -83,7 +96,7 @@ public final class VcsCommandCommit {
 			BuildRegistry.select(player, build, placement.name());
 
 			source.sendSuccess(() -> Component.literal("Committed ").append(VcsMessages.placement(placement)).append(" as build ")
-				.append(VcsMessages.name(placement.build().name())).append(" v" + version + " (" + box.volume() + " blocks) at " + BuildStorage.root().relativize(file)), false);
+				.append(VcsMessages.name(placement.build().name())).append(" " + committed.versionLabel(version) + " (" + box.volume() + " blocks) at " + BuildStorage.root().relativize(file)), false);
 			if (!enclosed) {
 				source.sendSuccess(VcsCommandCommit::notEnclosedWarning, false);
 			}

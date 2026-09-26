@@ -9,6 +9,7 @@
 			"tony.mcvcs.gametest.VcsCreateCommandGameTest",
 			"tony.mcvcs.gametest.VcsCreateOnClickGameTest",
 			"tony.mcvcs.gametest.VcsCommitCommandGameTest",
+			"tony.mcvcs.gametest.VcsTagCommandGameTest",
 			"tony.mcvcs.gametest.VcsPreviewCommandGameTest",
 			"tony.mcvcs.gametest.VcsLoadCommandGameTest",
 			"tony.mcvcs.gametest.VcsDiffCommandGameTest",

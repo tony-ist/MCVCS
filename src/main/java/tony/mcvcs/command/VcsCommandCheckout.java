@@ -30,7 +30,7 @@ import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 
 /**
- * {@code /vcs checkout <version | latest> [-f]}: puts a version of the build into the selected placement, exactly
+ * {@code /vcs checkout <version | tag | latest> [-f]}: puts a version of the build into the selected placement, exactly
  * where that placement holds it, without a single block update, as if {@code //perf off} were on.
  * <p>
  * Versions may differ in size, so the placement's box changes with the version it holds: it is the version's extent
@@ -47,18 +47,18 @@ import com.sk89q.worldedit.extent.clipboard.Clipboard;
  * box as it was before.
  */
 public final class VcsCommandCheckout {
-	static final VcsHelp HELP = new VcsHelp("checkout", "/vcs checkout <version | latest> [" + VcsCommand.FORCE + "]",
+	static final VcsHelp HELP = new VcsHelp("checkout", "/vcs checkout <version | tag | latest> [" + VcsCommand.FORCE + "]",
 		"put a version back into the selected placement",
-		"Empties the selected placement's box and puts the provided version into it, without block updates. The box becomes that version's size around the same origin. Refuses if the box has uncommitted changes, or if anything stands where a bigger version would reach: commit first, or add " + VcsCommand.FORCE + " to overwrite both. A placement in the way is always refused. /vcs diff starts to compare versions against this checked out version.");
+		"Empties the selected placement's box and puts the provided version, given by number or by tag, into it, without block updates. The box becomes that version's size around the same origin. Refuses if the box has uncommitted changes, or if anything stands where a bigger version would reach: commit first, or add " + VcsCommand.FORCE + " to overwrite both. A placement in the way is always refused. /vcs diff starts to compare versions against this checked out version.");
 
 	private VcsCommandCheckout() {
 	}
 
 	/**
-	 * @param version the version to check out, or {@link VcsCommand#LATEST} for the build's latest one
+	 * @param version the version to check out, by number or tag, or {@link VersionRef#DEFAULT} for the build's latest one
 	 * @param force   whether to check out over uncommitted changes and blocks in the way instead of refusing
 	 */
-	static int run(CommandSourceStack source, int version, boolean force) throws CommandSyntaxException {
+	static int run(CommandSourceStack source, VersionRef version, boolean force) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<BuildPlacement> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
@@ -68,11 +68,11 @@ public final class VcsCommandCheckout {
 
 		BuildPlacement placement = selected.get();
 		Build build = placement.build();
-		if (version > build.version()) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(build.name())).append(" only has versions 1 to " + build.version()));
+		Optional<Integer> resolved = version.resolve(source, build, build.version());
+		if (resolved.isEmpty()) {
 			return 0;
 		}
-		int checkedOut = version == VcsCommand.LATEST ? build.version() : version;
+		int checkedOut = resolved.get();
 		ServerLevel level = source.getServer().getLevel(placement.dimension());
 		if (level == null) {
 			source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is in " + placement.dimension().identifier() + ", which does not exist here"));
@@ -161,7 +161,7 @@ public final class VcsCommandCheckout {
 
 		source.sendSuccess(() -> {
 			MutableComponent message = Component.literal("Checked out ").append(VcsMessages.placement(placement))
-				.append(" v" + checkedOut + " (" + VcsMessages.size(to) + ", " + to.volume() + " blocks) without block updates");
+				.append(" " + build.versionLabel(checkedOut) + " (" + VcsMessages.size(to) + ", " + to.volume() + " blocks) without block updates");
 			if (uncommitted > 0 || inTheWay > 0) {
 				// Only a forced checkout gets here; those blocks are gone, and not into WorldEdit's history either.
 				message.append(", overwriting " + (uncommitted + inTheWay) + " " + (uncommitted + inTheWay == 1 ? "block" : "blocks"));

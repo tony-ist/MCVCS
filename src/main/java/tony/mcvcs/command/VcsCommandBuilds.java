@@ -56,9 +56,9 @@ public final class VcsCommandBuilds {
 		return placements;
 	}
 
-	/** The heading of one build: its name and how many versions it has. */
+	/** The heading of one build: its name and how many versions it has, with the latest one's tags. */
 	private static MutableComponent buildLine(Build build) {
-		return Component.literal("- ").append(VcsMessages.name(build.name())).append(" v" + build.version()
+		return Component.literal("- ").append(VcsMessages.name(build.name())).append(" " + build.versionLabel(build.version())
 			+ (build.placements().isEmpty() ? ", not placed anywhere" : ""));
 	}
 
@@ -69,7 +69,7 @@ public final class VcsCommandBuilds {
 	 */
 	private static MutableComponent placementLine(BuildPlacement placement, boolean selected) {
 		MutableComponent line = Component.literal("    Placement ").append(VcsMessages.name(placement.name()))
-			.append(" v" + placement.head() + " (" + placement.box().volume() + " blocks) at " + placement.box().min().toShortString() + " ");
+			.append(" " + placement.build().versionLabel(placement.head()) + " (" + placement.box().volume() + " blocks) at " + placement.box().min().toShortString() + " ");
 		String target = placement.build().name() + " " + placement.name();
 		line.append(selected
 			? ComponentUtils.wrapInSquareBrackets(Component.literal(SELECTED_MARKER)).withStyle(ChatFormatting.GRAY)

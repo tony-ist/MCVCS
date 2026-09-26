@@ -1,8 +1,8 @@
 package tony.mcvcs.command;
 
 import java.util.List;
+import java.util.Optional;
 
-import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
@@ -16,6 +16,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.PermissionCheck;
 
 import tony.mcvcs.build.Build;
+import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.Placement;
 
@@ -24,18 +25,19 @@ import tony.mcvcs.build.Placement;
  * the work.
  * <ul>
  * <li>{@code /vcs create <buildname> [placementname] [-we]}: {@link VcsCommandCreate}</li>
- * <li>{@code /vcs place <buildname> [version | latest] [placementname] [-f]}, {@code /vcs confirmPlace [-f]} and
+ * <li>{@code /vcs place <buildname> [version | tag | latest] [placementname] [-f]}, {@code /vcs confirmPlace [-f]} and
  * {@code /vcs cancelPlace}: {@link VcsCommandPlace}</li>
  * <li>{@code /vcs unplace [-k]} and {@code /vcs confirmUnplace}: {@link VcsCommandUnplace}</li>
  * <li>{@code /vcs select [buildname [placementname]]}: {@link VcsCommandSelect}</li>
  * <li>{@code /vcs builds}: {@link VcsCommandBuilds}</li>
  * <li>{@code /vcs deselect}: {@link VcsCommandDeselect}</li>
- * <li>{@code /vcs commit}: {@link VcsCommandCommit}</li>
- * <li>{@code /vcs preview <version | off>}: {@link VcsCommandPreview}</li>
- * <li>{@code /vcs load [version]}: {@link VcsCommandLoad}</li>
- * <li>{@code /vcs diff [version | off]}: {@link VcsCommandDiff}</li>
+ * <li>{@code /vcs commit [tagname]}: {@link VcsCommandCommit}</li>
+ * <li>{@code /vcs tag <version | tag> <tagname>}: {@link VcsCommandTag}</li>
+ * <li>{@code /vcs preview <version | tag | off>}: {@link VcsCommandPreview}</li>
+ * <li>{@code /vcs load [version | tag]}: {@link VcsCommandLoad}</li>
+ * <li>{@code /vcs diff [version | tag | off]}: {@link VcsCommandDiff}</li>
  * <li>{@code /vcs expand}: {@link VcsCommandExpand}</li>
- * <li>{@code /vcs checkout <version | latest> [-f]}: {@link VcsCommandCheckout}</li>
+ * <li>{@code /vcs checkout <version | tag | latest> [-f]}: {@link VcsCommandCheckout}</li>
  * <li>{@code /vcs delete <buildname> [-c]} and {@code /vcs confirmDelete}: {@link VcsCommandDelete}</li>
  * <li>{@code /vcs tp [buildname [placementname]]}: {@link VcsCommandTp}</li>
  * <li>{@code /vcs weselect}: {@link VcsCommandWeselect}</li>
@@ -49,11 +51,10 @@ public final class VcsCommand {
 	/** Vanilla permission required to run the command (gamemasters = op level 2 / cheats). */
 	public static final PermissionCheck PERMISSION = Commands.LEVEL_GAMEMASTERS;
 	/**
-	 * Version number standing for the version a command falls back to when given none: the build's latest one for
-	 * {@code load}, {@code place} and {@code checkout}, the one the selected placement holds for {@code diff}, see
-	 * {@link Placement#head}.
+	 * The version a command falls back to when given none: the build's latest one for {@code load}, {@code place} and
+	 * {@code checkout}, the one the selected placement holds for {@code diff}, see {@link Placement#head}.
 	 */
-	static final int LATEST = 0;
+	static final VersionRef LATEST = VersionRef.DEFAULT;
 	/** Flag that makes a command overwrite what is in the way instead of refusing. */
 	public static final String FORCE = "-f";
 
@@ -90,8 +91,7 @@ public final class VcsCommand {
 						.then(Commands.literal("latest")
 							.executes(context -> place(context, LATEST_VERSION, null, false))
 							.then(placementOf(LATEST_VERSION)))
-						.then(Commands.argument("version", IntegerArgumentType.integer(1))
-							.suggests((context, builder) -> SharedSuggestionProvider.suggest(versionsOf(context), builder))
+						.then(VersionRef.argument(VcsCommand::namedBuild)
 							.executes(context -> place(context, ARGUMENT_VERSION, null, false))
 							.then(placementOf(ARGUMENT_VERSION)))))
 				.then(sub(VcsCommandPlace.CONFIRM_HELP)
@@ -119,25 +119,28 @@ public final class VcsCommand {
 				.then(sub(VcsCommandDeselect.HELP)
 					.executes(context -> VcsCommandDeselect.run(context.getSource())))
 				.then(sub(VcsCommandCommit.HELP)
-					.executes(context -> VcsCommandCommit.run(context.getSource())))
+					.executes(context -> VcsCommandCommit.run(context.getSource(), null))
+					.then(Commands.argument("tagname", StringArgumentType.word())
+						.executes(context -> VcsCommandCommit.run(context.getSource(), StringArgumentType.getString(context, "tagname")))))
+				.then(sub(VcsCommandTag.HELP)
+					.then(VersionRef.argument(VcsCommand::selectedBuild)
+						.then(Commands.argument("tagname", StringArgumentType.word())
+							.executes(context -> VcsCommandTag.run(context.getSource(), VersionRef.of(context), StringArgumentType.getString(context, "tagname"))))))
 				.then(sub(VcsCommandPreview.HELP)
 					.then(Commands.literal("off")
 						.executes(context -> VcsCommandPreview.off(context.getSource())))
-					.then(Commands.argument("version", IntegerArgumentType.integer(1))
-						.suggests((context, builder) -> SharedSuggestionProvider.suggest(versions(context.getSource()), builder))
-						.executes(context -> VcsCommandPreview.run(context.getSource(), IntegerArgumentType.getInteger(context, "version")))))
+					.then(VersionRef.argument(VcsCommand::selectedBuild)
+						.executes(context -> VcsCommandPreview.run(context.getSource(), VersionRef.of(context)))))
 				.then(sub(VcsCommandLoad.HELP)
 					.executes(context -> VcsCommandLoad.run(context.getSource(), LATEST))
-					.then(Commands.argument("version", IntegerArgumentType.integer(1))
-						.suggests((context, builder) -> SharedSuggestionProvider.suggest(versions(context.getSource()), builder))
-						.executes(context -> VcsCommandLoad.run(context.getSource(), IntegerArgumentType.getInteger(context, "version")))))
+					.then(VersionRef.argument(VcsCommand::selectedBuild)
+						.executes(context -> VcsCommandLoad.run(context.getSource(), VersionRef.of(context)))))
 				.then(sub(VcsCommandDiff.HELP)
 					.executes(context -> VcsCommandDiff.run(context.getSource(), LATEST))
 					.then(Commands.literal("off")
 						.executes(context -> VcsCommandDiff.off(context.getSource())))
-					.then(Commands.argument("version", IntegerArgumentType.integer(1))
-						.suggests((context, builder) -> SharedSuggestionProvider.suggest(versions(context.getSource()), builder))
-						.executes(context -> VcsCommandDiff.run(context.getSource(), IntegerArgumentType.getInteger(context, "version")))))
+					.then(VersionRef.argument(VcsCommand::selectedBuild)
+						.executes(context -> VcsCommandDiff.run(context.getSource(), VersionRef.of(context)))))
 				.then(sub(VcsCommandExpand.HELP)
 					.executes(context -> VcsCommandExpand.run(context.getSource())))
 				.then(sub(VcsCommandCheckout.HELP)
@@ -145,11 +148,10 @@ public final class VcsCommand {
 						.executes(context -> VcsCommandCheckout.run(context.getSource(), LATEST, false))
 						.then(Commands.literal(FORCE)
 							.executes(context -> VcsCommandCheckout.run(context.getSource(), LATEST, true))))
-					.then(Commands.argument("version", IntegerArgumentType.integer(1))
-						.suggests((context, builder) -> SharedSuggestionProvider.suggest(versions(context.getSource()), builder))
-						.executes(context -> VcsCommandCheckout.run(context.getSource(), IntegerArgumentType.getInteger(context, "version"), false))
+					.then(VersionRef.argument(VcsCommand::selectedBuild)
+						.executes(context -> VcsCommandCheckout.run(context.getSource(), VersionRef.of(context), false))
 						.then(Commands.literal(FORCE)
-							.executes(context -> VcsCommandCheckout.run(context.getSource(), IntegerArgumentType.getInteger(context, "version"), true)))))
+							.executes(context -> VcsCommandCheckout.run(context.getSource(), VersionRef.of(context), true)))))
 				.then(sub(VcsCommandDelete.HELP)
 					.then(Commands.argument("buildname", StringArgumentType.word())
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))
@@ -188,16 +190,16 @@ public final class VcsCommand {
 		return VcsCommandCreate.run(context.getSource(), StringArgumentType.getString(context, "buildname"), placementName, useSelection);
 	}
 
-	/** Where {@code /vcs place} takes the version from, since the same tail hangs under {@code latest} and a number. */
+	/** Where {@code /vcs place} takes the version from, since the same tail hangs under {@code latest} and a version. */
 	@FunctionalInterface
 	private interface VersionSource {
-		int of(CommandContext<CommandSourceStack> context);
+		VersionRef of(CommandContext<CommandSourceStack> context);
 	}
 
 	/** {@code /vcs place <buildname>} and {@code /vcs place <buildname> latest}: the build's latest version. */
 	private static final VersionSource LATEST_VERSION = context -> LATEST;
-	/** {@code /vcs place <buildname> <version>}: the number that was typed. */
-	private static final VersionSource ARGUMENT_VERSION = context -> IntegerArgumentType.getInteger(context, "version");
+	/** {@code /vcs place <buildname> <version>}: the number or tag that was typed. */
+	private static final VersionSource ARGUMENT_VERSION = VersionRef::of;
 
 	/** The {@code <placementname> [-f]} tail of {@code /vcs place}, under the version that was given. */
 	private static RequiredArgumentBuilder<CommandSourceStack, String> placementOf(VersionSource version) {
@@ -211,22 +213,18 @@ public final class VcsCommand {
 		return VcsCommandPlace.run(context.getSource(), StringArgumentType.getString(context, "buildname"), version.of(context), placementName, force);
 	}
 
-	/** Every version number of the build the source player has selected; nothing if there is no player or selection. */
-	private static List<String> versions(CommandSourceStack source) {
-		ServerPlayer player = source.getPlayer();
+	/** The build of the placement the source player has selected; empty if there is no player or selection. */
+	private static Optional<Build> selectedBuild(CommandContext<CommandSourceStack> context) {
+		ServerPlayer player = context.getSource().getPlayer();
 		if (player == null) {
-			return List.of();
+			return Optional.empty();
 		}
-		return BuildRegistry.selected(player)
-			.map(placement -> placement.build().versionNumbers().stream().map(String::valueOf).toList())
-			.orElse(List.of());
+		return BuildRegistry.selected(player).map(BuildPlacement::build);
 	}
 
-	/** Every version number of the build named by the {@code buildname} argument being completed. */
-	private static List<String> versionsOf(CommandContext<CommandSourceStack> context) {
-		return BuildRegistry.find(context.getSource().getServer(), StringArgumentType.getString(context, "buildname"))
-			.map(build -> build.versionNumbers().stream().map(String::valueOf).toList())
-			.orElse(List.of());
+	/** The build named by the {@code buildname} argument of the command being typed, if there is one. */
+	private static Optional<Build> namedBuild(CommandContext<CommandSourceStack> context) {
+		return BuildRegistry.find(context.getSource().getServer(), StringArgumentType.getString(context, "buildname"));
 	}
 
 	/** Every placement name of the build called {@code buildName}, for completing a {@code placementname} argument. */
