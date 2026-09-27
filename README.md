@@ -96,9 +96,11 @@ Hovering a cell turns it blue and replaces its preview with three buttons stacke
 
 `Select` and `TP` are greyed out for a build that is not placed anywhere. For a build with several placements they first open a window headed with the build's name, listing each placement's name and the corner its box starts at, with its dimension if that is not the overworld; your selected placement is in yellow. Clicking one closes the window and the overlay and selects that placement or teleports onto it. `Cancel`, `Esc` or a click outside the window goes back to the overlay, and `B` closes both.
 
+A hovered cell also shows three dots in its top right corner, which open a small menu with `Delete`. It asks `Are you sure you want to delete <buildname>?`, with an `Also delete all placed blocks` checkbox, unticked by default. `Delete` runs `/vcs delete <buildname>`, with `-c` if the box is ticked, then `/vcs confirmDelete`, removing the build with all its versions, and goes back to the overlay, which fetches the list again once the build is gone. Without the box ticked, the blocks of its placements stay standing in the world. `Cancel`, `Esc` or a click outside the window goes back to the overlay without deleting anything.
+
 Previews are downloaded from the server when the overlay opens, with loading dots and `Downloading` in each cell, then the percentage downloaded, until its preview is ready. A version never changes once committed, so each preview is downloaded once and kept until you leave the server; opening the overlay again shows it straight away. A build bigger than `autoDownloadLimit` blocks (see [Client settings](#client-settings)) is not downloaded by itself: its cell says `Click to download the preview` with its size, and clicking the cell anywhere but on its buttons downloads it.
 
-The list is fetched when the overlay opens and is not updated while it stays open. The `Refresh` button in the top right corner fetches it again, picking up new builds and new commits, and retries any preview that failed to download.
+The list is fetched when the overlay opens and, apart from after a delete, is not updated while it stays open. The `Refresh` button in the top right corner fetches it again, picking up new builds and new commits, and retries any preview that failed to download.
 
 A build longer than 128 blocks along any side is previewed at reduced detail, since its preview gets less than a pixel per block anyway. It is cut into cubes, 2x2x2 blocks for a build up to 256 blocks long, 3x3x3 up to 384 and so on, so that the longest side is at most 128 of them, and each cube is drawn as one block that is as big as the cube. That block is a full solid block of the cube if it has one, so thin walls stay visible, otherwise any other block of it, otherwise air. The server does the sampling, so a big build also downloads that much faster. A preview whose geometry would still take more than about 110 MiB of video memory, such as a huge field of redstone dust or glass panes, shows `Too detailed to preview` instead.
 
@@ -184,6 +186,8 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
+- Renaming builds and placements
+- Delete command for tags
 - Preview of huge builds is laggy when moving it. Maybe make debounce: move only box and rerender the build only after some time 
 - Aliases for commands to type them faster
 - Make automatic releases on github by reading tags
@@ -191,8 +195,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Command /vcs move initiates moving preview for current placement allowing to change its position with numpad keys and press 5 moves it physically in the world
 - Submodules for build. One build can have submodules inside its box. Each submodule is itself a build. When we place parent build, all submodule placements appear inside. Bounding box for parent build includes all bounding boxes for submodules. Think about what happens when submodule and parent intersect not fullly.
 - Add hotkeys to select next and previous version preview (could be made obsolete by UI Overlay)
-- Renaming builds and placements
-- Delete button for builds in overlay
 
 ### Nice to have
 

@@ -1,5 +1,6 @@
 package tony.mcvcs.gametest;
 
+import static tony.mcvcs.gametest.VcsTestSupport.blockAt;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
 import static tony.mcvcs.gametest.VcsTestSupport.read;
@@ -9,12 +10,14 @@ import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.select;
 import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 
+import java.nio.file.Files;
 import java.util.Arrays;
 
 import com.mojang.blaze3d.platform.Window;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.BlockPos;
@@ -23,11 +26,13 @@ import org.lwjgl.glfw.GLFW;
 
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.BuildStorage;
 import tony.mcvcs.build.ClientPlacement;
 import tony.mcvcs.build.PreviewGrid;
 import tony.mcvcs.client.browser.BuildBrowser;
 import tony.mcvcs.client.browser.BuildBrowserKey;
 import tony.mcvcs.client.browser.BuildBrowserScreen;
+import tony.mcvcs.client.browser.DeleteBuildScreen;
 import tony.mcvcs.client.browser.PlacementPickerScreen;
 import tony.mcvcs.client.browser.Thumbnail;
 import tony.mcvcs.client.build.ClientPlacements;
@@ -41,8 +46,8 @@ import tony.mcvcs.network.BuildSummary;
  * version, name and tags; a build too big to download by itself waits for a click; a very long one arrives as a
  * coarser grid of itself; the refresh button picks up a new commit; the buttons a hovered cell shows select the build,
  * start {@code /vcs place} of it and teleport onto it, the first two asking which placement for a build with several and
- * greyed out for a build placed nowhere; and a player
- * who may not run {@code /vcs} is told so.
+ * greyed out for a build placed nowhere; the three dots' menu deletes a build once asked, emptying its placements only
+ * if ticked to; and a player who may not run {@code /vcs} is told so.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsBuildBrowserGameTest extends VcsGameTest {
@@ -242,6 +247,64 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			clickButton(context, BIG, BuildBrowserScreen.SELECT);
 			context.waitTicks(2);
 			context.waitForScreen(BuildBrowserScreen.class);
+
+			// The three dots in a hovered cell's corner open its menu; Escape closes only the menu.
+			clickButton(context, LONG, BuildBrowserScreen.MORE);
+			context.waitFor(client -> client.screen instanceof BuildBrowserScreen screen && screen.buttonOf(BuildBrowserScreen.DELETE) != null);
+			context.waitTicks(2);
+			context.takeScreenshot("mcvcs-builds-overlay-menu");
+			context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+			context.waitFor(client -> client.screen instanceof BuildBrowserScreen screen && screen.buttonOf(BuildBrowserScreen.DELETE) == null);
+
+			// Delete asks first, with the box to also empty the placements unticked; Cancel goes back and keeps the build.
+			openDelete(context, LONG);
+			String question = context.computeOnClient(client -> client.screen.getTitle().getString());
+			if (!question.equals("Are you sure you want to delete " + LONG + "?")) {
+				throw new AssertionError("Expected the delete window to ask about " + LONG + " but it says " + question);
+			}
+			context.runOnClient(client -> {
+				Checkbox checkbox = client.screen.children().stream().filter(Checkbox.class::isInstance).map(Checkbox.class::cast).findFirst().orElseThrow();
+				if (checkbox.selected()) {
+					throw new AssertionError("Expected the box to also delete the placed blocks to start unticked");
+				}
+			});
+			moveAway(context);
+			context.waitTicks(2);
+			context.takeScreenshot("mcvcs-builds-overlay-delete");
+			clickWidget(context, DeleteBuildScreen.CANCEL);
+			context.waitForScreen(BuildBrowserScreen.class);
+			context.waitTicks(5);
+			if (context.computeOnClient(client -> summary(LONG)) == null || !Files.exists(BuildStorage.directory(LONG))) {
+				throw new AssertionError("Expected Cancel to keep " + LONG);
+			}
+
+			// Ticked, deleting the bridge empties its box too, and the overlay comes back without it.
+			openDelete(context, LONG);
+			clickWidget(context, DeleteBuildScreen.CLEAR);
+			clickWidget(context, DeleteBuildScreen.DELETE);
+			context.waitForScreen(BuildBrowserScreen.class);
+			context.waitFor(client -> BuildBrowser.listState() == BuildBrowser.ListState.LOADED && summary(LONG) == null);
+			if (Files.exists(BuildStorage.directory(LONG))) {
+				throw new AssertionError("Expected " + LONG + "'s folder to be gone");
+			}
+			if (!blockAt(singleplayer, bridgeMin).isAir() || !blockAt(singleplayer, bridgeMax).isAir()) {
+				throw new AssertionError("Expected deleting " + LONG + " with the box ticked to empty its placement");
+			}
+
+			// Unticked, deleting the tower leaves its blocks standing.
+			openDelete(context, SMALL);
+			clickWidget(context, DeleteBuildScreen.DELETE);
+			context.waitForScreen(BuildBrowserScreen.class);
+			context.waitFor(client -> BuildBrowser.listState() == BuildBrowser.ListState.LOADED && summary(SMALL) == null);
+			if (Files.exists(BuildStorage.directory(SMALL))) {
+				throw new AssertionError("Expected " + SMALL + "'s folder to be gone");
+			}
+			if (!blockAt(singleplayer, towerMin).is(Blocks.STONE_BRICKS)) {
+				throw new AssertionError("Expected deleting " + SMALL + " with the box unticked to leave its blocks, but found " + blockAt(singleplayer, towerMin));
+			}
+			moveAway(context);
+			context.waitTicks(2);
+			context.takeScreenshot("mcvcs-builds-overlay-deleted");
 			context.getInput().pressKey(BuildBrowserKey.KEY);
 			context.waitFor(client -> client.screen == null);
 		} finally {
@@ -341,6 +404,25 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			return found.getRectangle();
 		});
 		clickAt(context, button.left() + button.width() / 2.0, button.top() + button.height() / 2.0);
+	}
+
+	/** Opens the menu of {@code name}'s cell and clicks its Delete, which asks whether to delete it. */
+	private static void openDelete(ClientGameTestContext context, String name) {
+		clickButton(context, name, BuildBrowserScreen.MORE);
+		clickButton(context, name, BuildBrowserScreen.DELETE);
+		context.waitForScreen(DeleteBuildScreen.class);
+	}
+
+	/** Clicks the button or checkbox labelled {@code label} in the delete window. */
+	private static void clickWidget(ClientGameTestContext context, String label) {
+		ScreenRectangle widget = context.computeOnClient(client -> {
+			ScreenRectangle found = client.screen instanceof DeleteBuildScreen screen ? screen.widgetOf(label) : null;
+			if (found == null) {
+				throw new AssertionError("Expected " + label + " on " + client.screen);
+			}
+			return found;
+		});
+		clickAt(context, widget.left() + widget.width() / 2.0, widget.top() + widget.height() / 2.0);
 	}
 
 	/** Clicks the row of the placement called {@code name} in the placement picker. */

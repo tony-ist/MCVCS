@@ -1,5 +1,6 @@
 package tony.mcvcs.client.build;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
@@ -19,13 +20,26 @@ import org.jspecify.annotations.Nullable;
  */
 public final class ClientPlacements {
 	private static volatile State state = State.EMPTY;
+	/** Run on the client thread each time the placements arrive; only added to while the mod starts. */
+	private static final List<Runnable> LISTENERS = new ArrayList<>();
 
 	private ClientPlacements() {
 	}
 
 	public static void register() {
-		ClientPlayNetworking.registerGlobalReceiver(BuildsPayload.TYPE, (payload, context) -> state = State.of(payload));
+		ClientPlayNetworking.registerGlobalReceiver(BuildsPayload.TYPE, (payload, context) -> {
+			state = State.of(payload);
+			LISTENERS.forEach(Runnable::run);
+		});
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> state = State.EMPTY);
+	}
+
+	/**
+	 * Runs {@code listener} on the client thread each time the server sends the placements, which it does after
+	 * anything that changes a build or a placement, even one that leaves the placements themselves as they were.
+	 */
+	public static void onUpdate(Runnable listener) {
+		LISTENERS.add(listener);
 	}
 
 	/** Every placement in the world, sorted by build then placement name; empty until the server has sent them. */

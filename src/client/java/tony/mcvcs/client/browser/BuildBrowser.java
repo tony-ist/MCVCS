@@ -17,6 +17,7 @@ import org.jspecify.annotations.Nullable;
 
 import tony.mcvcs.MCVCS;
 import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.network.BuildListPayload;
 import tony.mcvcs.network.BuildListRequestPayload;
@@ -30,8 +31,8 @@ import tony.mcvcs.network.ThumbnailRequestPayload;
  * The client side of the builds overlay: the list of builds the server last sent, and the preview of every version
  * asked for since joining.
  * <p>
- * The list is only asked for when the overlay opens or its refresh button is pressed; nothing is pushed while it is
- * open. Previews are asked for as the list arrives, for every build no bigger than
+ * The list is only asked for when the overlay opens, when its refresh button is pressed, and after the overlay has
+ * deleted a build; nothing is pushed while it is open. Previews are asked for as the list arrives, for every build no bigger than
  * {@link ClientConfig.Settings#autoDownloadLimit}, and for a bigger one when its cell is clicked. A version never
  * changes once committed, so a preview is asked for once and kept until the client leaves the server; a refreshed
  * list that names a newer version gets a new preview for it, and one that failed is asked for again.
@@ -65,6 +66,8 @@ public final class BuildBrowser {
 	private static final Map<Thumbnail.Key, Thumbnail> THUMBNAILS = new LinkedHashMap<>();
 	/** Bumped whenever the previews are dropped, so a mesh finished for an earlier session is thrown away. */
 	private static int generation;
+	/** Whether the list is to be asked for again when the placements next arrive, see {@link #refreshAfterCommand}. */
+	private static boolean refreshOnSync;
 
 	private BuildBrowser() {
 	}
@@ -78,6 +81,12 @@ public final class BuildBrowser {
 			}
 		});
 		ClientPlayNetworking.registerGlobalReceiver(ThumbnailBlocksPayload.TYPE, (payload, context) -> blocks(payload));
+		ClientPlacements.onUpdate(() -> {
+			if (refreshOnSync) {
+				refreshOnSync = false;
+				refresh();
+			}
+		});
 		ClientPlayNetworking.registerGlobalReceiver(ThumbnailFailedPayload.TYPE, (payload, context) -> {
 			Thumbnail thumbnail = inFlight(payload.build(), payload.version());
 			if (thumbnail != null) {
@@ -117,6 +126,16 @@ public final class BuildBrowser {
 		THUMBNAILS.values().removeIf(thumbnail -> thumbnail.state() == Thumbnail.State.FAILED && thumbnail.retryable());
 		listState = ListState.LOADING;
 		ClientPlayNetworking.send(BuildListRequestPayload.INSTANCE);
+	}
+
+	/**
+	 * Asks the server for the builds again once it next sends the placements, which it does after a command changes a
+	 * build, for a command sent just before. Asking straight away could be answered before the command has run: the
+	 * server takes commands and the overlay's requests from separate queues. A command that fails and changes nothing
+	 * may send nothing, and then the list stays as it is, which is still right.
+	 */
+	public static void refreshAfterCommand() {
+		refreshOnSync = true;
 	}
 
 	/** The preview of the version {@code build} names, or null if it has not been asked for. */
@@ -228,5 +247,6 @@ public final class BuildBrowser {
 		THUMBNAILS.clear();
 		builds = List.of();
 		listState = ListState.NONE;
+		refreshOnSync = false;
 	}
 }

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
@@ -35,7 +36,8 @@ import tony.mcvcs.network.BuildSummary;
  * {@code Select} runs {@code /vcs select} for the build, {@code TP} runs {@code /vcs tp} to it, and {@code Place} runs
  * {@code /vcs place} for the version the cell shows, so the copy shows up where the player stands, ready to be lined
  * up. A build with no placements has the first two greyed out; for one with several, they first ask which placement
- * is meant, see {@link PlacementPickerScreen}. A build bigger than
+ * is meant, see {@link PlacementPickerScreen}. Three dots in the hovered cell's top right corner open a menu whose
+ * {@code Delete} asks whether to delete the build, see {@link DeleteBuildScreen}. A build bigger than
  * {@link ClientConfig.Settings#autoDownloadLimit} shows a placeholder instead of its preview until the cell is clicked
  * outside its buttons, which downloads the preview.
  * <p>
@@ -74,12 +76,30 @@ public final class BuildBrowserScreen extends Screen {
 	/** Width a button needs beyond its label. */
 	private static final int BUTTON_PADDING = 16;
 
+	/** Label of the three dots in a hovered cell's top right corner, which open its menu, and of that menu's one item. */
+	public static final String MORE = "More";
+	public static final String DELETE = "Delete";
+	/** Size of the three dots' button, and the space between it and the corner of the cell. */
+	private static final int MORE_WIDTH = 14;
+	private static final int MORE_HEIGHT = 10;
+	private static final int MORE_INSET = 2;
+	private static final int MORE_BACKGROUND = 0x80000000;
+	private static final int MORE_HOVERED = 0xFF5A5A5A;
+	/** Space between the menu's edges and its items. */
+	private static final int MENU_PADDING = 2;
+	private static final int MENU = 0xF0101018;
+
 	private double scroll;
+	/** The build whose cell the buttons are on, or null while no cell is hovered and they are hidden. */
+	private @Nullable BuildSummary buttonsFor;
+	/** The build whose menu is open, or null while it is closed; its cell keeps its buttons wherever the mouse goes. */
+	private @Nullable BuildSummary menuFor;
 	private final Button select = Button.builder(Component.literal(SELECT), button -> choose(PlacementPickerScreen.Action.SELECT)).build();
 	private final Button tp = Button.builder(Component.literal(TP), button -> choose(PlacementPickerScreen.Action.TP)).build();
 	private final Button place = Button.builder(Component.literal(PLACE), button -> run(build -> "vcs place " + build.name() + " " + build.version())).build();
-	/** The build whose cell the buttons are on, or null while no cell is hovered and they are hidden. */
-	private @Nullable BuildSummary buttonsFor;
+	private final Button more = new DotsButton(button -> menuFor = buttonsFor);
+	/** The menu's item; clicked by {@link #mouseClicked} itself, since it lies over the cell's other buttons. */
+	private final Button delete = Button.builder(Component.literal(DELETE), button -> confirmDelete()).build();
 
 	public BuildBrowserScreen() {
 		super(Component.literal("MCVCS Builds"));
@@ -105,7 +125,9 @@ public final class BuildBrowserScreen extends Screen {
 		for (Button button : buttons()) {
 			addWidget(button);
 		}
+		addWidget(more);
 		buttonsFor = null;
+		menuFor = null;
 		hideButtons();
 		scroll = Mth.clamp(scroll, 0.0, maxScroll());
 	}
@@ -153,15 +175,51 @@ public final class BuildBrowserScreen extends Screen {
 			cell(graphics, build, x, y, layout.cell(), isHovered, isSelected, yaw);
 		}
 		if (hovered != null) {
+			// Under an open menu the cell's buttons neither light up nor show their tooltips.
+			int buttonMouseX = menuFor == null ? mouseX : -1;
+			int buttonMouseY = menuFor == null ? mouseY : -1;
 			for (Button button : buttons()) {
-				button.extractRenderState(graphics, mouseX, mouseY, partialTick);
+				button.extractRenderState(graphics, buttonMouseX, buttonMouseY, partialTick);
 			}
+			more.extractRenderState(graphics, mouseX, mouseY, partialTick);
 		}
 		graphics.disableScissor();
 
-		// Over a button, that button's own tooltip says what it does instead.
-		if (hovered != null && !overButton(mouseX, mouseY)) {
+		if (menuFor != null) {
+			menu(graphics, mouseX, mouseY, partialTick);
+		} else if (hovered != null && !overButton(mouseX, mouseY)) {
+			// Over a button, that button's own tooltip says what it does instead.
 			graphics.setComponentTooltipForNextFrame(font, tooltip(hovered), mouseX, mouseY);
+		}
+	}
+
+	/** The open menu, hanging from the three dots and lined up with their right edge, over everything else. */
+	private void menu(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+		int itemWidth = font.width(delete.getMessage()) + BUTTON_PADDING;
+		int right = more.getRight();
+		int top = more.getBottom() + 1;
+		int left = right - itemWidth - 2 * MENU_PADDING;
+		int bottom = top + BUTTON_HEIGHT + 2 * MENU_PADDING;
+		delete.visible = true;
+		delete.setRectangle(itemWidth, BUTTON_HEIGHT, left + MENU_PADDING, top + MENU_PADDING);
+
+		graphics.nextStratum();
+		graphics.fill(left, top, right, bottom, MENU);
+		graphics.outline(left - 1, top - 1, right - left + 2, bottom - top + 2, BORDER_HOVERED);
+		delete.extractRenderState(graphics, mouseX, mouseY, partialTick);
+	}
+
+	private void closeMenu() {
+		menuFor = null;
+		delete.visible = false;
+	}
+
+	/** Asks whether to delete the build whose menu is open, see {@link DeleteBuildScreen}. */
+	private void confirmDelete() {
+		BuildSummary build = menuFor;
+		closeMenu();
+		if (build != null && minecraft != null) {
+			minecraft.setScreen(new DeleteBuildScreen(this, build));
 		}
 	}
 
@@ -266,6 +324,13 @@ public final class BuildBrowserScreen extends Screen {
 
 	@Override
 	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+		// An open menu takes the click: its item does its thing, and anywhere else, the dots included, closes it.
+		if (menuFor != null) {
+			if (!delete.mouseClicked(event, doubleClick)) {
+				closeMenu();
+			}
+			return true;
+		}
 		// The buttons follow the mouse only when drawn, and the mouse may have moved since.
 		updateButtons(event.x(), event.y());
 		if (super.mouseClicked(event, doubleClick)) {
@@ -329,19 +394,22 @@ public final class BuildBrowserScreen extends Screen {
 		for (Button button : buttons()) {
 			button.visible = false;
 		}
+		more.visible = false;
+		closeMenu();
 	}
 
 	/** Whether {@code (x, y)} is on one of the buttons, greyed out or not. */
 	private boolean overButton(double x, double y) {
-		return buttons().stream().anyMatch(button -> button.visible && button.isMouseOver(x, y));
+		return more.visible && more.isMouseOver(x, y) || buttons().stream().anyMatch(button -> button.visible && button.isMouseOver(x, y));
 	}
 
 	/**
-	 * Puts the buttons on the cell under {@code (x, y)}, or hides them if there is none, and says whose cell that is.
-	 * What they say and whether they can be pressed is only worked out again when the mouse moves onto another build.
+	 * Puts the buttons on the cell under {@code (x, y)}, or while a menu is open on that menu's cell, or hides them if
+	 * there is none, and says whose cell that is. What they say and whether they can be pressed is only worked out
+	 * again when the mouse moves onto another build.
 	 */
 	private @Nullable BuildSummary updateButtons(double x, double y) {
-		BuildSummary build = at(x, y);
+		BuildSummary build = menuFor != null ? menuFor : at(x, y);
 		ScreenRectangle cell = build == null ? null : cellOf(build.name());
 		if (build == null || cell == null) {
 			buttonsFor = null;
@@ -365,7 +433,9 @@ public final class BuildBrowserScreen extends Screen {
 		for (Button button : buttons()) {
 			button.visible = true;
 		}
+		more.visible = true;
 		layoutButtons(cell.left(), cell.top(), cell.width());
+		more.setRectangle(MORE_WIDTH, MORE_HEIGHT, cell.right() - MORE_INSET - MORE_WIDTH, cell.top() + MORE_INSET);
 		return build;
 	}
 
@@ -388,6 +458,8 @@ public final class BuildBrowserScreen extends Screen {
 
 	@Override
 	public boolean mouseScrolled(double x, double y, double scrollX, double scrollY) {
+		// The menu hangs from its cell, which is about to move.
+		closeMenu();
 		scroll = Mth.clamp(scroll - scrollY * (layout().cellHeight() + GAP) / 2.0, 0.0, maxScroll());
 		return true;
 	}
@@ -396,6 +468,10 @@ public final class BuildBrowserScreen extends Screen {
 	public boolean keyPressed(KeyEvent event) {
 		if (BuildBrowserKey.KEY.matches(event)) {
 			onClose();
+			return true;
+		}
+		if (event.isEscape() && menuFor != null) {
+			closeMenu();
 			return true;
 		}
 		return super.keyPressed(event);
@@ -463,8 +539,29 @@ public final class BuildBrowserScreen extends Screen {
 		return null;
 	}
 
-	/** The button labelled {@code label} on the hovered cell, for tests to click; null while no cell is hovered. */
+	/**
+	 * The button labelled {@code label} on the hovered cell or in its open menu, for tests to click; null while no cell
+	 * is hovered, or for the menu's item while the menu is closed.
+	 */
 	public @Nullable Button buttonOf(String label) {
-		return buttons().stream().filter(button -> button.visible && button.getMessage().getString().equals(label)).findFirst().orElse(null);
+		return Stream.concat(buttons().stream(), Stream.of(more, delete))
+			.filter(button -> button.visible && button.getMessage().getString().equals(label)).findFirst().orElse(null);
+	}
+
+	/** Three dots in a row, lighter behind them under the mouse, which open a cell's menu. */
+	private static final class DotsButton extends Button {
+		DotsButton(OnPress onPress) {
+			super(0, 0, MORE_WIDTH, MORE_HEIGHT, Component.literal(MORE), onPress, DEFAULT_NARRATION);
+		}
+
+		@Override
+		protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+			graphics.fill(getX(), getY(), getRight(), getBottom(), isHoveredOrFocused() ? MORE_HOVERED : MORE_BACKGROUND);
+			int left = getX() + (getWidth() - 8) / 2;
+			int top = getY() + (getHeight() - 2) / 2;
+			for (int i = 0; i < 3; i++) {
+				graphics.fill(left + 3 * i, top, left + 3 * i + 2, top + 2, WHITE);
+			}
+		}
 	}
 }
