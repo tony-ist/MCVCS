@@ -271,6 +271,10 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 		context.getInput().pressKey(key);
 		BuildBox moved = new BuildBox(box.min().offset(x, y, z), box.max().offset(x, y, z));
 		assertShowing(context, moved);
+		// A copy this small is drawn in its new place at the step itself, not after it has stood still.
+		if (!context.computeOnClient(client -> PreviewManager.placeDrawn())) {
+			throw new AssertionError("Expected a small copy to be drawn right after a step to " + moved);
+		}
 		return moved;
 	}
 

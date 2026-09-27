@@ -187,8 +187,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
-- Renaming builds and placements
-- Preview of huge builds is laggy when moving it. Maybe make debounce: move only box and rerender the build only after some time 
 - Aliases for commands to type them faster
 - Make automatic releases on github by reading tags
 - Make version automatically in format mcvcs-fabric-1.2.0+mc26.1.2
@@ -204,3 +202,4 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Changing selection should stop preview and diff
 - /vcs off command to turn off diff and preview
 - In tests display test name and sequential number and all number of tests running in chat or just just screen.
+- Renaming builds and placements

@@ -3,12 +3,14 @@ package tony.mcvcs.client.preview;
 import java.util.Arrays;
 
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLevelEvents;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
+import net.minecraft.util.Util;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -38,13 +40,30 @@ import org.jspecify.annotations.Nullable;
  * world. The copy wins where they overlap, being the thing the player is working with.
  * <p>
  * Packets and events are handled on the client thread; {@link #substitute} runs on the section compile threads and
- * only ever reads the immutable values published through {@link #active} and {@link #place}.
+ * only ever reads the immutable values published through {@link #active} and {@link #drawnPlace}.
  */
 public final class PreviewManager {
+	/**
+	 * Largest copy, in blocks of its box, that is drawn anew at every step it is moved. Drawing it anew means
+	 * re-meshing every chunk section its box touches, which for the biggest builds is a good part of the loaded
+	 * world and stalls every step. A bigger copy only has its outline follow the steps, and its blocks are drawn
+	 * again once it has stood still for {@link #SETTLE_MILLIS}.
+	 */
+	public static final long REDRAW_WHILE_MOVING_LIMIT = 1_000_000;
+	/** How long a copy above {@link #REDRAW_WHILE_MOVING_LIMIT} has to stand still before its blocks are drawn again. */
+	public static final long SETTLE_MILLIS = 300;
+
 	/** The version preview currently drawn, or null to draw the real world in every placement. */
 	private static volatile @Nullable ClientPreview active;
 	/** The copy a {@code /vcs place} is showing, or null when none is being aligned. */
 	private static volatile @Nullable PlacePreview place;
+	/**
+	 * The copy as the chunk meshes draw it: {@link #place} itself, or null while a copy too big to be drawn at every
+	 * step is being moved, see {@link #REDRAW_WHILE_MOVING_LIMIT}.
+	 */
+	private static volatile @Nullable PlacePreview drawnPlace;
+	/** When a copy hidden while it moves is drawn again, in {@link Util#getMillis} time; pushed back by every step. */
+	private static long settleAt;
 	/** Whichever of the two is still arriving slice by slice; null between previews. */
 	private static @Nullable Pending pending;
 
@@ -62,6 +81,7 @@ public final class PreviewManager {
 		// A preview belongs to the world it was requested in, so leaving that world drops it.
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> forget());
 		ClientLevelEvents.AFTER_CLIENT_LEVEL_CHANGE.register((client, level) -> forget());
+		ClientTickEvents.END_CLIENT_TICK.register(PreviewManager::tick);
 	}
 
 	/** The version preview currently drawn, if any. */
@@ -74,14 +94,33 @@ public final class PreviewManager {
 		return place;
 	}
 
+	/** Whether the blocks of the copy a {@code /vcs place} is showing are drawn where it stands right now. */
+	public static boolean placeDrawn() {
+		PlacePreview showing = place;
+		return showing != null && drawnPlace == showing;
+	}
+
 	/**
 	 * Draws the copy a {@code /vcs place} is showing with its minimum corner at {@code min} instead, and has the
 	 * renderer rebuild what it left and what it now covers. Does nothing when no copy is being shown.
+	 * <p>
+	 * A copy above {@link #REDRAW_WHILE_MOVING_LIMIT} is not drawn in its new place yet: its blocks are taken away
+	 * at the first step and drawn again once it stops, see {@link #tick}, so that a run of steps costs one rebuild
+	 * rather than one each. Its outline follows every step all the same, being drawn from {@link #place}.
 	 */
 	public static void movePlace(BlockPos min, Minecraft client) {
 		PlacePreview showing = place;
-		if (showing != null) {
-			showPlace(showing.movedTo(min), client);
+		if (showing == null) {
+			return;
+		}
+
+		PlacePreview moved = showing.movedTo(min);
+		place = moved;
+		if (moved.box().volume() > REDRAW_WHILE_MOVING_LIMIT) {
+			settleAt = Util.getMillis() + SETTLE_MILLIS;
+			draw(null, client);
+		} else {
+			draw(moved, client);
 		}
 	}
 
@@ -91,7 +130,7 @@ public final class PreviewManager {
 	 */
 	public static @Nullable BlockState substitute(ClientLevel level, BlockPos pos) {
 		ResourceKey<Level> dimension = level.dimension();
-		PlacePreview showing = place;
+		PlacePreview showing = drawnPlace;
 		if (showing != null && showing.blocks().covers(dimension, pos)) {
 			return showing.blocks().stateAt(pos);
 		}
@@ -110,7 +149,7 @@ public final class PreviewManager {
 		if (preview != null && preview.dimension().equals(level.dimension())) {
 			result = without(result, emptySections, preview.box());
 		}
-		PlacePreview showing = place;
+		PlacePreview showing = drawnPlace;
 		if (showing != null && showing.blocks().dimension().equals(level.dimension())) {
 			result = without(result, emptySections, showing.box());
 		}
@@ -162,6 +201,15 @@ public final class PreviewManager {
 		pending = null;
 		active = null;
 		place = null;
+		drawnPlace = null;
+	}
+
+	/** Draws a copy hidden while it was moved once it has stood still long enough, see {@link #movePlace}. */
+	private static void tick(Minecraft client) {
+		PlacePreview showing = place;
+		if (showing != null && drawnPlace != showing && Util.getMillis() >= settleAt) {
+			draw(showing, client);
+		}
 	}
 
 	/** Swaps the drawn version preview and has the renderer rebuild every section either the old or the new one touched. */
@@ -177,13 +225,20 @@ public final class PreviewManager {
 
 	/** The same for the copy a {@code /vcs place} is showing, which moves far more often than it appears. */
 	private static void showPlace(@Nullable PlacePreview preview, Minecraft client) {
-		PlacePreview previous = place;
 		place = preview;
 		if (preview == null) {
 			dropPending(true);
 		}
+		draw(preview, client);
+	}
 
-		rebuild(client, previous == null ? null : previous.box(), preview == null ? null : preview.box());
+	/** Has the chunk meshes draw {@code preview} as the copy, or none, rebuilding what the one drawn before covered. */
+	private static void draw(@Nullable PlacePreview preview, Minecraft client) {
+		PlacePreview previous = drawnPlace;
+		drawnPlace = preview;
+		if (previous != preview) {
+			rebuild(client, previous == null ? null : previous.box(), preview == null ? null : preview.box());
+		}
 	}
 
 	/** Forgets a preview still arriving if its slices were meant for the one being cleared; the other one keeps its own. */
