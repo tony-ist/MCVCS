@@ -255,4 +255,11 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 		updated.put(tag, version);
 		return new Build(name, world, this.version, versions, placements, updated);
 	}
+
+	/** The build without {@code tag}; the version it named keeps its other tags. */
+	public Build withoutTag(String tag) {
+		Map<String, Integer> updated = new LinkedHashMap<>(tags);
+		updated.remove(tag);
+		return new Build(name, world, version, versions, placements, updated);
+	}
 }

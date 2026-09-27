@@ -30,7 +30,7 @@ import tony.mcvcs.build.BuildRegistry;
  * {@code /vcs tag <version> <tagname>} tags a version of the selected placement's build, and {@code /vcs commit
  * <tagname>} tags the version it saves; tags are written to {@code build.json}, shown by {@code /vcs builds}, and a tag
  * already in use or with characters a tag may not have is refused. Every command taking a version number completes
- * and takes a tag in its place.
+ * and takes a tag in its place. {@code /vcs untag <tagname>} removes a tag, which can then name another version.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsTagCommandGameTest extends VcsGameTest {
@@ -130,6 +130,20 @@ public class VcsTagCommandGameTest extends VcsGameTest {
 			if (texts.stream().noneMatch(line -> line.startsWith("    Placement " + Build.MAIN + " v2 (2.0.0-rc.1, stable) ("))) {
 				throw new AssertionError("Expected /vcs builds to show v2's tag but got " + texts);
 			}
+
+			// /vcs untag completes the build's tags and removes one, leaving the version and its other tags.
+			List<String> tags = suggestions(singleplayer, "vcs untag ");
+			if (!tags.containsAll(List.of("1.0.0", "2.0.0-rc.1", "first_Release+x", "stable")) || tags.contains("1")) {
+				throw new AssertionError("Expected /vcs untag to suggest the build's tags only but got " + tags);
+			}
+			assertMessages(run(context, "vcs untag stable"), List.of("Removed tag stable from build " + BUILD_NAME + " v2 (2.0.0-rc.1)"), true);
+			assertTags(singleplayer, Map.of("1.0.0", 1, "first_Release+x", 1, "2.0.0-rc.1", 2));
+			if (readBuildFile().contains("\"stable\"")) {
+				throw new AssertionError("Expected stable to be gone from build.json but got " + readBuildFile());
+			}
+			// A tag the build does not have is refused; a removed one is free to name another version.
+			assertMessages(run(context, "vcs untag stable"), List.of("Build " + BUILD_NAME + " has no tag stable"), true);
+			assertMessages(run(context, "vcs tag 1 stable"), List.of("Tagged build " + BUILD_NAME + " v1 (1.0.0, first_Release+x, stable)"), true);
 
 			String json = readBuildFile();
 			if (!json.contains("\"tags\"") || !json.contains("\"2.0.0-rc.1\"")) {

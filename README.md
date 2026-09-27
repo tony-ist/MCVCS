@@ -46,6 +46,7 @@ There is no client-only mode: the builds live on the server, so the mod has to b
 | `/vcs deselect` | Clears your selection: the bounding box, and any preview or diff highlighting, disappear and commands that need a selection refuse until you select one again. |
 | `/vcs commit [tagname]` | Saves what is inside the selected placement's box as the build's next version. The box is the one that placement holds; your current WorldEdit selection is ignored. Every other placement of the build can then check that version out, wherever it stands; their own heads do not move. With a tag name, e.g. `/vcs commit 2.0.0`, the new version is tagged with it the way `/vcs tag` tags one; a tag the build already uses is refused and nothing is committed. If anything other than air touches the box, the version is still saved but a yellow warning tells you to run `/vcs fit`, since the touching blocks were left out. |
 | `/vcs tag <version\|tag> <tagname>` | Tags that version of the selected placement's build, e.g. `/vcs tag 2 2.0.0` tags v2 as `2.0.0`. A tag may contain letters, digits, `-`, `_`, `+` and dots, but may not be digits alone, which would read as a version number. A version can have any number of tags, but a tag names one version of a build only, so a tag already in use is refused rather than moved. Every command that takes a version (`place`, `checkout`, `diff`, `preview`, `load` and `tag` itself) takes a tag in its place, e.g. `/vcs checkout 2.0.0`, and completes tags alongside the version numbers. Tags are shown after the version wherever it is reported, e.g. `v2 (2.0.0)` in `/vcs commit`, `/vcs checkout` and `/vcs builds`. |
+| `/vcs untag <tagname>` | Removes that tag from the selected placement's build, e.g. `/vcs untag 2.0.0`, and completes the build's tags. The version it named stays, with any other tags it has, and the tag is free to be given to another version. |
 | `/vcs preview <version\|tag>` | Renders that version in place of the real blocks inside the selected placement's box, where that placement holds it. Nothing in the world changes. A version bigger than the box, such as one from before `/vcs fit` shrank it, is drawn over both boxes together, hiding whatever else stands in the extra space, even another placement. |
 | `/vcs preview off` | Shows the real blocks again. |
 | `/vcs load [version\|tag]` | Puts that version, or the latest one if none is given, into your WorldEdit clipboard, replacing whatever you had copied, so `//paste` places it. The origin is one block above the top north-west corner of the build, so `//paste` puts the build one block below your feet, extending east and south. What you paste is only blocks; `/vcs place` is what adds a placement the mod keeps track of. Nothing is written to WorldEdit's own schematic folder. |
@@ -187,7 +188,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 ### Roadmap
 
 - Renaming builds and placements
-- Delete command for tags
 - Preview of huge builds is laggy when moving it. Maybe make debounce: move only box and rerender the build only after some time 
 - Aliases for commands to type them faster
 - Make automatic releases on github by reading tags

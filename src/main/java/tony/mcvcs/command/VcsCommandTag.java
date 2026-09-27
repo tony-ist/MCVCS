@@ -19,12 +19,15 @@ import tony.mcvcs.build.BuildStorage;
  * {@code /vcs tag <version> <tagname>}: gives a version of the selected placement's build a tag, such as {@code 2.0.0},
  * recorded in {@code build.json}. A version may carry several tags, but a tag names one version only, so a tag that
  * already names another version is refused rather than moved. {@code /vcs commit <tagname>} tags the version it saves
- * the same way, see {@link #refusal}.
+ * the same way, see {@link #refusal}. {@code /vcs untag <tagname>} removes a tag again, leaving the version it named.
  */
 public final class VcsCommandTag {
 	static final VcsHelp HELP = new VcsHelp("tag", "/vcs tag <version | tag> <tagname>",
 		"tag a version of the selected placement's build, e.g. 2.0.0",
-		"Gives that version of the selected placement's build a tag, e.g. `/vcs tag 2 2.0.0`. A tag may contain letters, digits, -, _, + and dots, but may not be digits alone. A version can have several tags, but each tag names one version of a build, so a tag already in use is refused. Wherever a command takes a version number, such as `/vcs checkout`, `/vcs diff` or `/vcs preview`, it takes a tag too. `/vcs commit <tagname>` tags the version it saves in the same way.");
+		"Gives that version of the selected placement's build a tag, e.g. `/vcs tag 2 2.0.0`. A tag may contain letters, digits, -, _, + and dots, but may not be digits alone. A version can have several tags, but each tag names one version of a build, so a tag already in use is refused. Wherever a command takes a version number, such as `/vcs checkout`, `/vcs diff` or `/vcs preview`, it takes a tag too. `/vcs commit <tagname>` tags the version it saves in the same way. `/vcs untag <tagname>` removes a tag.");
+	static final VcsHelp UNTAG_HELP = new VcsHelp("untag", "/vcs untag <tagname>",
+		"remove a tag from the selected placement's build",
+		"Removes the tag from the selected placement's build, e.g. `/vcs untag 2.0.0`. The version it named stays, with any other tags it has, and the tag is free to be given to another version.");
 
 	private VcsCommandTag() {
 	}
@@ -66,6 +69,37 @@ public final class VcsCommandTag {
 		MCVCS.LOGGER.info("{} tagged build '{}' v{} as '{}'", player.getGameProfile().name(), build.name(), version, tag);
 
 		source.sendSuccess(() -> Component.literal("Tagged build ").append(VcsMessages.name(build.name())).append(" " + tagged.versionLabel(version)), false);
+		return 1;
+	}
+
+	/** {@code /vcs untag <tagname>}. */
+	static int untag(CommandSourceStack source, String tag) throws CommandSyntaxException {
+		ServerPlayer player = source.getPlayerOrException();
+		Optional<BuildPlacement> selected = BuildRegistry.selected(player);
+		if (selected.isEmpty()) {
+			source.sendFailure(VcsMessages.noPlacementSelected());
+			return 0;
+		}
+
+		Build build = selected.get().build();
+		Optional<Integer> tagged = build.taggedVersion(tag);
+		if (tagged.isEmpty()) {
+			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(build.name())).append(" has no tag " + tag));
+			return 0;
+		}
+		int version = tagged.get();
+
+		Build untagged = build.withoutTag(tag);
+		try {
+			BuildStorage.update(untagged);
+		} catch (IOException e) {
+			MCVCS.LOGGER.error("Failed to remove tag '{}' from '{}' v{} for {}", tag, build.name(), version, player.getGameProfile().name(), e);
+			source.sendFailure(Component.literal("Failed to remove tag: " + e.getMessage()));
+			return 0;
+		}
+		MCVCS.LOGGER.info("{} removed tag '{}' from build '{}' v{}", player.getGameProfile().name(), tag, build.name(), version);
+
+		source.sendSuccess(() -> Component.literal("Removed tag " + tag + " from build ").append(VcsMessages.name(build.name())).append(" " + untagged.versionLabel(version)), false);
 		return 1;
 	}
 
