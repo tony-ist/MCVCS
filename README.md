@@ -2,34 +2,19 @@
 
 A version control system for redstone builds, as a Minecraft Fabric mod.
 
-Punch a block of a build to turn it into a MCVCS build, and commit snapshots of it as you work. Every commit is saved as a schematic, and any earlier version can be previewed in place, client-side, without touching the world.
+MCVCS solves the problem of keeping track of your redstone creations and their versions. With MCVCS you can easily find the build you are searching for, checkout the required version, and also commit new changes while you are improving it.
 
-The preferred way to use builds with this mod is to have them hover in the air, not touching the ground or anything else that is not part of them. `/vcs fit` grows a build's region until only air surrounds it, so it can pick up whatever you built out past the edges, and shrinks it to the smallest box around the build; a build standing on the ground would take the ground with it.
+## Server and client
 
-## Placements
+The mod has a server-side and client-side parts. The mod can run on the server alone; players without it on their client can still join and use every command.
 
-A build can stand in the world more than once. Each copy of it is a **placement** with a name of its own: `/vcs create` makes the first one, called `main`, and `/vcs place <buildname>` drops another one where you stand. A placement is written as `buildname/placementname`, which is what its label above the world says and what the commands call it.
+However, client-side mod improves experience a lot. It shows bounding boxes with labels for builds, previews, diffs, and adds overlay to manage your builds easily.
 
-Every placement lives its own life. It holds a version of its own, you modify it on your own, and `/vcs checkout` moves only that placement to another version. Versions, though, belong to the build: a `/vcs commit` from any placement saves the build's next version, and every other placement can then check that version out. So you can keep `main` on v4 while a second placement tries out v5, then check v5 out at `main` when it works.
-
-Commands act on the placement you have selected, not on the build. `/vcs select` takes a build with one placement straight away; when a build has several, it asks you to punch a block of the one you mean, and `/vcs select <buildname> <placementname>` names it outright.
-
-Placements may never overlap, one another's or another build's, whichever build they belong to: every block in the world belongs to at most one of them.
 ## Requirements
 
 - Minecraft 26.1.2 with Fabric Loader and Fabric API
 - WorldEdit (used for selections and for reading and writing schematics)
 - Operator level 2 (cheats) to run the commands
-- The mod can run on the server alone; players without it on their client can still join and use every command. Only previews, placement labels, the selection box and the builds overlay are rendered client-side, so those need the mod installed on the client too (see below)
-
-## Server-side only or with the client
-
-The mod works in two setups:
-
-- **Server only.** Install it on the server (or in the host's single-player game). Players connect with a vanilla Fabric client and get the full command set: `create`, `place`, `unplace`, `select`, `builds`, `deselect`, `commit`, `tag`, `load`, `diff`, `fit`, `setSelection`, `checkout`, `delete`, `tp`, `weselect` and `help` all run on the server. Nothing is drawn in their world, though: no placement labels and no selection box, `/vcs diff` only reports its counts in chat, and `/vcs preview` refuses with a message saying the client does not have MCVCS installed. `/vcs place` has nothing to show the copy with either, so it puts it into the world where you stand straight away, with no lining up and nothing to confirm.
-- **Server and client.** Install it on both. On top of the commands, the client shows every placement's name floating above its box, draws the selected placement's bounding box, highlights the blocks `/vcs diff` finds, can render `/vcs preview <version>` in place of the real blocks, shows the copy `/vcs place` is about to put down so it can be lined up before it is confirmed, opens an overlay with a turning preview of every build (see [Builds overlay](#builds-overlay)), and adds hotkeys that select the placement under your crosshair and move that copy about (see below).
-
-There is no client-only mode: the builds live on the server, so the mod has to be there for anything to work.
 
 ## Commands
 
@@ -64,48 +49,13 @@ There is no client-only mode: the builds live on the server, so the mod has to b
 
 ## Hotkeys
 
-With the mod on your client, pressing `V` selects the placement under your crosshair, the same as running `/vcs select` for it. It takes the nearest placement whose box your line of sight passes through, or the one you are standing in.
+With the mod on your client, pressing `V` selects the placement under your crosshair, the same as running `/vcs select` for it.
 
 Pressing `B` opens the [builds overlay](#builds-overlay), and pressing it again closes it.
 
-The numpad moves the copy `/vcs place` is showing, and does nothing while none is being shown:
-
-| Key | What it does |
-| --- | --- |
-| `8` / `2` | Pushes the copy away from you and pulls it back, through the side of its box you are looking at |
-| `4` / `6` | Slides it left and right along that side, as you see it, without changing its height |
-| `7` / `9` | Raises and lowers it |
-| `5` | Places it where it stands, the same as `/vcs confirmPlace`; where it cannot be placed it says why instead |
-
-Holding left alt and turning the mouse wheel does the same as `8` and `2`: a notch up pushes the copy away from you, a notch down pulls it back. Unlike those keys the wheel goes by any of the six faces, so looking down on the copy from above a notch up lowers it and a notch down raises it, and looking up at it from below it is the other way round. The wheel changes your held item as usual the rest of the time, so it is only taken over while that key is held and a copy is being shown.
-
-Which way the copy goes is read off the box, not off the compass: looking at its north side, `8` pushes it north to south, and looking at its east side, `8` pushes it east to west. Looking at the top or the bottom of the box, or away from it altogether, leaves `8`, `2`, `4` and `6` nothing to go by, so they move nothing and tell you to look at a side of it; the wheel only needs some face of the box in sight. `7`, `9` and `5` need no side and always work. Each press, and each notch of the wheel, moves one block.
+Holding left alt and scrolling mouse wheel moves the `/vcs place` preview around.
 
 Every key can be rebound like any other under Options, Controls, Key Binds, in the MCVCS category.
-
-## Builds overlay
-
-With the mod on both the server and your client, `B` opens a screen listing every build in this world in a grid, sorted by name. Each cell shows the build's newest committed version as a 3D preview turning about its vertical axis, with the build's name under it and the version with its tags, e.g. `v2 (2.0.0)`. The build of your selected placement is outlined in yellow. Placements play no part: what a cell shows is the build's newest version, whichever version its placements hold and whatever has been changed in them since.
-
-Hovering a cell turns it blue and replaces its preview with three buttons stacked in the middle, each closing the overlay and running a command for that build:
-
-| Button | Runs | What it does |
-| --- | --- | --- |
-| `Select` | `/vcs select <buildname> <placementname>` | Selects the build's placement |
-| `TP` | `/vcs tp <buildname> <placementname>` | Teleports you on top of the build's placement |
-| `Place` | `/vcs place <buildname> <version>` | Places a copy of the version the cell shows below your feet, ready to be lined up with the numpad keys |
-
-`Select` and `TP` are greyed out for a build that is not placed anywhere. For a build with several placements they first open a window headed with the build's name, listing each placement's name and the corner its box starts at, with its dimension if that is not the overworld; your selected placement is in yellow. Clicking one closes the window and the overlay and selects that placement or teleports onto it. `Cancel`, `Esc` or a click outside the window goes back to the overlay, and `B` closes both.
-
-A hovered cell also shows three dots in its top right corner, which open a small menu with `Delete`. It asks `Are you sure you want to delete <buildname>?`, with an `Also delete all placed blocks` checkbox, unticked by default. `Delete` runs `/vcs delete <buildname>`, with `-c` if the box is ticked, then `/vcs confirmDelete`, removing the build with all its versions, and goes back to the overlay, which fetches the list again once the build is gone. Without the box ticked, the blocks of its placements stay standing in the world. `Cancel`, `Esc` or a click outside the window goes back to the overlay without deleting anything.
-
-Previews are downloaded from the server when the overlay opens, with loading dots and `Downloading` in each cell, then the percentage downloaded, until its preview is ready. A version never changes once committed, so each preview is downloaded once and kept until you leave the server; opening the overlay again shows it straight away. A build bigger than `autoDownloadLimit` blocks (see [Client settings](#client-settings)) is not downloaded by itself: its cell says `Click to download the preview` with its size, and clicking the cell anywhere but on its buttons downloads it.
-
-The list is fetched when the overlay opens and, apart from after a delete, is not updated while it stays open. The `Refresh` button in the top right corner fetches it again, picking up new builds and new commits, and retries any preview that failed to download.
-
-A build longer than 128 blocks along any side is previewed at reduced detail, since its preview gets less than a pixel per block anyway. It is cut into cubes, 2x2x2 blocks for a build up to 256 blocks long, 3x3x3 up to 384 and so on, so that the longest side is at most 128 of them, and each cube is drawn as one block that is as big as the cube. That block is a full solid block of the cube if it has one, so thin walls stay visible, otherwise any other block of it, otherwise air. The server does the sampling, so a big build also downloads that much faster. A preview whose geometry would still take more than about 110 MiB of video memory, such as a huge field of redstone dust or glass panes, shows `Too detailed to preview` instead.
-
-The preview draws block models only, lit as in full daylight. Chests, signs and other block entities, and water and lava, are left out. The overlay needs the same permission as `/vcs`, so a player without it is told so instead. On a server without the mod, or with an older version of it, `B` says so on the action bar and opens nothing.
 
 ## Client settings
 
@@ -129,10 +79,26 @@ The file is read again every time you join a world or server, so an edit takes h
 
 ## How it works
 
-- Schematics are written in Sponge v3 format to the mod's own `mcvcs/` folder in the game directory (next to `config/`, `saves/` and so on), separate from WorldEdit's `//schem` files. Each build has a folder named after it holding one file per version: `mcvcs/<buildname>/<buildname>-v1.schem`, `mcvcs/<buildname>/<buildname>-v2.schem`, ... Schematics named `v1.schem`, `v2.schem`, ... by older versions of the mod are renamed to that form when the server starts; if one cannot be renamed, for example because its new name is taken, the server refuses to start and says which file is in the way.
-- Build and placement names become folder names and chat labels, so they may only contain letters, digits, `_`, `+`, `-` and dots between those characters, and may not start with `-`, which would read as a flag. A new build's or placement's name must also start with a letter from `a` to `z`, in either case.
-- Geometry is kept in *build space*, the build's own coordinates, in which version 1's minimum corner is `(0, 0, 0)`. Every version has its own extent there, which is how versions of different sizes line up with each other, and every placement has an `origin`: the world position build space `(0, 0, 0)` sits at. A placement's box is the extent of the version it holds, laid at that origin. The origin is fixed when the placement is made and never moves again, so checking out a version of another size grows or shrinks the box around the build instead of sliding the build sideways.
-- Each build's folder holds `build.json` describing it: its name, the world it belongs to (the save folder's name, e.g. `New World`, or `level-name` on a server), its latest version, the extent of every version and every placement of it with its dimension, origin and `head`, the version that placement holds, and its `tags`, each naming the version it was given to (left out of files written before tags existed, which load with none). It is rewritten on every create, place, commit, tag, fit, setSelection, checkout and unplace, and the folder is the only place the build exists: nothing is stored in the world save, and deleting a build's folder, which is what `/vcs confirmDelete` does, removes it.
+- Schematics are written in Sponge v3 format to the mod's own `mcvcs/` folder in the game directory (next to `config/`, `saves/` and so on), separate from WorldEdit's `//schem` files. Each build has a folder named after it holding one file per version: `mcvcs/<buildname>/<buildname>-v1.schem`, `mcvcs/<buildname>/<buildname>-v2.schem`.
+- Each new version of a build is a `schem` file inside `<buildname>` folder.
+- `build.json` contains information about bounding box for each version, and origin point for placements.
+- Bottom north-west corner of the version 1 of the build is its bounding box's `[0, 0, 0]` coordinate, that is stored in `build.json`.
+- Origin of the placement is coordinates of a point in the world which corresponds to `[0, 0, 0]` point of the build's version. For example, `testrig` with version 2 placement from example below will have origin `[400, 70, 0]` in the world. This origin will correspond to `[0, 0, 0]` point of version 2's bounding box.
+- After checkout of any version, we move `head` pointer to that version. So now other commands like `diff` work against this version. Head is also used to warn you before checkouts that you have uncommited changes.
+
+Example folder structure:
+
+```
+mcvcs/
+  selections.json
+  <buildname>/
+    build.json
+    <buildname>-v1.schem
+    <buildname>-v2.schem
+    ...
+```
+
+Example `build.json`:
 
 ```json
 {
@@ -152,20 +118,6 @@ The file is read again every time you join a world or server, so an edit takes h
     "2.0.0": 2
   }
 }
-```
-
-- Schematics are still saved with the world position they were copied from (WorldEdit's `Origin` and `Offset` fields), which is what `/vcs load` and `//paste` go by, but those are the coordinates of the placement the version happened to be committed from and say nothing about where it belongs at another one. Where a version goes is worked out from `build.json` alone.
-- The `mcvcs/` folder is shared by every world opened from the same game directory, so commands only see builds whose `world` matches the one being played, and a build name, compared without regard to case, can only be used by one build at a time, in one world. Renaming a save folder orphans its builds until `world` in their `build.json` is updated to match.
-- Selections are per world and per player, stored in `mcvcs/selections.json` keyed by world then player UUID, each naming a build and one of its placements, so they are back after a restart.
-- Every placement in the world, and which one you have selected, is synced to your client on join and whenever any of it changes. Each placement's `buildname/placementname` floats above its box while you are within 32 blocks of it, selected or not, and the selected placement's bounding box is drawn in its dimension.
-```
-mcvcs/
-  selections.json
-  <buildname>/
-    build.json
-    <buildname>-v1.schem
-    <buildname>-v2.schem
-    ...
 ```
 
 ## Development
