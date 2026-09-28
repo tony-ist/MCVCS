@@ -106,6 +106,12 @@ java {
 	targetCompatibility = JavaVersion.VERSION_25
 }
 
+// Only the file name carries the loader/MC suffix (mcvcs-1.7.0-fabric+mc26.1.2.jar). Keeping it out of project.version
+// keeps fabric.mod.json at a plain 1.7.0, since SemVer would treat "-fabric" as a pre-release tag.
+tasks.withType(AbstractArchiveTask).configureEach {
+	archiveVersion = "${project.version}-fabric+mc${project.minecraft_version}"
+}
+
 jar {
 	def projectName = project.name
 	inputs.property "projectName", projectName
