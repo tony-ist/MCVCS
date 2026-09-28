@@ -6,15 +6,24 @@ MCVCS solves the problem of keeping track of your redstone creations and their v
 
 ## Server and client
 
-The mod has a server-side and client-side parts. The mod can run on the server alone; players without it on their client can still join and use every command.
+The mod has a server-side and client-side parts. The mod can run on the server alone; players without it on their client can still join and use every command except `preview` and `diff`. `place` will work differently without client-side mod: it will not show previews, just place right away.
 
-However, client-side mod improves experience a lot. It shows bounding boxes with labels for builds, previews, diffs, and adds overlay to manage your builds easily.
+The client-side mod improves experience a lot. It shows bounding boxes with labels for builds, previews, diffs, and adds overlay to manage your builds easily.
 
 ## Requirements
 
 - Minecraft 26.1.2 with Fabric Loader and Fabric API
 - WorldEdit (used for selections and for reading and writing schematics)
 - Operator level 2 (cheats) to run the commands
+
+## Quick start
+
+1. Build something floating in the air.
+2. Run /vcs create mybuild and punch it.
+3. Change a few blocks.
+4. Run /vcs diff to see the changes.
+5. Run /vcs commit.
+6. Run /vcs checkout 1 to go back.
 
 ## Commands
 
@@ -129,10 +138,9 @@ The file is read again every time you join a world or server, so an edit takes h
 ## How it works
 
 - Schematics are written in Sponge v3 format to the mod's own `mcvcs/` folder in the game directory (next to `config/`, `saves/` and so on), separate from WorldEdit's `//schem` files. Each build has a folder named after it holding one file per version: `mcvcs/<buildname>/<buildname>-v1.schem`, `mcvcs/<buildname>/<buildname>-v2.schem`.
-- Each new version of a build is a `schem` file inside `<buildname>` folder.
 - `build.json` contains information about bounding box for each version, and origin point for placements.
 - Bottom north-west corner of the version 1 of the build is its bounding box's `[0, 0, 0]` coordinate, that is stored in `build.json`.
-- Origin of the placement is coordinates of a point in the world which corresponds to `[0, 0, 0]` point of the build's version. For example, `testrig` with version 2 placement from example below will have origin `[400, 70, 0]` in the world. This origin will correspond to `[0, 0, 0]` point of version 2's bounding box.
+- Origin of the placement is coordinates of a point in the world which corresponds to `[0, 0, 0]` point of the build's version. For example, `main` placement with version 2 from example below will have origin `[100, 64, -30]` in the world. This origin will correspond to `[0, 0, 0]` point of version 2's bounding box.
 - After checkout of any version, we move `head` pointer to that version. So now other commands like `diff` work against this version. Head is also used to warn you before checkouts that you have uncommited changes.
 
 Example folder structure:
