@@ -196,6 +196,7 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
+- /vcs tag latest 1.0.0 should be possible and autocomplete latest. /vcs tag 1.0.0 should tag head by default
 - Improve UI Overlay to include versions and placements
 - Aliases for commands to type them faster
 - Make automatic releases on github by reading tags
