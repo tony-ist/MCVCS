@@ -33,14 +33,16 @@ import org.jspecify.annotations.Nullable;
  * Which way the copy goes is read off the box itself: the key presses are about the face of the box the player is
  * looking at, not about compass directions. {@code 8} pushes the copy away through the face in sight and {@code 2}
  * pulls it back, {@code 4} and {@code 6} slide it sideways along that face, left and right as the player sees it,
- * with no change of height. Looking at the top or the bottom of the box, or away from it altogether, leaves those
- * four with nothing to go by, so they move nothing and say so instead. {@code 7} and {@code 9} raise and lower the
+ * with no change of height. Looking at the top or the bottom of the box, or away from it altogether, those four go by
+ * the side nearest the player instead, so a small copy that slips out from under the crosshair as it moves can still
+ * be moved; from inside the box they go by the way the player is turned. {@code 7} and {@code 9} raise and lower the
  * copy, which needs no face at all. {@code 5} places it, running {@code /vcs confirmPlace} for the player, and says
  * why instead when the copy stands where it cannot be placed.
  * <p>
  * {@link #SCROLL} held turns the mouse wheel into {@code 8} and {@code 2}: a notch up pushes the copy away through
  * the face in sight, a notch down pulls it back. The wheel goes by any of the six faces, the top and the bottom
- * included, so looking down on the copy it lowers and raises it where those four keys have nothing to go by. The
+ * included, so looking down on the copy it lowers and raises it; with the box out of sight it goes by the face
+ * nearest the player, and from inside the box by the way they look. The
  * wheel is taken over only while that key is held and a copy is being shown, so it goes on changing the held item
  * every other time, see {@code MouseHandlerMixin}.
  * <p>
@@ -78,10 +80,6 @@ public final class PlacePreviewKeys {
 	 */
 	public static final KeyMapping SCROLL = key("place_scroll", GLFW.GLFW_KEY_LEFT_ALT);
 
-	/** Shown when a sideways key is pressed while no side of the box is in sight, since there is nothing to go by. */
-	public static final String HINT = "Look at the build's side face to move it with hotkeys";
-	/** The same for the wheel, which takes any face of the box and so only wants the box itself to be in sight. */
-	public static final String WHEEL_HINT = "Look at the build to move it with the mouse wheel";
 	/** What {@code 5} says instead of placing when the copy stands where it cannot be placed; the reason follows. */
 	public static final String REFUSED = "Cannot place here - ";
 	/** The command {@code 5} runs, the same one the player would type. */
@@ -136,15 +134,14 @@ public final class PlacePreviewKeys {
 	 * always away from the player, whichever face that is.
 	 * <p>
 	 * Answers whether the wheel was taken over, which it is only while {@link #SCROLL} is held over a copy being
-	 * shown with no screen open. A turn that finds no face in sight still counts as taken over, having said why: the
-	 * player asked for the copy to move, so the held item must not change behind their back.
+	 * shown with no screen open.
 	 */
 	public static boolean scrolled(Minecraft client, double amount) {
 		if (amount == 0.0 || client.screen != null || !SCROLL.isDown() || PreviewManager.place() == null) {
 			return false;
 		}
 
-		Direction face = facing(client, FACES, WHEEL_HINT);
+		Direction face = facing(client, FACES);
 		if (face != null) {
 			// The face in sight looks back at the player, so moving away from them goes the other way.
 			move(client, amount > 0.0 ? face.getOpposite() : face);
@@ -193,27 +190,78 @@ public final class PlacePreviewKeys {
 		}
 	}
 
-	/** The side of the copy's box the keys work off, {@link #SIDES} only; null, having said {@link #HINT}, when none. */
+	/** The side of the copy's box the keys work off, {@link #SIDES} only; null when no copy is being shown. */
 	private static @Nullable Direction facing(Minecraft client) {
-		return facing(client, SIDES, HINT);
+		return facing(client, SIDES);
 	}
 
 	/**
-	 * Which of {@code faces} of the copy's box the player is looking at, or null, having told them {@code hint}, when
-	 * none is: a copy that is not being shown, a face left out of {@code faces}, or nothing of the box at all.
+	 * Which of {@code faces} of the copy's box the moves go by: the one the player is looking at, or, with none of
+	 * them in sight, the {@link #nearestFace} to the player. Null only when no copy is being shown here.
 	 */
-	private static @Nullable Direction facing(Minecraft client, Direction[] faces, String hint) {
+	private static @Nullable Direction facing(Minecraft client, Direction[] faces) {
 		PlacePreview preview = PreviewManager.place();
 		LocalPlayer player = client.player;
 		if (preview == null || player == null || !preview.blocks().dimension().equals(player.level().dimension())) {
 			return null;
 		}
 
-		Direction face = faceLookedAt(aabb(preview.box()), player.getEyePosition(), player.getViewVector(1.0f), faces);
-		if (face == null) {
-			player.sendOverlayMessage(Component.literal(hint));
+		AABB aabb = aabb(preview.box());
+		Vec3 eye = player.getEyePosition();
+		Vec3 look = player.getViewVector(1.0f);
+		Direction face = faceLookedAt(aabb, eye, look, faces);
+		if (face != null) {
+			return face;
 		}
-		return face;
+		// The sides go by the way the player is turned alone, which still says something looking straight up or down.
+		Vec3 ahead = faces == SIDES ? Vec3.directionFromRotation(0.0f, player.getYRot()) : look;
+		return nearestFace(aabb, eye, ahead, faces);
+	}
+
+	/**
+	 * Which of {@code faces} of {@code aabb} the player at {@code eye} is nearest to, for when they are not looking at
+	 * any: of the faces they stand outside of, the one they are farthest out from, which is the one they see most of.
+	 * <p>
+	 * Standing outside of none of them, inside the box or right above or below it for the sides, there is no face
+	 * before them, so it goes by where they look, {@code ahead}: the face behind them, as if they were looking at it
+	 * from outside, so away from them is still the way they look.
+	 */
+	public static Direction nearestFace(AABB aabb, Vec3 eye, Vec3 ahead, Direction[] faces) {
+		Direction nearest = null;
+		double farthestOut = 0.0;
+		for (Direction face : faces) {
+			double out = outside(eye, aabb, face);
+			if (out > farthestOut) {
+				nearest = face;
+				farthestOut = out;
+			}
+		}
+		if (nearest != null) {
+			return nearest;
+		}
+
+		Direction behind = faces[0];
+		double mostBehind = Double.NEGATIVE_INFINITY;
+		for (Direction face : faces) {
+			double along = -(face.getStepX() * ahead.x + face.getStepY() * ahead.y + face.getStepZ() * ahead.z);
+			if (along > mostBehind) {
+				behind = face;
+				mostBehind = along;
+			}
+		}
+		return behind;
+	}
+
+	/** How far {@code point} is out past the plane the {@code face} of {@code aabb} lies in; negative on the inside. */
+	private static double outside(Vec3 point, AABB aabb, Direction face) {
+		return switch (face) {
+			case NORTH -> aabb.minZ - point.z;
+			case SOUTH -> point.z - aabb.maxZ;
+			case WEST -> aabb.minX - point.x;
+			case EAST -> point.x - aabb.maxX;
+			case DOWN -> aabb.minY - point.y;
+			case UP -> point.y - aabb.maxY;
+		};
 	}
 
 	/** Slides the copy one block {@code direction}. */

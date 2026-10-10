@@ -24,7 +24,6 @@ import net.minecraft.client.gui.screens.options.controls.KeyBindsList;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.Blocks;
 
 import tony.mcvcs.build.Build;
@@ -41,8 +40,8 @@ import tony.mcvcs.client.preview.PreviewManager;
  * away and back through the side of the box in sight, sideways along it, up and down, a block at a time. Holding the
  * scroll key turns the mouse wheel into the away and back keys, a block per notch, off any of the six faces: the top
  * and the bottom included, where away means down and up, which is what the numpad keys will not do. The wheel is left
- * alone while that key is not held. Looking at no side of it leaves the sideways keys nothing to go by, so they move
- * nothing and say so, and the wheel does the same with no face at all in sight. Numpad {@code 5} then places the copy
+ * alone while that key is not held. With no face of it in sight the keys and the wheel go by the face nearest the
+ * player, and from inside the box by where the player looks. Numpad {@code 5} then places the copy
  * where it was left, as {@code /vcs confirmPlace} does, and says why instead when it stands where it cannot be
  * placed; {@code /vcs cancelPlace} drops it.
  */
@@ -146,28 +145,33 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 			box = sprintPress(context, PlacePreviewKeys.AWAY, box, 0, 0, 1);
 			box = sprintPress(context, PlacePreviewKeys.CLOSER, box, 0, 0, -1);
 
-			// Looking at the sky there is no side of the box in sight, so the sideways keys move nothing and say why.
+			// Looking at the sky there is no face of the box in sight, so the keys and the wheel go by the face nearest
+			// the player instead, the north one, as if they were still looking at it.
 			context.runOnClient(client -> client.player.setXRot(-90.0f));
 			context.waitTicks(2);
-			context.getInput().pressKey(PlacePreviewKeys.AWAY);
-			context.waitTicks(5);
-			assertShowing(context, box);
-			assertOverlay(context, PlacePreviewKeys.HINT);
+			box = pressAsIs(context, PlacePreviewKeys.AWAY, box, 0, 0, 1);
+			box = pressAsIs(context, PlacePreviewKeys.LEFT, box, 1, 0, 0);
+			box = scrollAsIs(context, box, -1.0, 0, 0, -1);
+			box = pressAsIs(context, PlacePreviewKeys.RIGHT, box, -1, 0, 0);
 			screenshotLastFrame(context, "mcvcs-vcs-place-preview-no-face");
 
-			// The wheel wants a face of the box too, any of the six, so with the box itself out of sight it moves
-			// nothing and says so in its own words. The action bar is wiped first, so what is read back is the
-			// wheel's own message and not the one the press just before it left there.
-			context.runOnClient(client -> client.gui.setOverlayMessage(Component.empty(), false));
-			context.getInput().holdKey(PlacePreviewKeys.SCROLL);
-			try {
-				context.getInput().scroll(1.0);
-				context.waitTicks(5);
-			} finally {
-				context.getInput().releaseKey(PlacePreviewKeys.SCROLL);
-			}
-			assertShowing(context, box);
-			assertOverlay(context, PlacePreviewKeys.WHEEL_HINT);
+			// From inside the box no face is before the player, so the moves go by where they look: away is the way
+			// they look, south here, and with the wheel looking down it is downwards. Each move is undone by the next,
+			// so the player is still inside the box for every one of them.
+			watchFrom(singleplayer, context, box.min());
+			box = pressAsIs(context, PlacePreviewKeys.CLOSER, box, 0, 0, -1);
+			box = pressAsIs(context, PlacePreviewKeys.AWAY, box, 0, 0, 1);
+			box = scrollAsIs(context, box, -1.0, 0, 0, -1);
+			box = scrollAsIs(context, box, 1.0, 0, 0, 1);
+			context.runOnClient(client -> client.player.setXRot(90.0f));
+			context.waitTicks(2);
+			box = scrollAsIs(context, box, -1.0, 0, 1, 0);
+			box = scrollAsIs(context, box, 1.0, 0, -1, 0);
+			// Looking down the sideways keys still go by the way the player is turned: facing south, left is east.
+			box = pressAsIs(context, PlacePreviewKeys.RIGHT, box, -1, 0, 0);
+			box = pressAsIs(context, PlacePreviewKeys.LEFT, box, 1, 0, 0);
+			screenshotLastFrame(context, "mcvcs-vcs-place-preview-inside");
+			watchFrom(singleplayer, context, viewpoint);
 
 			// A copy standing over blocks would overwrite them, which is refused without -f, and the box says so by
 			// turning red before the command is ever run. A stone slab is laid right below where the copy stands.
@@ -279,6 +283,11 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 	 */
 	private static BuildBox press(ClientGameTestContext context, KeyMapping key, BuildBox box, int x, int y, int z) {
 		aim(context, box);
+		return pressAsIs(context, key, box, x, y, z);
+	}
+
+	/** {@link #press} without turning to the copy first, so the player goes on looking wherever they were. */
+	private static BuildBox pressAsIs(ClientGameTestContext context, KeyMapping key, BuildBox box, int x, int y, int z) {
 		context.getInput().pressKey(key);
 		BuildBox moved = new BuildBox(box.min().offset(x, y, z), box.max().offset(x, y, z));
 		assertShowing(context, moved);
@@ -295,6 +304,11 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 	 */
 	private static BuildBox scroll(ClientGameTestContext context, BuildBox box, double amount, int x, int y, int z) {
 		aim(context, box);
+		return scrollAsIs(context, box, amount, x, y, z);
+	}
+
+	/** {@link #scroll} without turning to the copy first, so the player goes on looking wherever they were. */
+	private static BuildBox scrollAsIs(ClientGameTestContext context, BuildBox box, double amount, int x, int y, int z) {
 		context.getInput().holdKey(PlacePreviewKeys.SCROLL);
 		try {
 			context.getInput().scroll(amount);
@@ -334,7 +348,7 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 				PlacePreview preview = PreviewManager.place();
 				return preview != null && preview.box().equals(box);
 			});
-		} catch (RuntimeException e) {
+		} catch (RuntimeException | AssertionError e) {
 			PlacePreview preview = context.computeOnClient(client -> PreviewManager.place());
 			throw new AssertionError("Expected a copy shown at " + box + " but got " + (preview == null ? "none" : preview.box()), e);
 		}
