@@ -43,6 +43,7 @@ import tony.mcvcs.build.Placement;
  * <li>{@code /vcs delete <buildname> [-c]} and {@code /vcs confirmDelete}: {@link VcsCommandDelete}</li>
  * <li>{@code /vcs tp [buildname [placementname]]}: {@link VcsCommandTp}</li>
  * <li>{@code /vcs weselect}: {@link VcsCommandWeselect}</li>
+ * <li>{@code /vcs version}: {@link VcsCommandVersion}</li>
  * <li>{@code /vcs help [command]} and {@code /vcs -h}: {@link VcsCommandHelp}</li>
  * </ul>
  * Every subcommand also takes {@code -h} in place of its arguments, which shows its help instead of running it, see
@@ -177,7 +178,9 @@ public final class VcsCommand {
 							.suggests((context, builder) -> SharedSuggestionProvider.suggest(placements(context.getSource(), StringArgumentType.getString(context, "buildname")), builder))
 							.executes(context -> VcsCommandTp.run(context.getSource(), StringArgumentType.getString(context, "buildname"), StringArgumentType.getString(context, "placementname"))))))
 				.then(sub(VcsCommandWeselect.HELP)
-					.executes(context -> VcsCommandWeselect.run(context.getSource())))));
+					.executes(context -> VcsCommandWeselect.run(context.getSource())))
+				.then(sub(VcsCommandVersion.HELP)
+					.executes(context -> VcsCommandVersion.run(context.getSource())))));
 	}
 
 	/**

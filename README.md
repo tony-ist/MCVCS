@@ -104,6 +104,8 @@ A **build** is your creation with all its saved versions. A **placement** is a c
   Lists all commands, or shows the full help for one of them.
 - `/vcs <command> -h`\
   Shows the full help for that command instead of running it.
+- `/vcs version`\
+  Shows the version of MCVCS the server runs.
 
 ## Hotkeys
 
