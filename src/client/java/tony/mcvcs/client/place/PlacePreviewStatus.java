@@ -25,16 +25,21 @@ import org.jspecify.annotations.Nullable;
  * command.
  * <p>
  * Overlaps are looked for every tick, there being a handful of placements at most. The blocks in the way are counted
- * only when the copy moves, since that means reading the whole box, and a box of more than {@link #SCAN_LIMIT}
- * blocks is not read at all: counting millions of blocks would cost more than the warning is worth, so a copy that
- * big is drawn green until the server says otherwise.
+ * when the copy moves and every {@link #RECOUNT_TICKS} ticks while it stands still, since that means reading the
+ * whole box; the recount catches blocks built into it and chunks that were not loaded yet the last time. A box of
+ * more than {@link #SCAN_LIMIT} blocks is not read at all: counting millions of blocks would cost more than the
+ * warning is worth, so a copy that big is drawn green until the server says otherwise.
  */
 public final class PlacePreviewStatus {
 	/** Largest box, in blocks, whose contents are counted; see above. */
 	public static final long SCAN_LIMIT = 200_000;
+	/** How often, in ticks, the blocks in the way of a copy standing still are counted again. */
+	public static final int RECOUNT_TICKS = 10;
 
 	/** What the copy stands over right now; null when none is being shown. */
 	private static volatile @Nullable Status status;
+	/** Ticks since the blocks in the way were last counted. */
+	private static int sinceCount;
 
 	/**
 	 * @param box         where the copy stands, so a status is never read for a box it was not worked out for
@@ -86,9 +91,15 @@ public final class PlacePreviewStatus {
 
 		BuildBox box = preview.box();
 		Status previous = status;
-		// The blocks inside the box only change when the copy moves, or when someone builds there, which the next
-		// move picks up; the overlap is cheap enough to ask about every time.
-		int inTheWay = previous != null && previous.box().equals(box) ? previous.inTheWay() : inTheWay(level, box);
+		// The overlap is cheap enough to ask about every time; the blocks inside the box are counted again on a move
+		// and now and then while it stands still.
+		int inTheWay;
+		if (previous != null && previous.box().equals(box) && ++sinceCount < RECOUNT_TICKS) {
+			inTheWay = previous.inTheWay();
+		} else {
+			inTheWay = inTheWay(level, box);
+			sinceCount = 0;
+		}
 		status = new Status(box, overlapping(box, level.dimension()), inTheWay, preview.force());
 	}
 

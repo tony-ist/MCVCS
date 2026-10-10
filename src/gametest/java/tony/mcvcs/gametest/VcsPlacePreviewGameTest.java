@@ -32,6 +32,7 @@ import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.place.PlacePreviewKeys;
+import tony.mcvcs.client.place.PlacePreviewStatus;
 import tony.mcvcs.client.preview.PlacePreview;
 import tony.mcvcs.client.preview.PreviewManager;
 
@@ -191,6 +192,14 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 			screenshotLastFrame(context, "mcvcs-vcs-place-preview-refused");
 
 			box = press(context, PlacePreviewKeys.UP, box, 0, 1, 0);
+			assertPlaceable(context, true);
+
+			// Blocks built into the copy while it stands still turn it red too, and it goes green again once they go.
+			BlockPos inside = box.min();
+			fillBox(singleplayer, inside, inside, Blocks.STONE.defaultBlockState(), inside, Blocks.STONE.defaultBlockState());
+			assertPlaceable(context, false);
+			fillBox(singleplayer, inside, inside, Blocks.AIR.defaultBlockState(), inside, Blocks.AIR.defaultBlockState());
+			assertPlaceable(context, true);
 
 			// Left where it is not shown, so that placing it proves the server followed the copy about rather than
 			// putting it back where /vcs place first showed it.
@@ -351,6 +360,19 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 		} catch (RuntimeException | AssertionError e) {
 			PlacePreview preview = context.computeOnClient(client -> PreviewManager.place());
 			throw new AssertionError("Expected a copy shown at " + box + " but got " + (preview == null ? "none" : preview.box()), e);
+		}
+	}
+
+	/** Waits until the copy is drawn green, or red, as {@code expected} says. */
+	private static void assertPlaceable(ClientGameTestContext context, boolean expected) {
+		try {
+			context.waitFor(client -> {
+				PlacePreviewStatus.Status status = PlacePreviewStatus.status();
+				return status != null && status.placeable() == expected;
+			});
+		} catch (RuntimeException | AssertionError e) {
+			throw new AssertionError("Expected the copy to be " + (expected ? "placeable" : "refused") + " but it is "
+				+ context.computeOnClient(client -> PlacePreviewStatus.status()), e);
 		}
 	}
 
