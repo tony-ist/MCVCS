@@ -11,6 +11,7 @@ import tony.mcvcs.client.diff.DiffHighlightRenderer;
 import tony.mcvcs.client.diff.DiffManager;
 import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.client.label.BuildLabelRenderer;
+import tony.mcvcs.client.place.PlacePreviewHint;
 import tony.mcvcs.client.place.PlacePreviewKeys;
 import tony.mcvcs.client.place.PlacePreviewRenderer;
 import tony.mcvcs.client.place.PlacePreviewStatus;
@@ -33,6 +34,7 @@ public class MCVCSClient implements ClientModInitializer {
 		PlacePreviewKeys.register();
 		PlacePreviewStatus.register();
 		PlacePreviewRenderer.register();
+		PlacePreviewHint.register();
 		BuildLabelRenderer.register();
 		DiffHighlightRenderer.register();
 		BuildBrowser.register();
