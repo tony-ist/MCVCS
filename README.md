@@ -201,12 +201,9 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - /vcs tag latest 1.0.0 should be possible and autocomplete latest. /vcs tag 1.0.0 should tag head by default
 - Improve UI Overlay to include versions and placements
 - Aliases for commands to type them faster
-- Make automatic releases on github by reading tags
 - Command /vcs move initiates moving preview for current placement allowing to change its position with numpad keys and press 5 moves it physically in the world
 - Submodules for build. One build can have submodules inside its box. Each submodule is itself a build. When we place parent build, all submodule placements appear inside. Bounding box for parent build includes all bounding boxes for submodules. Think about what happens when submodule and parent intersect not fullly.
 - Add hotkeys to select next and previous version preview (could be made obsolete by UI Overlay)
-- Better numpad key movement: do not require to look at face to move front forwards and sideways, use projection on face plane
-- When inside the build preview placement you cannot move it. Make builds movable by intersecting look direction with extension of face plane, even if you are inside build.
 - Big diffs lag client too much (see it on mcvsmc/p2)
 
 ### Assemblies
@@ -218,7 +215,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - When modifying build, update diff in real time
 - Disable sounds in test client so that I don't get jumpscared. Also make it creative mode and spanw player as flying not falling if he's in midair
 - Render label of the build on the nearest edge to the player. This way labels of the big builds will be seen better.
-- Changing selection should stop preview and diff
 - /vcs off command to turn off diff and preview
-- In tests display test name and sequential number and all number of tests running in chat or just just screen.
+- In tests display test name and sequential number and all number of tests running in chat or just screen.
 - Renaming builds and placements
