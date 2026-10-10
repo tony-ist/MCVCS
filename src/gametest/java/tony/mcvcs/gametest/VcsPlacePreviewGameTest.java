@@ -97,6 +97,19 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 			context.waitTicks(2);
 			BuildBox box = press(context, PlacePreviewKeys.AWAY, shown, 0, 0, 1);
 			screenshotLastFrame(context, "mcvcs-vcs-place-preview");
+
+			// The copy is drawn see-through, so it cannot be taken for blocks already there: a gold wall standing behind
+			// it shows through it. The chat is cleared to keep it out of the way. The wall goes again afterwards.
+			BlockPos wallMin = new BlockPos(box.min().getX() - 2, box.min().getY() - 1, box.max().getZ() + 2);
+			BlockPos wallMax = new BlockPos(box.max().getX() + 2, box.max().getY() + 1, box.max().getZ() + 2);
+			fillBox(singleplayer, wallMin, wallMax, Blocks.GOLD_BLOCK.defaultBlockState(), wallMin, Blocks.GOLD_BLOCK.defaultBlockState());
+			context.runOnClient(client -> client.gui.getChat().clearMessages(false));
+			context.waitTicks(5);
+			singleplayer.getClientLevel().waitForChunksRender();
+			screenshotLastFrame(context, "mcvcs-vcs-place-preview-see-through");
+			fillBox(singleplayer, wallMin, wallMax, Blocks.AIR.defaultBlockState(), wallMin, Blocks.AIR.defaultBlockState());
+			context.waitTicks(2);
+
 			box = press(context, PlacePreviewKeys.CLOSER, box, 0, 0, -1);
 			// Looking at the north side, the player faces south, so their left hand points east.
 			box = press(context, PlacePreviewKeys.LEFT, box, 1, 0, 0);

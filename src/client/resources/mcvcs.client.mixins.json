@@ -5,7 +5,9 @@
 	"client": [
 		"ClientChunkCacheMixin",
 		"MouseHandlerMixin",
-		"RenderSectionRegionMixin"
+		"RenderSectionRegionAccessor",
+		"RenderSectionRegionMixin",
+		"SectionCompilerMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

@@ -66,6 +66,11 @@ public final class PreviewManager {
 	private static long settleAt;
 	/** Whichever of the two is still arriving slice by slice; null between previews. */
 	private static @Nullable Pending pending;
+	/**
+	 * Set on a section compile thread while it meshes a block that is not the copy's, so that {@link #substitute} shows
+	 * that block air where the copy stands, see {@link tony.mcvcs.client.mixin.SectionCompilerMixin}.
+	 */
+	private static final ThreadLocal<Boolean> SEEING_PAST_PLACE = ThreadLocal.withInitial(() -> false);
 
 	private PreviewManager() {
 	}
@@ -132,10 +137,36 @@ public final class PreviewManager {
 		ResourceKey<Level> dimension = level.dimension();
 		PlacePreview showing = drawnPlace;
 		if (showing != null && showing.blocks().covers(dimension, pos)) {
-			return showing.blocks().stateAt(pos);
+			return SEEING_PAST_PLACE.get() ? Blocks.AIR.defaultBlockState() : showing.blocks().stateAt(pos);
 		}
 		ClientPreview preview = active;
 		return preview != null && preview.covers(dimension, pos) ? preview.stateAt(pos) : null;
+	}
+
+	/** Whether {@code pos} in {@code level} is drawn as a block of the copy a {@code /vcs place} is showing. Safe to call from any thread. */
+	public static boolean placeDrawnAt(ClientLevel level, BlockPos pos) {
+		PlacePreview showing = drawnPlace;
+		return showing != null && showing.blocks().covers(level.dimension(), pos);
+	}
+
+	/**
+	 * Has {@link #substitute} answer air where the copy stands, on this thread, until {@link #endSeeingPastPlace}; for
+	 * meshing the blocks around the copy, which is drawn see-through and so must not hide their faces.
+	 *
+	 * @return what to pass to {@link #endSeeingPastPlace}: false when no copy is drawn and nothing was changed
+	 */
+	public static boolean beginSeeingPastPlace() {
+		if (drawnPlace == null) {
+			return false;
+		}
+		SEEING_PAST_PLACE.set(true);
+		return true;
+	}
+
+	public static void endSeeingPastPlace(boolean began) {
+		if (began) {
+			SEEING_PAST_PLACE.set(false);
+		}
 	}
 
 	/**
