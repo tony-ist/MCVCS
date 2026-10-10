@@ -39,6 +39,7 @@ public class MCVCSClient implements ClientModInitializer {
 		DiffHighlightRenderer.register();
 		BuildBrowser.register();
 		BuildBrowserKey.register();
+		VersionCheckClient.register();
 		PictureInPictureRendererRegistry.register(context -> new BuildPreviewRenderer(context.bufferSource()));
 	}
 }

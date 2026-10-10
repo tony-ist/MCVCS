@@ -31,7 +31,8 @@
 			"tony.mcvcs.gametest.VcsReloadGameTest",
 			"tony.mcvcs.gametest.VcsMigrationGameTest",
 			"tony.mcvcs.gametest.VcsWorldScopeGameTest",
-			"tony.mcvcs.gametest.VcsHelpCommandGameTest"
+			"tony.mcvcs.gametest.VcsHelpCommandGameTest",
+			"tony.mcvcs.gametest.VcsVersionCheckGameTest"
 		]
 	},
 	"depends": {

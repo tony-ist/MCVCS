@@ -11,6 +11,7 @@ import tony.mcvcs.network.BuildBrowserSender;
 import tony.mcvcs.network.DiffSender;
 import tony.mcvcs.network.PreviewSender;
 import tony.mcvcs.network.BuildSync;
+import tony.mcvcs.network.VersionCheck;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +29,7 @@ public class MCVCS implements ModInitializer {
 		BuildBrowserSender.register();
 		VcsCommand.register();
 		PendingClick.register();
+		VersionCheck.register();
 	}
 
 	public static Identifier id(String path) {
