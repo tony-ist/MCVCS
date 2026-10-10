@@ -207,6 +207,7 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Add hotkeys to select next and previous version preview (could be made obsolete by UI Overlay)
 - Better numpad key movement: do not require to look at face to move front forwards and sideways, use projection on face plane
 - When inside the build preview placement you cannot move it. Make builds movable by intersecting look direction with extension of face plane, even if you are inside build.
+- Big diffs lag client too much (see it on mcvsmc/p2)
 
 ### Assemblies
 
