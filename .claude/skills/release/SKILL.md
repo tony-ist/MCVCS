@@ -12,7 +12,6 @@ Use PowerShell only.
 
 1. **Check**
    - On `main`, working tree clean (`git status --porcelain`), up to date with `origin/main` (`git fetch`, then `git status -sb` shows no `behind`). Otherwise stop.
-   - `local.properties` does not exist (it swaps in a local WorldEdit fork). If it exists, stop and ask.
    - `gh auth status` succeeds.
 2. **Versions**
    - Current = `version` in `gradle.properties`. Previous tag = `git describe --tags --abbrev=0`. If they differ, stop and ask.
