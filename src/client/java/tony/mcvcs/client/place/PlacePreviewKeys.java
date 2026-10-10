@@ -13,7 +13,6 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
@@ -236,27 +235,20 @@ public final class PlacePreviewKeys {
 	}
 
 	/**
-	 * Puts on the action bar which build is being placed and how to move it, followed by why it could not be placed
-	 * where it stands, if it could not. Said when the copy first appears and again after every move.
+	 * Puts on the action bar why the copy could not be placed where it stands, or clears it when it could, so an
+	 * earlier reason or hint does not linger once a move has made it stale. Said when the copy first appears and again
+	 * after every move; how to move and place it is always on screen, see {@link PlacePreviewHint}.
 	 */
 	public static void announce(Minecraft client) {
 		PlacePreview preview = PreviewManager.place();
 		LocalPlayer player = client.player;
-		if (preview != null && player != null) {
-			player.sendOverlayMessage(placing(preview));
+		if (preview == null || player == null) {
+			return;
 		}
-	}
 
-	/** What {@link #announce} says, e.g. {@code Placing tower/main - Left Alt + Mouse Wheel to Move}. */
-	private static MutableComponent placing(PlacePreview preview) {
-		MutableComponent message = Component.literal("Placing " + preview.blocks().name() + " - ")
-			.append(SCROLL.getTranslatedKeyMessage()).append(" + Mouse Wheel to Move");
 		Status status = PlacePreviewStatus.status();
 		String reason = status == null || !status.box().equals(preview.box()) ? null : status.reason();
-		if (reason != null) {
-			message.append(Component.literal(" - " + reason).withStyle(ChatFormatting.RED));
-		}
-		return message;
+		player.sendOverlayMessage(reason == null ? Component.empty() : Component.literal(reason).withStyle(ChatFormatting.RED));
 	}
 
 	/**

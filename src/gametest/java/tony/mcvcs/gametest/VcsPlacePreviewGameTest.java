@@ -50,8 +50,6 @@ import tony.mcvcs.client.preview.PreviewManager;
 public class VcsPlacePreviewGameTest extends VcsGameTest {
 	private static final String BUILD_NAME = "gametest-place-preview";
 	private static final String MOVED = "moved";
-	/** What the action bar says while the copy is shown, with the scroll key left on its default of left alt. */
-	private static final String PLACING = "Placing " + BUILD_NAME + "/" + MOVED + " - Left Alt + Mouse Wheel to Move";
 
 	@Override
 	protected void run(ClientGameTestContext context) {
@@ -82,8 +80,8 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 			BuildBox shown = below(feet);
 			runCommand(context, "vcs place " + BUILD_NAME + " latest " + MOVED);
 			assertShowing(context, shown);
-			// The action bar says what is being placed and how to move it, rather than where it stands.
-			assertOverlay(context, PLACING);
+			// The action bar stays empty while the copy can be placed: how to move and place it is on the hint line.
+			assertOverlay(context, "");
 			if (blockAt(singleplayer, shown.min()) != Blocks.AIR.defaultBlockState()) {
 				throw new AssertionError("A copy that is only shown must leave the world alone but " + shown.min().toShortString()
 					+ " holds " + blockAt(singleplayer, shown.min()));
@@ -177,7 +175,7 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 			fillBox(singleplayer, under.min(), under.max(), Blocks.STONE.defaultBlockState(), under.min(), Blocks.STONE.defaultBlockState());
 			aim(context, box);
 			box = press(context, PlacePreviewKeys.DOWN, box, 0, -1, 0);
-			assertOverlay(context, PLACING + " - 6 blocks in the way");
+			assertOverlay(context, "6 blocks in the way");
 			lookAt(context, box.min(), box.max().above(2));
 
 			// Asking to place it there says why instead, and leaves both the world and the copy as they are.
