@@ -2,6 +2,7 @@ package tony.mcvcs.client.browser;
 
 import java.util.List;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -168,7 +169,7 @@ public final class DeleteBuildScreen extends Screen {
 			return true;
 		}
 		Layout layout = layout();
-		if (event.button() == 0 && (event.x() < layout.left() || event.x() >= layout.right() || event.y() < layout.top() || event.y() >= layout.bottom())) {
+		if (event.button() == InputConstants.MOUSE_BUTTON_LEFT && (event.x() < layout.left() || event.x() >= layout.right() || event.y() < layout.top() || event.y() >= layout.bottom())) {
 			onClose();
 			return true;
 		}
@@ -179,14 +180,14 @@ public final class DeleteBuildScreen extends Screen {
 	@Override
 	public void onClose() {
 		if (minecraft != null) {
-			minecraft.setScreen(parent);
+			minecraft.gui.setScreen(parent);
 		}
 	}
 
 	@Override
 	public boolean keyPressed(KeyEvent event) {
 		if (BuildBrowserKey.KEY.matches(event) && minecraft != null) {
-			minecraft.setScreen(null);
+			minecraft.gui.setScreen(null);
 			return true;
 		}
 		return super.keyPressed(event);

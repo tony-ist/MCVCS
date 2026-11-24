@@ -16,7 +16,6 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import org.lwjgl.glfw.GLFW;
 
 import tony.mcvcs.MCVCS;
 import tony.mcvcs.client.build.ClientPlacements;
@@ -44,7 +43,7 @@ public final class SelectHotkey {
 	 */
 	public static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(MCVCS.id("main"));
 	/** The key itself, named by {@code key.mcvcs.select_looked_at}; {@code V} by default, which nothing in vanilla uses. */
-	public static final KeyMapping KEY = new KeyMapping("key.mcvcs.select_looked_at", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, CATEGORY);
+	public static final KeyMapping KEY = new KeyMapping("key.mcvcs.select_looked_at", InputConstants.Type.KEYBOARD, InputConstants.KEY_V, CATEGORY);
 
 	private SelectHotkey() {
 	}

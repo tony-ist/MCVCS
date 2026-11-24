@@ -3,6 +3,7 @@ package tony.mcvcs.client.browser;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -309,7 +310,7 @@ public final class CommitScreen extends Screen {
 	private void closeAndRun(String command) {
 		LocalPlayer player = minecraft == null ? null : minecraft.player;
 		if (minecraft != null) {
-			minecraft.setScreen(null);
+			minecraft.gui.setScreen(null);
 		}
 		if (player != null) {
 			// Sent as a command, so the server checks the permission and answers in chat the way it does for the command.
@@ -322,7 +323,7 @@ public final class CommitScreen extends Screen {
 		if (super.mouseClicked(event, doubleClick)) {
 			return true;
 		}
-		if (event.button() != 0) {
+		if (event.button() != InputConstants.MOUSE_BUTTON_LEFT) {
 			return false;
 		}
 		Layout layout = layout();
@@ -361,7 +362,7 @@ public final class CommitScreen extends Screen {
 		}
 		// Typed into the tag field, the overlay's key is just a letter.
 		if (BuildBrowserKey.KEY.matches(event) && (tagField == null || !tagField.isFocused()) && minecraft != null) {
-			minecraft.setScreen(null);
+			minecraft.gui.setScreen(null);
 			return true;
 		}
 		return super.keyPressed(event);
@@ -371,7 +372,7 @@ public final class CommitScreen extends Screen {
 	@Override
 	public void onClose() {
 		if (minecraft != null) {
-			minecraft.setScreen(parent);
+			minecraft.gui.setScreen(parent);
 		}
 	}
 

@@ -183,7 +183,7 @@ public final class ClientResize {
 	 */
 	public static @Nullable Target target(Minecraft client) {
 		Resize resize = here(client);
-		if (resize == null || client.screen != null || !PlacePreviewKeys.SCROLL.isDown() || PreviewManager.place() != null) {
+		if (resize == null || client.gui.screen() != null || !PlacePreviewKeys.SCROLL.isDown() || PreviewManager.place() != null) {
 			return null;
 		}
 		if (locked == null) {

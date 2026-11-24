@@ -2,6 +2,7 @@ package tony.mcvcs.client.browser;
 
 import java.util.List;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
@@ -269,7 +270,7 @@ abstract class VersionGridScreen extends Screen {
 		if (super.mouseClicked(event, doubleClick)) {
 			return true;
 		}
-		if (event.button() != 0 || minecraft == null) {
+		if (event.button() != InputConstants.MOUSE_BUTTON_LEFT || minecraft == null) {
 			return false;
 		}
 		BuildSummary.Version version = at(event.x(), event.y());
@@ -290,14 +291,14 @@ abstract class VersionGridScreen extends Screen {
 	@Override
 	public void onClose() {
 		if (minecraft != null) {
-			minecraft.setScreen(parent);
+			minecraft.gui.setScreen(parent);
 		}
 	}
 
 	@Override
 	public boolean keyPressed(KeyEvent event) {
 		if (BuildBrowserKey.KEY.matches(event) && minecraft != null) {
-			minecraft.setScreen(null);
+			minecraft.gui.setScreen(null);
 			return true;
 		}
 		return super.keyPressed(event);

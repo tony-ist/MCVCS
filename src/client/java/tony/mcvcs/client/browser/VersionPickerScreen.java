@@ -59,7 +59,7 @@ public final class VersionPickerScreen extends VersionGridScreen {
 	protected void clicked(BuildSummary.Version version) {
 		LocalPlayer player = minecraft == null ? null : minecraft.player;
 		if (minecraft != null) {
-			minecraft.setScreen(null);
+			minecraft.gui.setScreen(null);
 		}
 		if (player != null) {
 			// Sent as a command, so the server checks the permission and answers in chat the way it does for the command.

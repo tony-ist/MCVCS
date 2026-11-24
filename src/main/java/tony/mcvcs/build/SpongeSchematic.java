@@ -57,6 +57,8 @@ public final class SpongeSchematic {
 	/** File extension of a schematic. */
 	public static final String EXTENSION = "schem";
 	private static final int FORMAT_VERSION = 3;
+	/** The data version from which a block state's NBT says {@code id} and {@code properties}, not {@code Name} and {@code Properties}. */
+	private static final int STATE_KEYS_RENAME_VERSION = 5006;
 
 	private SpongeSchematic() {
 	}
@@ -212,10 +214,12 @@ public final class SpongeSchematic {
 	 * {@code dataVersion} when {@code upgrade}.
 	 */
 	private static BlockState blockState(String entry, int dataVersion, boolean upgrade) {
+		// Built the way dataVersion saved block states, so the data fixer upgrades it like any other.
+		boolean legacy = dataVersion < STATE_KEYS_RENAME_VERSION;
 		CompoundTag tag = new CompoundTag();
 		int open = entry.indexOf('[');
 		String name = open < 0 ? entry : entry.substring(0, open);
-		tag.putString("Name", name);
+		tag.putString(legacy ? "Name" : "id", name);
 		if (open >= 0 && entry.endsWith("]")) {
 			CompoundTag properties = new CompoundTag();
 			for (String pair : entry.substring(open + 1, entry.length() - 1).split(",")) {
@@ -224,14 +228,14 @@ public final class SpongeSchematic {
 					properties.putString(pair.substring(0, equals), pair.substring(equals + 1));
 				}
 			}
-			tag.put("Properties", properties);
+			tag.put(legacy ? "Properties" : "properties", properties);
 		}
 		if (upgrade) {
 			tag = (CompoundTag) DataFixers.getDataFixer()
 				.update(References.BLOCK_STATE, new Dynamic<>(NbtOps.INSTANCE, tag), dataVersion, currentDataVersion())
 				.getValue();
 		}
-		String upgradedName = tag.getStringOr("Name", "");
+		String upgradedName = tag.getStringOr("id", "");
 		Identifier id = Identifier.tryParse(upgradedName);
 		if (id == null || !BuiltInRegistries.BLOCK.containsKey(id)) {
 			MCVCS.LOGGER.warn("Unknown block '{}' in a schematic is read as air", upgradedName);

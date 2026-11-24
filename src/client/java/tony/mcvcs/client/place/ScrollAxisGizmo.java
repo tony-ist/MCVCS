@@ -50,7 +50,7 @@ public final class ScrollAxisGizmo {
 		Vec3 out = side.getUnitVec3();
 		double half = (aabb.max(side.getAxis()) - aabb.min(side.getAxis())) / 2.0;
 		Vec3 face = aabb.getCenter().add(out.scale(half));
-		Vec3 eye = Minecraft.getInstance().gameRenderer.getMainCamera().position();
+		Vec3 eye = Minecraft.getInstance().gameRenderer.mainCamera().position();
 		double scale = Math.max(1.0, eye.distanceTo(face) / SCALE_DISTANCE);
 
 		// Dashed inside the box, a little way in from the face.

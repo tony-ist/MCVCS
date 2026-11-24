@@ -15,11 +15,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /**
  * Keeps the renderer from skipping the chunk sections a preview draws blocks in.
  * <p>
- * The renderer never meshes a section that is all air in the real world: {@link ClientChunkCache#getLoadedEmptySections}
- * lists those, and the section graph leaves every listed section out, so nothing inside it is ever drawn, preview
- * blocks included. A preview standing in what is currently empty air would be invisible. The renderer asks for the
- * list every frame, so answering it without the sections a preview covers is enough to have them meshed like any
- * other section.
+ * The renderer never meshes a section that is all air in the real world: the section graph leaves out every section
+ * {@link ClientChunkCache#addedEmptySections} ever reported, so nothing inside it is drawn, preview blocks included.
+ * A preview standing in what is currently empty air would be invisible. {@link PreviewManager} reports the sections
+ * it covers as no longer empty when a preview appears; this keeps a chunk reloaded or a block broken while it shows
+ * from reporting them empty again. The renderer collects the set once a frame, so this runs once a frame too.
  */
 @Mixin(ClientChunkCache.class)
 abstract class ClientChunkCacheMixin {
@@ -27,12 +27,8 @@ abstract class ClientChunkCacheMixin {
 	@Final
 	private ClientLevel level;
 
-	@Inject(method = "getLoadedEmptySections", at = @At("RETURN"), cancellable = true)
+	@Inject(method = "addedEmptySections", at = @At("RETURN"))
 	private void mcvcs$keepPreviewedSections(CallbackInfoReturnable<LongOpenHashSet> cir) {
-		LongOpenHashSet emptySections = cir.getReturnValue();
-		LongOpenHashSet withoutPreviewed = PreviewManager.withoutPreviewed(level, emptySections);
-		if (withoutPreviewed != emptySections) {
-			cir.setReturnValue(withoutPreviewed);
-		}
+		PreviewManager.keepPreviewed(level, cir.getReturnValue());
 	}
 }

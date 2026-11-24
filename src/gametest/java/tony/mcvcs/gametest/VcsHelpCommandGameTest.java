@@ -41,7 +41,7 @@ public class VcsHelpCommandGameTest extends VcsGameTest {
 	@Override
 	protected void run(ClientGameTestContext context) {
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// Header, usage, details and one line for -f.
 			List<Component> place = help(context, "vcs place -h");

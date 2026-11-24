@@ -50,7 +50,7 @@ public class VcsDiffCommandGameTest extends VcsGameTest {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// v1: a 3x2x2 stone box in front of and to the right of the player, with a gold block in the top north-west
 			// corner, the top north-east corner left empty and an empty barrel in the bottom north-west corner; all
