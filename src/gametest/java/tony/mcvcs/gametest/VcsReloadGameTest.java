@@ -62,7 +62,7 @@ public class VcsReloadGameTest extends VcsGameTest {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 			save = singleplayer.getWorldSave();
 			// The save folder's name is what the build file records as the world.
 			world = singleplayer.getServer().computeOnServer(server -> server.getWorldPath(LevelResource.ROOT).toAbsolutePath().normalize().getFileName().toString());
@@ -93,7 +93,7 @@ public class VcsReloadGameTest extends VcsGameTest {
 
 		// Closing the world saves it. Reopening starts a fresh server, so anything not on disk is gone.
 		try (TestSingleplayerContext reopened = save.open()) {
-			reopened.getClientLevel().waitForChunksRender();
+			reopened.getConnection().waitForChunksRender();
 
 			// The server knows both builds again, and only those: other tests' builds were cleared before this one. It
 			// also remembers which one the player had selected.

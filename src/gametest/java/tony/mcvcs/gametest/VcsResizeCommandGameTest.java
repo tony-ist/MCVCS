@@ -58,7 +58,7 @@ public class VcsResizeCommandGameTest extends VcsGameTest {
 	protected void run(ClientGameTestContext context) {
 		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 			// Spectating, the player stays where they are put and the wheel has nothing else to do.
 			runCommand(context, "gamemode spectator");
 
@@ -106,7 +106,7 @@ public class VcsResizeCommandGameTest extends VcsGameTest {
 			context.waitTicks(2);
 			box = scroll(context, box, -1.0, new BuildBox(min, max.offset(0, 1, 1)));
 			lookAt(context, box.min(), box.max());
-			context.runOnClient(client -> client.gui.getChat().clearMessages(false));
+			context.runOnClient(client -> client.gui.hud.getChat().clearMessages(false));
 			context.waitTicks(2);
 			screenshotLastFrame(context, "mcvcs-vcs-resize");
 
@@ -149,7 +149,7 @@ public class VcsResizeCommandGameTest extends VcsGameTest {
 				throw new AssertionError("Expected the resized box to overlap " + NEIGHBOUR_LABEL);
 			}
 			lookAt(context, box.min(), box.max());
-			context.runOnClient(client -> client.gui.getChat().clearMessages(false));
+			context.runOnClient(client -> client.gui.hud.getChat().clearMessages(false));
 			context.waitTicks(2);
 			screenshotLastFrame(context, "mcvcs-vcs-resize-overlap");
 

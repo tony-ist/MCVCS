@@ -299,7 +299,7 @@ public final class UnplaceScreen extends Screen {
 	@Override
 	public boolean keyPressed(KeyEvent event) {
 		if (BuildBrowserKey.KEY.matches(event) && minecraft != null) {
-			minecraft.setScreen(null);
+			minecraft.gui.setScreen(null);
 			return true;
 		}
 		return super.keyPressed(event);
@@ -309,7 +309,7 @@ public final class UnplaceScreen extends Screen {
 	@Override
 	public void onClose() {
 		if (minecraft != null) {
-			minecraft.setScreen(parent);
+			minecraft.gui.setScreen(parent);
 		}
 	}
 

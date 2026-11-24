@@ -65,7 +65,7 @@ public class VcsSharedBuildsGameTest extends VcsGameTest {
 		String firstWorld;
 		BuildBox firstBox;
 		try (TestSingleplayerContext first = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			first.getClientLevel().waitForChunksRender();
+			first.getConnection().waitForChunksRender();
 			firstSave = first.getWorldSave();
 			firstWorld = first.getServer().computeOnServer(Build::worldOf);
 
@@ -80,7 +80,7 @@ public class VcsSharedBuildsGameTest extends VcsGameTest {
 
 		// A different world in the same game directory, so the same mcvcs/ folder.
 		try (TestSingleplayerContext second = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			second.getClientLevel().waitForChunksRender();
+			second.getConnection().waitForChunksRender();
 			String secondWorld = second.getServer().computeOnServer(Build::worldOf);
 
 			// The build is listed here too, but the first world's placement is not: nothing is selected or drawn.
@@ -147,12 +147,12 @@ public class VcsSharedBuildsGameTest extends VcsGameTest {
 				if (!summary.otherWorlds().equals(List.of(firstWorld))) {
 					throw new AssertionError("Expected the overlay to know of the placement in '" + firstWorld + "' but got " + summary.otherWorlds());
 				}
-				client.setScreen(new DeleteBuildScreen((BuildBrowserScreen) client.screen, summary));
+				client.gui.setScreen(new DeleteBuildScreen((BuildBrowserScreen) client.gui.screen(), summary));
 			});
 			context.waitForScreen(DeleteBuildScreen.class);
 			context.waitTicks(2);
 			context.takeScreenshot("mcvcs-shared-delete-window");
-			context.runOnClient(client -> client.setScreen(null));
+			context.runOnClient(client -> client.gui.setScreen(null));
 
 			// Confirming removes the whole build, empties the box here, and leaves the first world for when it is opened.
 			assertOnlyMessage(run(context, "vcs confirmDelete"), "Deleted build " + BUILD_NAME + " and its 2 versions");
@@ -166,7 +166,7 @@ public class VcsSharedBuildsGameTest extends VcsGameTest {
 
 		// The first world has lost its placement with the build, but its blocks are still standing.
 		try (TestSingleplayerContext reopened = firstSave.open()) {
-			reopened.getClientLevel().waitForChunksRender();
+			reopened.getConnection().waitForChunksRender();
 			if (!reopened.getServer().computeOnServer(BuildRegistry::names).isEmpty()) {
 				throw new AssertionError("Expected no builds after deleting the shared one");
 			}

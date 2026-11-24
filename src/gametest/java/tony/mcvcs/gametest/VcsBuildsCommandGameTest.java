@@ -50,7 +50,7 @@ public class VcsBuildsCommandGameTest extends VcsGameTest {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// Nothing to list yet.
 			List<Component> empty = listBuilds(context);

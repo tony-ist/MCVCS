@@ -61,7 +61,7 @@ public class VcsRenameCommandGameTest extends VcsGameTest {
 	protected void run(ClientGameTestContext context) {
 		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// Another build, whose name the rename may not take.
 			BlockPos otherMin = playerPos(singleplayer).offset(-6, 0, 2);

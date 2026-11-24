@@ -10,6 +10,7 @@ import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 
 import java.nio.file.Files;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.Window;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
@@ -18,7 +19,6 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
-import org.lwjgl.glfw.GLFW;
 
 import tony.mcvcs.client.browser.BuildBrowser;
 import tony.mcvcs.client.browser.BuildBrowserKey;
@@ -45,7 +45,7 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 	protected void run(ClientGameTestContext context) {
 		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 			ClientConfig.override(new ClientConfig.Settings(0.0, ClientConfig.DEFAULT_CELL_SIZE, 40, true, true));
 
 			// A 3x3x3 block of stone bricks with its top corner left empty.
@@ -76,11 +76,11 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 			moveTo(context, 1, 1);
 			context.waitTicks(2);
 			context.takeScreenshot("mcvcs-commit-window-unchanged");
-			context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+			context.getInput().pressKey(InputConstants.KEY_ESCAPE);
 			context.waitForScreen(BuildBrowserScreen.class);
 			context.waitFor(client -> BuildBrowser.commitPreview() == null);
 			context.getInput().pressKey(BuildBrowserKey.KEY);
-			context.waitFor(client -> client.screen == null);
+			context.waitFor(client -> client.gui.screen() == null);
 
 			// One block added, one removed, one changed: each counted and marked.
 			setBlock(singleplayer, max, Blocks.STONE_BRICKS.defaultBlockState());
@@ -99,7 +99,7 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 			});
 			// Showing the changes closes the overlay, so they can be seen in the world.
 			clickHeader(context, BuildBrowserScreen.DIFF + " (3)");
-			context.waitFor(client -> client.screen == null && DiffManager.active() != null);
+			context.waitFor(client -> client.gui.screen() == null && DiffManager.active() != null);
 			context.waitTicks(2);
 			context.takeScreenshot("mcvcs-browser-diff-shown");
 			context.getInput().pressKey(BuildBrowserKey.KEY);
@@ -110,7 +110,7 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 			clickHeader(context, BuildBrowserScreen.HIDE_DIFF);
 			context.waitFor(client -> DiffManager.active() == null && headerButton(client, BuildBrowserScreen.DIFF + " (3)") != null);
 			context.getInput().pressKey(BuildBrowserKey.KEY);
-			context.waitFor(client -> client.screen == null);
+			context.waitFor(client -> client.gui.screen() == null);
 
 			openCommit(context);
 			waitForSummary(context);
@@ -130,7 +130,7 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 
 			// Show modified blocks closes everything and highlights the changes in the world.
 			clickWidget(context, CommitScreen.SHOW_MODIFIED);
-			context.waitFor(client -> client.screen == null);
+			context.waitFor(client -> client.gui.screen() == null);
 			context.waitFor(client -> DiffManager.active() != null);
 
 			// The tag typed goes with the commit, also with Fit bounding box ticked; the box already fits, so it saves as is.
@@ -144,7 +144,7 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 				throw new AssertionError("Expected Commit pressable with a new tag");
 			}
 			clickWidget(context, CommitScreen.COMMIT);
-			context.waitFor(client -> client.screen == null);
+			context.waitFor(client -> client.gui.screen() == null);
 			context.waitFor(client -> ClientPlacements.selected() != null && ClientPlacements.selected().head() == 2);
 			if (!Files.exists(schematic(NAME, 2))) {
 				throw new AssertionError("Expected v2 of " + NAME + " to be saved");
@@ -153,14 +153,14 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 			context.waitForScreen(BuildBrowserScreen.class);
 			context.waitFor(client -> BuildBrowser.builds().stream().anyMatch(build -> build.name().equals(NAME) && build.version() == 2 && build.latest().tags().contains("2.0")));
 			context.getInput().pressKey(BuildBrowserKey.KEY);
-			context.waitFor(client -> client.screen == null);
+			context.waitFor(client -> client.gui.screen() == null);
 		} finally {
 			ClientConfig.load();
 		}
 	}
 
 	private static CommitScreen screen(Minecraft client) {
-		return (CommitScreen) client.screen;
+		return (CommitScreen) client.gui.screen();
 	}
 
 	/** Opens the overlay and its commit window. */
@@ -182,7 +182,7 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 	}
 
 	private static void waitForSummary(ClientGameTestContext context) {
-		context.waitFor(client -> client.screen instanceof CommitScreen screen && screen.summary() != null);
+		context.waitFor(client -> client.gui.screen() instanceof CommitScreen screen && screen.summary() != null);
 	}
 
 	private static void waitForPreview(ClientGameTestContext context) {
@@ -197,7 +197,7 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 	}
 
 	private static Button headerButton(Minecraft client, String label) {
-		return client.screen instanceof BuildBrowserScreen screen ? screen.children().stream()
+		return client.gui.screen() instanceof BuildBrowserScreen screen ? screen.children().stream()
 			.filter(child -> child instanceof Button found && found.getMessage().getString().equals(label))
 			.map(Button.class::cast).findFirst().orElse(null) : null;
 	}
@@ -209,9 +209,9 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 
 	private static void clickWidget(ClientGameTestContext context, String label) {
 		AbstractWidget widget = context.computeOnClient(client -> {
-			AbstractWidget found = client.screen instanceof CommitScreen screen ? screen.widgetOf(label) : null;
+			AbstractWidget found = client.gui.screen() instanceof CommitScreen screen ? screen.widgetOf(label) : null;
 			if (found == null) {
-				throw new AssertionError("Expected " + label + " on " + client.screen);
+				throw new AssertionError("Expected " + label + " on " + client.gui.screen());
 			}
 			return found;
 		});
@@ -220,7 +220,7 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 
 	private static void clickAt(ClientGameTestContext context, double x, double y) {
 		moveTo(context, x, y);
-		context.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);
+		context.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
 		context.waitTicks(2);
 	}
 

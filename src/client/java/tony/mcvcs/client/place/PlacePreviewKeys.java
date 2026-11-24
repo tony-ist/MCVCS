@@ -15,7 +15,6 @@ import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import org.lwjgl.glfw.GLFW;
 
 import tony.mcvcs.client.place.PlacePreviewStatus.Status;
 import tony.mcvcs.client.preview.PlacePreview;
@@ -65,24 +64,24 @@ public final class PlacePreviewKeys {
 	private static final Direction[] FACES = Direction.values();
 
 	/** Pushes the copy away from the player, through the side of the box they are looking at. */
-	public static final KeyMapping AWAY = key("place_away", GLFW.GLFW_KEY_KP_8);
+	public static final KeyMapping AWAY = key("place_away", InputConstants.KEY_NUMPAD8);
 	/** Pulls the copy back towards the player, the other way from {@link #AWAY}. */
-	public static final KeyMapping CLOSER = key("place_closer", GLFW.GLFW_KEY_KP_2);
+	public static final KeyMapping CLOSER = key("place_closer", InputConstants.KEY_NUMPAD2);
 	/** Slides the copy to the player's left along the side they are looking at, at the same height. */
-	public static final KeyMapping LEFT = key("place_left", GLFW.GLFW_KEY_KP_4);
+	public static final KeyMapping LEFT = key("place_left", InputConstants.KEY_NUMPAD4);
 	/** Slides the copy to the player's right, the other way from {@link #LEFT}. */
-	public static final KeyMapping RIGHT = key("place_right", GLFW.GLFW_KEY_KP_6);
+	public static final KeyMapping RIGHT = key("place_right", InputConstants.KEY_NUMPAD6);
 	/** Raises the copy. */
-	public static final KeyMapping UP = key("place_up", GLFW.GLFW_KEY_KP_7);
+	public static final KeyMapping UP = key("place_up", InputConstants.KEY_NUMPAD7);
 	/** Lowers the copy. */
-	public static final KeyMapping DOWN = key("place_down", GLFW.GLFW_KEY_KP_9);
+	public static final KeyMapping DOWN = key("place_down", InputConstants.KEY_NUMPAD9);
 	/** Places the copy where it stands, as {@code /vcs confirmPlace} does. */
-	public static final KeyMapping CONFIRM = key("place_confirm", GLFW.GLFW_KEY_KP_5);
+	public static final KeyMapping CONFIRM = key("place_confirm", InputConstants.KEY_NUMPAD5);
 	/**
 	 * Held down, the mouse wheel moves the copy away and back instead of changing the held item; left alt unless
 	 * rebound, which nothing in vanilla uses. This one is held rather than pressed, so it has no action of its own.
 	 */
-	public static final KeyMapping SCROLL = key("place_scroll", GLFW.GLFW_KEY_LEFT_ALT);
+	public static final KeyMapping SCROLL = key("place_scroll", InputConstants.KEY_LALT);
 
 	/**
 	 * The axis the wheel moves the copy along while {@link #SCROLL} is held, picked when it was pressed.
@@ -108,17 +107,27 @@ public final class PlacePreviewKeys {
 	 * The key {@code mapping} is bound to, named the way players know it: a keypad digit reads {@code Numpad 5}, which
 	 * the game itself shows as a bare {@code 5}.
 	 */
+	private static final int[] NUMPAD = {
+		InputConstants.KEY_NUMPAD0, InputConstants.KEY_NUMPAD1, InputConstants.KEY_NUMPAD2, InputConstants.KEY_NUMPAD3, InputConstants.KEY_NUMPAD4,
+		InputConstants.KEY_NUMPAD5, InputConstants.KEY_NUMPAD6, InputConstants.KEY_NUMPAD7, InputConstants.KEY_NUMPAD8, InputConstants.KEY_NUMPAD9
+	};
+
 	public static Component keyName(KeyMapping mapping) {
 		InputConstants.Key key = KeyMappingHelper.getBoundKeyOf(mapping);
 		int code = key.getValue();
-		if (key.getType() == InputConstants.Type.KEYSYM && code >= GLFW.GLFW_KEY_KP_0 && code <= GLFW.GLFW_KEY_KP_9) {
-			return Component.literal("Numpad " + (code - GLFW.GLFW_KEY_KP_0));
+		if (key.getType() == InputConstants.Type.KEYBOARD) {
+			// Not in digit order: numpad 0 comes after 9.
+			for (int digit = 0; digit < NUMPAD.length; digit++) {
+				if (NUMPAD[digit] == code) {
+					return Component.literal("Numpad " + digit);
+				}
+			}
 		}
 		return mapping.getTranslatedKeyMessage();
 	}
 
 	private static KeyMapping key(String name, int code) {
-		return new KeyMapping("key.mcvcs." + name, InputConstants.Type.KEYSYM, code, SelectHotkey.CATEGORY);
+		return new KeyMapping("key.mcvcs." + name, InputConstants.Type.KEYBOARD, code, SelectHotkey.CATEGORY);
 	}
 
 	/** Must run from the client entrypoint: key mappings can only be added before the options are loaded. */
@@ -167,7 +176,7 @@ public final class PlacePreviewKeys {
 	 * shown with no screen open.
 	 */
 	public static boolean scrolled(Minecraft client, double amount) {
-		if (amount == 0.0 || client.screen != null || !SCROLL.isDown()) {
+		if (amount == 0.0 || client.gui.screen() != null || !SCROLL.isDown()) {
 			return false;
 		}
 		// With no copy shown the wheel drags the box a /vcs resize is showing, if any.
@@ -192,7 +201,7 @@ public final class PlacePreviewKeys {
 	private static boolean scrollHeld(Minecraft client) {
 		PlacePreview preview = PreviewManager.place();
 		LocalPlayer player = client.player;
-		return client.screen == null && SCROLL.isDown() && preview != null && player != null
+		return client.gui.screen() == null && SCROLL.isDown() && preview != null && player != null
 			&& preview.blocks().dimension().equals(player.level().dimension());
 	}
 

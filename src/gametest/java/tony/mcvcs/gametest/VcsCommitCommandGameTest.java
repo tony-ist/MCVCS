@@ -51,7 +51,7 @@ public class VcsCommitCommandGameTest extends VcsGameTest {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// Same 3x2x2 box as the create test, stone with a gold block at the top north-west corner, but hovering one
 			// block above the ground so that nothing touches it.

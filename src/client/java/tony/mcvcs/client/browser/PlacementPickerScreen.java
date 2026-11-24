@@ -2,6 +2,7 @@ package tony.mcvcs.client.browser;
 
 import java.util.List;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
@@ -164,7 +165,7 @@ public final class PlacementPickerScreen extends Screen {
 		if (super.mouseClicked(event, doubleClick)) {
 			return true;
 		}
-		if (event.button() != 0 || minecraft == null) {
+		if (event.button() != InputConstants.MOUSE_BUTTON_LEFT || minecraft == null) {
 			return false;
 		}
 		ClientPlacement placement = at(event.x(), event.y());
@@ -185,7 +186,7 @@ public final class PlacementPickerScreen extends Screen {
 	private void run(ClientPlacement placement) {
 		LocalPlayer player = minecraft == null ? null : minecraft.player;
 		if (minecraft != null) {
-			minecraft.setScreen(null);
+			minecraft.gui.setScreen(null);
 		}
 		if (player != null) {
 			// Sent as a command, so the server checks the permission and answers in chat the way it does for the command.
@@ -197,14 +198,14 @@ public final class PlacementPickerScreen extends Screen {
 	@Override
 	public void onClose() {
 		if (minecraft != null) {
-			minecraft.setScreen(parent);
+			minecraft.gui.setScreen(parent);
 		}
 	}
 
 	@Override
 	public boolean keyPressed(KeyEvent event) {
 		if (BuildBrowserKey.KEY.matches(event) && minecraft != null) {
-			minecraft.setScreen(null);
+			minecraft.gui.setScreen(null);
 			return true;
 		}
 		return super.keyPressed(event);

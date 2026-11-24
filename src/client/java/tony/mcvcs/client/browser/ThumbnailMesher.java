@@ -6,12 +6,12 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.MeshData;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -200,7 +200,7 @@ public final class ThumbnailMesher {
 				}
 				if (marks != null) {
 					try (ByteBufferBuilder buffer = new ByteBufferBuilder(DefaultVertexFormat.POSITION_COLOR.getVertexSize() * 4 * 256)) {
-						BufferBuilder builder = new BufferBuilder(buffer, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+						BufferBuilder builder = new BufferBuilder(buffer, PrimitiveTopology.QUADS, DefaultVertexFormat.POSITION_COLOR);
 						if (marks(extent, marks, builder, vertices)) {
 							// Translucent, so drawn after the blocks: the blocks they cover show through them.
 							copy(builder, "MCVCS preview changes", RenderPipelines.DEBUG_FILLED_BOX, false, layers);
@@ -305,7 +305,7 @@ public final class ThumbnailMesher {
 		if (builder == null) {
 			ByteBufferBuilder buffer = new ByteBufferBuilder(layer.vertexFormat().getVertexSize() * 4 * 256);
 			buffers.put(layer, buffer);
-			builder = new BufferBuilder(buffer, VertexFormat.Mode.QUADS, layer.vertexFormat());
+			builder = new BufferBuilder(buffer, PrimitiveTopology.QUADS, layer.vertexFormat());
 			builders.put(layer, builder);
 		}
 		return builder;

@@ -61,7 +61,7 @@ public class VcsFitCommandGameTest extends VcsGameTest {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// A 2x2x2 stone cube hovering one block above the ground in front of and to the right of the player, so
 			// nothing but air touches it. Expanding a box that stood on the ground would take the ground with it.

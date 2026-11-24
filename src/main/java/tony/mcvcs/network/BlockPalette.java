@@ -20,6 +20,7 @@ import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 public final class BlockPalette {
 	/** Block state ids match between client and server because the block registry is synced on join. */
 	public static final StreamCodec<ByteBuf, BlockState> STATE_CODEC = ByteBufCodecs.idMapper(Block.BLOCK_STATE_REGISTRY);
+	public static final StreamCodec<ByteBuf, List<BlockState>> STATES_CODEC = STATE_CODEC.apply(ByteBufCodecs.list());
 
 	private final List<BlockState> states = new ArrayList<>();
 	private final Object2IntMap<BlockState> indices = new Object2IntOpenHashMap<>();

@@ -8,6 +8,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
@@ -291,7 +292,7 @@ public final class BuildBrowserScreen extends Screen {
 	/** Opens the window asking for a new build's name. */
 	private void openCreate() {
 		if (minecraft != null) {
-			minecraft.setScreen(new CreateBuildScreen(this));
+			minecraft.gui.setScreen(new CreateBuildScreen(this));
 		}
 	}
 
@@ -332,7 +333,7 @@ public final class BuildBrowserScreen extends Screen {
 		BuildSummary build = selectedBuild();
 		ClientPlacement selected = ClientPlacements.selected();
 		if (build != null && selected != null && minecraft != null) {
-			minecraft.setScreen(new CommitScreen(this, build, selected));
+			minecraft.gui.setScreen(new CommitScreen(this, build, selected));
 		}
 	}
 
@@ -341,7 +342,7 @@ public final class BuildBrowserScreen extends Screen {
 		BuildSummary build = selectedBuild();
 		ClientPlacement selected = ClientPlacements.selected();
 		if (build != null && selected != null && minecraft != null) {
-			minecraft.setScreen(new CheckoutScreen(this, build, selected));
+			minecraft.gui.setScreen(new CheckoutScreen(this, build, selected));
 		}
 	}
 
@@ -528,7 +529,7 @@ public final class BuildBrowserScreen extends Screen {
 		ClientPlacement selected = selectedBuild() == null ? null : ClientPlacements.selected();
 		closeHeaderMenu();
 		if (selected != null && minecraft != null) {
-			minecraft.setScreen(new UnplaceScreen(this, selected));
+			minecraft.gui.setScreen(new UnplaceScreen(this, selected));
 		}
 	}
 
@@ -693,7 +694,7 @@ public final class BuildBrowserScreen extends Screen {
 		BuildSummary build = menuFor;
 		closeMenu();
 		if (build != null && minecraft != null) {
-			minecraft.setScreen(new RenameBuildScreen(this, build));
+			minecraft.gui.setScreen(new RenameBuildScreen(this, build));
 		}
 	}
 
@@ -702,7 +703,7 @@ public final class BuildBrowserScreen extends Screen {
 		BuildSummary build = menuFor;
 		closeMenu();
 		if (build != null && minecraft != null) {
-			minecraft.setScreen(new LabelScreen(this, build));
+			minecraft.gui.setScreen(new LabelScreen(this, build));
 		}
 	}
 
@@ -711,7 +712,7 @@ public final class BuildBrowserScreen extends Screen {
 		BuildSummary build = menuFor;
 		closeMenu();
 		if (build != null && minecraft != null) {
-			minecraft.setScreen(new DeleteBuildScreen(this, build));
+			minecraft.gui.setScreen(new DeleteBuildScreen(this, build));
 		}
 	}
 
@@ -834,7 +835,7 @@ public final class BuildBrowserScreen extends Screen {
 		if (super.mouseClicked(event, doubleClick)) {
 			return true;
 		}
-		if (event.button() != 0) {
+		if (event.button() != InputConstants.MOUSE_BUTTON_LEFT) {
 			return false;
 		}
 		if (overButton(event.x(), event.y())) {
@@ -864,7 +865,7 @@ public final class BuildBrowserScreen extends Screen {
 			.sorted(Comparator.comparing(ClientPlacement::placement))
 			.toList();
 		if (placements.size() > 1) {
-			minecraft.setScreen(new PlacementPickerScreen(this, build.name(), action, placements));
+			minecraft.gui.setScreen(new PlacementPickerScreen(this, build.name(), action, placements));
 		} else {
 			run(target -> action.command() + " " + target.name());
 		}
@@ -880,7 +881,7 @@ public final class BuildBrowserScreen extends Screen {
 			return;
 		}
 		if (build.versions().size() > 1) {
-			minecraft.setScreen(new VersionPickerScreen(this, build));
+			minecraft.gui.setScreen(new VersionPickerScreen(this, build));
 		} else {
 			run(target -> VersionPickerScreen.placeCommand(target, target.latest()));
 		}

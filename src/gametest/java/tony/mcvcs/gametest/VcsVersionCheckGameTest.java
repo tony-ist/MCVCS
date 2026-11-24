@@ -27,7 +27,7 @@ public class VcsVersionCheckGameTest extends VcsGameTest {
 	protected void run(ClientGameTestContext context) {
 		context.runOnClient(client -> RECEIVED.clear());
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 			context.waitTicks(5);
 			List<String> onJoin = warnings(context);
 			if (!onJoin.isEmpty()) {

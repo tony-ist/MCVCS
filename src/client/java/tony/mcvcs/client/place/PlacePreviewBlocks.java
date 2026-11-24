@@ -8,7 +8,6 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.chunk.ChunkSectionLayerGroup;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.state.BlockState;
@@ -62,7 +61,8 @@ public final class PlacePreviewBlocks {
 	}
 
 	public static void register() {
-		LevelRenderEvents.AFTER_TRANSLUCENT_TERRAIN.register(PlacePreviewBlocks::draw);
+		// Once the world's translucent blocks are drawn and their render pass is closed, so the mesh can open its own.
+		LevelRenderEvents.END_MAIN.register(PlacePreviewBlocks::draw);
 		// GPU memory can only be freed on the render thread, which is the client thread.
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			if (client.isSameThread()) {
@@ -96,7 +96,7 @@ public final class PlacePreviewBlocks {
 		Matrix4f modelView = new Matrix4f(camera.viewRotationMatrix)
 			.translate((float) (min.getX() - camera.pos.x), (float) (min.getY() - camera.pos.y), (float) (min.getZ() - camera.pos.z))
 			.scale(shown.scale());
-		RenderTarget target = ChunkSectionLayerGroup.TRANSLUCENT.outputTarget();
+		RenderTarget target = client.gameRenderer.mainRenderTarget();
 		// Depth first, then colour where it is nearest: only the copy's front surface shows, see PlacePreviewPipelines.
 		shown.drawInLevel(modelView, target.getColorTextureView(), target.getDepthTextureView(),
 			PlacePreviewPipelines.DEPTH, PlacePreviewPipelines.COLOR);

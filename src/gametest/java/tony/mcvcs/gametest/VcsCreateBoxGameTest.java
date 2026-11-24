@@ -62,7 +62,7 @@ public class VcsCreateBoxGameTest extends VcsGameTest {
 	protected void run(ClientGameTestContext context) {
 		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// Two hovering corner markers in front of and to the right of the player, within reach, a stone inside the
 			// box between them, and an emerald touching the diamond from outside the box, which a grown box would take in.

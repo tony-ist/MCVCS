@@ -1,5 +1,6 @@
 package tony.mcvcs.client.browser;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
@@ -157,7 +158,7 @@ public final class CreateBuildScreen extends Screen {
 			return;
 		}
 		LocalPlayer player = minecraft.player;
-		minecraft.setScreen(null);
+		minecraft.gui.setScreen(null);
 		if (player != null) {
 			// A build of that name already placed would clear the draft on the next sync whether or not this one is created.
 			submitted = hasPlacement(name) ? null : name;
@@ -171,7 +172,7 @@ public final class CreateBuildScreen extends Screen {
 			return true;
 		}
 		Layout layout = layout();
-		if (event.button() == 0 && (event.x() < layout.left() || event.x() >= layout.right() || event.y() < layout.top() || event.y() >= layout.bottom())) {
+		if (event.button() == InputConstants.MOUSE_BUTTON_LEFT && (event.x() < layout.left() || event.x() >= layout.right() || event.y() < layout.top() || event.y() >= layout.bottom())) {
 			onClose();
 			return true;
 		}
@@ -181,7 +182,7 @@ public final class CreateBuildScreen extends Screen {
 	@Override
 	public void onClose() {
 		if (minecraft != null) {
-			minecraft.setScreen(parent);
+			minecraft.gui.setScreen(parent);
 		}
 	}
 
@@ -193,7 +194,7 @@ public final class CreateBuildScreen extends Screen {
 		}
 		// Typed into the name field, the overlay's key is just a letter.
 		if (BuildBrowserKey.KEY.matches(event) && (nameField == null || !nameField.isFocused()) && minecraft != null) {
-			minecraft.setScreen(null);
+			minecraft.gui.setScreen(null);
 			return true;
 		}
 		return super.keyPressed(event);

@@ -2,11 +2,11 @@ package tony.mcvcs.gametest;
 
 import java.nio.file.Files;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.Window;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.screens.TitleScreen;
-import org.lwjgl.glfw.GLFW;
 
 import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.client.config.ClientConfigScreen;
@@ -21,18 +21,18 @@ public class VcsClientConfigScreenGameTest extends VcsGameTest {
 	protected void run(ClientGameTestContext context) {
 		try {
 			context.runOnClient(client -> ClientConfig.save(ClientConfig.Settings.DEFAULT));
-			context.runOnClient(client -> client.setScreen(new ClientConfigScreen(client.screen)));
+			context.runOnClient(client -> client.gui.setScreen(new ClientConfigScreen(client.gui.screen())));
 			context.waitForScreen(ClientConfigScreen.class);
 			context.takeScreenshot("mcvcs-config-screen");
 
 			// Labels off: the screen shows it at once, the game only once the screen is closed.
-			ScreenRectangle labels = context.computeOnClient(client -> ((ClientConfigScreen) client.screen).showLabelsButton());
+			ScreenRectangle labels = context.computeOnClient(client -> ((ClientConfigScreen) client.gui.screen()).showLabelsButton());
 			if (labels == null) {
 				throw new AssertionError("Expected a Build Labels toggle on the settings screen");
 			}
 			clickAt(context, labels.left() + labels.width() / 2.0, labels.top() + labels.height() / 2.0);
 			context.runOnClient(client -> {
-				if (((ClientConfigScreen) client.screen).settings().showLabels()) {
+				if (((ClientConfigScreen) client.gui.screen()).settings().showLabels()) {
 					throw new AssertionError("Expected Build Labels to be off after clicking it");
 				}
 				if (!ClientConfig.settings().showLabels()) {
@@ -41,7 +41,7 @@ public class VcsClientConfigScreenGameTest extends VcsGameTest {
 			});
 			context.takeScreenshot("mcvcs-config-screen-labels-off");
 
-			context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+			context.getInput().pressKey(InputConstants.KEY_ESCAPE);
 			context.waitForScreen(TitleScreen.class);
 			context.runOnClient(client -> {
 				if (!ClientConfig.settings().equals(ClientConfig.Settings.DEFAULT.withDisplay(false, true))) {
@@ -75,7 +75,7 @@ public class VcsClientConfigScreenGameTest extends VcsGameTest {
 		});
 		context.getInput().setCursorPos(x * scale, y * scale);
 		context.waitTick();
-		context.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);
+		context.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
 		context.waitTicks(2);
 	}
 }

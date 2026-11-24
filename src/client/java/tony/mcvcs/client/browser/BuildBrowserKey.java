@@ -6,7 +6,6 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
-import org.lwjgl.glfw.GLFW;
 
 import tony.mcvcs.client.selection.SelectHotkey;
 
@@ -16,7 +15,7 @@ import tony.mcvcs.client.selection.SelectHotkey;
  */
 public final class BuildBrowserKey {
 	/** Named by {@code key.mcvcs.open_builds}; {@code B}, which nothing in vanilla uses. */
-	public static final KeyMapping KEY = new KeyMapping("key.mcvcs.open_builds", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, SelectHotkey.CATEGORY);
+	public static final KeyMapping KEY = new KeyMapping("key.mcvcs.open_builds", InputConstants.Type.KEYBOARD, InputConstants.KEY_B, SelectHotkey.CATEGORY);
 
 	private BuildBrowserKey() {
 	}
@@ -35,13 +34,13 @@ public final class BuildBrowserKey {
 
 	/** Opens the overlay, or says on the action bar why it cannot be opened on this server. */
 	public static void open(Minecraft client) {
-		if (client.player == null || client.screen != null) {
+		if (client.player == null || client.gui.screen() != null) {
 			return;
 		}
 		if (!BuildBrowser.serverSupported()) {
 			client.player.sendOverlayMessage(Component.literal("This server doesn't have MCVCS, or has an older version"));
 			return;
 		}
-		client.setScreen(new BuildBrowserScreen());
+		client.gui.setScreen(new BuildBrowserScreen());
 	}
 }

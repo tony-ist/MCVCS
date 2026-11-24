@@ -2,20 +2,20 @@ package tony.mcvcs.client.browser;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.OptionalDouble;
-import java.util.OptionalInt;
 
-import com.mojang.blaze3d.buffers.GpuBuffer;
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.AddressMode;
-import com.mojang.blaze3d.textures.FilterMode;
-import com.mojang.blaze3d.textures.GpuSampler;
-import com.mojang.blaze3d.textures.GpuTextureView;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.textures.AddressMode;
+import com.mojang.renderpearl.api.textures.FilterMode;
+import com.mojang.renderpearl.api.textures.GpuSampler;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import org.joml.Matrix4f;
@@ -119,30 +119,30 @@ public final class ThumbnailMesh implements AutoCloseable {
 
 		Minecraft minecraft = Minecraft.getInstance();
 		GpuBufferSlice transforms = RenderSystem.getDynamicUniforms()
-			.writeTransform(modelView, new Vector4f(1.0f, 1.0f, 1.0f, 1.0f), new Vector3f(), new Matrix4f());
+			.writeTransform(new Matrix4f(modelView), new Vector4f(1.0f, 1.0f, 1.0f, 1.0f), new Vector3f(), new Matrix4f());
 		GpuTextureView atlas = minecraft.getTextureManager().getTexture(TextureAtlas.LOCATION_BLOCKS).getTextureView();
 		// The sampler the game draws moving blocks with: mipmapped when minified, crisp pixels when magnified.
 		GpuSampler atlasSampler = RenderSystem.getSamplerCache().getSampler(AddressMode.CLAMP_TO_EDGE, AddressMode.CLAMP_TO_EDGE, FilterMode.LINEAR, FilterMode.NEAREST, true);
 		GpuSampler lightmapSampler = RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR);
-		RenderSystem.AutoStorageIndexBuffer quadIndices = RenderSystem.getSequentialBuffer(VertexFormat.Mode.QUADS);
+		RenderSystem.AutoStorageIndexBuffer quadIndices = RenderSystem.getSequentialBuffer(PrimitiveTopology.QUADS);
 
 		for (Layer layer : layers) {
 			GpuBuffer indices = quadIndices.getBuffer(layer.indexCount());
 			try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder()
-				.createRenderPass(() -> "MCVCS build preview", color, OptionalInt.empty(), depth, OptionalDouble.empty())) {
-				pass.setPipeline(pipeline == null ? layer.pipeline() : pipeline);
+				.createRenderPass(() -> "MCVCS build preview", color, Optional.empty(), depth, OptionalDouble.empty())) {
+				pass.setPipeline(RenderSystem.getCompiledPipeline(pipeline == null ? layer.pipeline() : pipeline));
 				RenderSystem.bindDefaultUniforms(pass);
 				if (projection != null) {
 					pass.setUniform("Projection", projection);
 				}
 				pass.setUniform("DynamicTransforms", transforms);
 				if (layer.textured()) {
-					pass.bindTexture("Sampler0", atlas, atlasSampler);
-					pass.bindTexture("Sampler2", minecraft.gameRenderer.lightmap(), lightmapSampler);
+					pass.setUniform("Sampler0", atlas, atlasSampler);
+					pass.setUniform("Sampler2", minecraft.gameRenderer.lightmap(), lightmapSampler);
 				}
-				pass.setVertexBuffer(0, layer.vertices());
+				pass.setVertexBuffer(0, layer.vertices().slice());
 				pass.setIndexBuffer(indices, quadIndices.type());
-				pass.drawIndexed(0, 0, layer.indexCount(), 1);
+				pass.drawIndexed(layer.indexCount(), 1, 0, 0, 0);
 			}
 		}
 	}

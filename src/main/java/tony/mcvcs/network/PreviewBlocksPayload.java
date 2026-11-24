@@ -28,7 +28,7 @@ public record PreviewBlocksPayload(int offset, List<BlockState> palette, int[] i
 
 	private static PreviewBlocksPayload read(FriendlyByteBuf buf) {
 		int offset = buf.readVarInt();
-		List<BlockState> palette = buf.readList(BlockPalette.STATE_CODEC);
+		List<BlockState> palette = BlockPalette.STATES_CODEC.decode(buf);
 		int[] indices = buf.readVarIntArray();
 		boolean last = buf.readBoolean();
 		return new PreviewBlocksPayload(offset, palette, indices, last);
@@ -36,7 +36,7 @@ public record PreviewBlocksPayload(int offset, List<BlockState> palette, int[] i
 
 	private void write(FriendlyByteBuf buf) {
 		buf.writeVarInt(offset);
-		buf.writeCollection(palette, BlockPalette.STATE_CODEC);
+		BlockPalette.STATES_CODEC.encode(buf, palette);
 		buf.writeVarIntArray(indices);
 		buf.writeBoolean(last);
 	}

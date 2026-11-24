@@ -12,7 +12,7 @@ With the mod on your client you also get outlines and names over your builds, pr
 
 ## Requirements
 
-- Minecraft 26.1.2 with Fabric Loader and Fabric API
+- Minecraft 26.3 with Fabric Loader and Fabric API
 - Cheats turned on (operator permission) to use the mod
 
 ## Quick start
