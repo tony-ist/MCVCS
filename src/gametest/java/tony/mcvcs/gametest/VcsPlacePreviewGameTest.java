@@ -22,8 +22,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsList;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
-import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.BlockPos;
+import net.minecraft.locale.Language;
 import net.minecraft.world.level.block.Blocks;
 
 import tony.mcvcs.build.Build;
@@ -58,7 +58,7 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// A copy is shown below the player's feet, where they would otherwise be standing, so the test player
 			// spectates: they stay where they are put instead of falling onto it once it is placed.
@@ -101,9 +101,9 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 			BlockPos wallMin = new BlockPos(box.min().getX() - 2, box.min().getY() - 1, box.max().getZ() + 2);
 			BlockPos wallMax = new BlockPos(box.max().getX() + 2, box.max().getY() + 1, box.max().getZ() + 2);
 			fillBox(singleplayer, wallMin, wallMax, Blocks.GOLD_BLOCK.defaultBlockState(), wallMin, Blocks.GOLD_BLOCK.defaultBlockState());
-			context.runOnClient(client -> client.gui.getChat().clearMessages(false));
+			context.runOnClient(client -> client.gui.hud.getChat().clearMessages(false));
 			context.waitTicks(5);
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 			screenshotLastFrame(context, "mcvcs-vcs-place-preview-see-through");
 			fillBox(singleplayer, wallMin, wallMax, Blocks.AIR.defaultBlockState(), wallMin, Blocks.AIR.defaultBlockState());
 			context.waitTicks(2);
@@ -265,7 +265,7 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 				if (Arrays.stream(client.options.keyMappings).noneMatch(mapping -> mapping == key)) {
 					throw new AssertionError("Expected " + key.getName() + " among the game's key mappings");
 				}
-				if (!I18n.exists(key.getName())) {
+				if (!Language.getInstance().has(key.getName())) {
 					throw new AssertionError("Expected a translation for " + key.getName());
 				}
 			}
@@ -274,9 +274,9 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 		context.setScreen(() -> new KeyBindsScreen(null, Minecraft.getInstance().options));
 		context.waitForScreen(KeyBindsScreen.class);
 		context.runOnClient(client -> {
-			KeyBindsList list = client.screen.children().stream()
+			KeyBindsList list = client.gui.screen().children().stream()
 				.filter(KeyBindsList.class::isInstance).map(KeyBindsList.class::cast).findFirst()
-				.orElseThrow(() -> new AssertionError("Expected a key binds list on " + client.screen));
+				.orElseThrow(() -> new AssertionError("Expected a key binds list on " + client.gui.screen()));
 			list.setScrollAmount(list.maxScrollAmount());
 		});
 		context.waitTicks(2);

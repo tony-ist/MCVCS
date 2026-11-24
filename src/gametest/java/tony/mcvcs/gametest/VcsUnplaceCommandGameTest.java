@@ -55,7 +55,7 @@ public class VcsUnplaceCommandGameTest extends VcsGameTest {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// Nothing is selected yet, so there is nothing to unplace and nothing to confirm.
 			assertOnlyMessage(run(context, "vcs unplace"), "Nothing selected in this world");

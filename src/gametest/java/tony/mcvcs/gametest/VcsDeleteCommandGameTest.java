@@ -57,7 +57,7 @@ public class VcsDeleteCommandGameTest extends VcsGameTest {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// A 3x2x2 stone box in front of the player, saved as two versions.
 			BlockPos min = playerPos(singleplayer).offset(2, 0, 2);

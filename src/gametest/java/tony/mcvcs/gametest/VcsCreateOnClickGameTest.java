@@ -74,7 +74,7 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(PUNCHED_NAME, USED_NAME, OVERLAPPING_NAME, REPLACED_NAME, SELECTED_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 			// A selection left by an earlier test must not change what create does, and -we must find none of its own.
 			clearSelection(singleplayer);
 

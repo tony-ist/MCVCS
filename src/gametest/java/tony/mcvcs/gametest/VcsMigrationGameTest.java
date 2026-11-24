@@ -40,7 +40,7 @@ public class VcsMigrationGameTest extends VcsGameTest {
 
 		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 			save = singleplayer.getWorldSave();
 
 			// v1 has a gold corner, v2 is all stone, so the two files can be told apart after the rename.
@@ -61,7 +61,7 @@ public class VcsMigrationGameTest extends VcsGameTest {
 
 		// Starting the server migrates them back before anything else reads the folder.
 		try (TestSingleplayerContext reopened = save.open()) {
-			reopened.getClientLevel().waitForChunksRender();
+			reopened.getConnection().waitForChunksRender();
 			for (int version = 1; version <= 2; version++) {
 				if (Files.exists(oldName(version))) {
 					throw new AssertionError("Expected " + oldName(version) + " to be renamed on server start");

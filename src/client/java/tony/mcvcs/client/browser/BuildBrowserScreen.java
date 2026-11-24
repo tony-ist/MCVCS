@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
@@ -219,7 +220,7 @@ public final class BuildBrowserScreen extends Screen {
 		BuildSummary build = menuFor;
 		closeMenu();
 		if (build != null && minecraft != null) {
-			minecraft.setScreen(new DeleteBuildScreen(this, build));
+			minecraft.gui.setScreen(new DeleteBuildScreen(this, build));
 		}
 	}
 
@@ -336,7 +337,7 @@ public final class BuildBrowserScreen extends Screen {
 		if (super.mouseClicked(event, doubleClick)) {
 			return true;
 		}
-		if (event.button() != 0) {
+		if (event.button() != InputConstants.MOUSE_BUTTON_LEFT) {
 			return false;
 		}
 		if (overButton(event.x(), event.y())) {
@@ -366,7 +367,7 @@ public final class BuildBrowserScreen extends Screen {
 			.sorted(Comparator.comparing(ClientPlacement::placement))
 			.toList();
 		if (placements.size() > 1) {
-			minecraft.setScreen(new PlacementPickerScreen(this, build.name(), action, placements));
+			minecraft.gui.setScreen(new PlacementPickerScreen(this, build.name(), action, placements));
 		} else {
 			run(target -> action.command() + " " + target.name());
 		}

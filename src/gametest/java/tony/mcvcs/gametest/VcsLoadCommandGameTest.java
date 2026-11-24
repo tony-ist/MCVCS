@@ -43,7 +43,7 @@ public class VcsLoadCommandGameTest extends VcsGameTest {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// v1: a 3x2x2 stone box in front of and to the right of the player, with a gold block in the top north-west
 			// corner (the origin corner) and the top north-east corner left empty.
@@ -102,7 +102,7 @@ public class VcsLoadCommandGameTest extends VcsGameTest {
 			assertWorldBlock(singleplayer, gold, Blocks.DIAMOND_BLOCK);
 
 			lookAt(context, pastedMin, pastedHole);
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 			context.takeScreenshot("mcvcs-vcs-load-paste");
 
 			// Loading again replaces the clipboard; with no version given it is the latest one.

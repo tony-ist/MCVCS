@@ -1,15 +1,16 @@
 package tony.mcvcs.client.browser;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
-import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.Projection;
 import net.minecraft.client.renderer.ProjectionMatrixBuffer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.jspecify.annotations.Nullable;
+
+import tony.mcvcs.client.mixin.PictureInPictureRendererAccessor;
 
 /**
  * Draws a {@link BuildPreviewRenderState} into the texture the GUI then shows in the build's cell. Registered with
@@ -32,10 +33,6 @@ public final class BuildPreviewRenderer extends PictureInPictureRenderer<BuildPr
 	/** What the texture shows now, so a preview that has not turned since is not drawn again. */
 	private @Nullable BuildPreviewRenderState drawn;
 
-	public BuildPreviewRenderer(MultiBufferSource.BufferSource bufferSource) {
-		super(bufferSource);
-	}
-
 	@Override
 	public Class<BuildPreviewRenderState> getRenderStateClass() {
 		return BuildPreviewRenderState.class;
@@ -47,8 +44,10 @@ public final class BuildPreviewRenderer extends PictureInPictureRenderer<BuildPr
 	}
 
 	@Override
-	protected void renderToTexture(BuildPreviewRenderState state, PoseStack poseStack) {
-		GpuTextureView color = RenderSystem.outputColorTextureOverride;
+	protected void renderToTexture(BuildPreviewRenderState state, PoseStack poseStack, SubmitNodeCollector collector) {
+		// Drawn straight into the texture, already cleared by now, rather than submitted: the mesh stays on the GPU.
+		PictureInPictureRendererAccessor textures = (PictureInPictureRendererAccessor) (Object) this;
+		GpuTextureView color = textures.mcvcs$textureView();
 		if (color == null) {
 			return;
 		}
@@ -74,7 +73,7 @@ public final class BuildPreviewRenderer extends PictureInPictureRenderer<BuildPr
 			.rotateY((float) Math.toRadians(state.yaw()))
 			.translate(-size.x / 2.0f, -size.y / 2.0f, -size.z / 2.0f)
 			.scale(scale);
-		mesh.draw(modelView, projectionBuffer.getBuffer(projection), color, RenderSystem.outputDepthTextureOverride);
+		mesh.draw(modelView, projectionBuffer.getBuffer(projection), color, textures.mcvcs$depthTextureView());
 		drawn = state;
 	}
 

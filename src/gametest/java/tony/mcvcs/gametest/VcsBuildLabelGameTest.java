@@ -39,7 +39,7 @@ public class VcsBuildLabelGameTest extends VcsGameTest {
 		// Before the world exists: the player is told the builds on join, so they must be gone by then.
 		resetBuilds(NEAR, FAR);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// No builds yet, so nothing is labelled.
 			context.waitTicks(5);
@@ -105,7 +105,7 @@ public class VcsBuildLabelGameTest extends VcsGameTest {
 
 	/** From where the player stands, the near build's label is fully visible and the far one's not at all. */
 	private static void assertLabelled(ClientGameTestContext context, BuildBox near, BuildBox far) {
-		Vec3 camera = context.computeOnClient(client -> client.gameRenderer.getMainCamera().position());
+		Vec3 camera = context.computeOnClient(client -> client.gameRenderer.mainCamera().position());
 		float nearOpacity = BuildLabelRenderer.opacity(near, camera);
 		float farOpacity = BuildLabelRenderer.opacity(far, camera);
 		if (nearOpacity != 1.0f) {

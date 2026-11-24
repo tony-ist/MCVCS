@@ -40,6 +40,6 @@ public class MCVCSClient implements ClientModInitializer {
 		BuildBrowser.register();
 		BuildBrowserKey.register();
 		VersionCheckClient.register();
-		PictureInPictureRendererRegistry.register(context -> new BuildPreviewRenderer(context.bufferSource()));
+		PictureInPictureRendererRegistry.register(context -> new BuildPreviewRenderer());
 	}
 }

@@ -58,7 +58,7 @@ public class VcsPlaceCommandGameTest extends VcsGameTest {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// A placement lands below the player's feet, where they would otherwise be standing, so the test player
 			// spectates: they stay where they are put instead of falling onto the copy they are about to make.

@@ -44,7 +44,7 @@ public class VcsPreviewCommandGameTest extends VcsGameTest {
 		BlockPos floatingMin;
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			save = singleplayer.getWorldSave();
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// v1: a 3x2x2 stone box in front of and to the right of the player, with a gold block in the top north-west
 			// corner and the top north-east corner left empty; both corners face the player.
@@ -87,19 +87,19 @@ public class VcsPreviewCommandGameTest extends VcsGameTest {
 			// Framed with room above the box, so the green preview box and the "(PREVIEW)" label are both in shot; the
 			// gizmos they are drawn with only make it into a shot of the last rendered frame.
 			lookAt(context, min, max.above(2));
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 			screenshotLastFrame(context, "mcvcs-vcs-preview-v1");
 
 			runCommand(context, "vcs preview 2");
 			preview = waitForPreview(context, 2);
 			assertPreviewBlock(preview, gold, Blocks.DIAMOND_BLOCK);
 			assertPreviewBlock(preview, hole, Blocks.DIAMOND_BLOCK);
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 			context.takeScreenshot("mcvcs-vcs-preview-v2");
 
 			runCommand(context, "vcs preview off");
 			assertNoPreview(context);
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 			context.takeScreenshot("mcvcs-vcs-preview-off");
 
 			floatingMin = buildInEmptyAir(context, singleplayer);
@@ -108,7 +108,7 @@ public class VcsPreviewCommandGameTest extends VcsGameTest {
 		// Reopening the world gives the renderer a clean slate: it has never seen a block in the floating build's
 		// chunk section, so the section is one of the all-air ones it skips.
 		try (TestSingleplayerContext reopened = save.open()) {
-			reopened.getClientLevel().waitForChunksRender();
+			reopened.getConnection().waitForChunksRender();
 			previewInEmptyAir(context, reopened, floatingMin);
 		}
 	}
@@ -143,7 +143,7 @@ public class VcsPreviewCommandGameTest extends VcsGameTest {
 		assertPreviewBlock(waitForPreview(context, 1), min, Blocks.STONE);
 
 		lookAt(context, min, min.offset(1, 1, 1));
-		singleplayer.getClientLevel().waitForChunksRender();
+		singleplayer.getConnection().waitForChunksRender();
 		context.takeScreenshot("mcvcs-vcs-preview-empty-air");
 		if (!context.computeOnClient(client -> sectionHasGeometry(client, min))) {
 			throw new AssertionError("Expected the preview at " + min + " to be drawn, but its chunk section has no geometry");

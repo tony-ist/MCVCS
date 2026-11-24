@@ -13,16 +13,16 @@ import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 import java.nio.file.Files;
 import java.util.Arrays;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.Window;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
-import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.BlockPos;
+import net.minecraft.locale.Language;
 import net.minecraft.world.level.block.Blocks;
-import org.lwjgl.glfw.GLFW;
 
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
@@ -62,7 +62,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 
 		resetBuilds(SMALL, BIG, LONG);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 			// Held still, so the screenshots show the same side every run; the big build's 48 blocks are past the limit.
 			ClientConfig.override(new ClientConfig.Settings(0.0, ClientConfig.DEFAULT_CELL_SIZE, 40));
 
@@ -158,12 +158,12 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 
 			// B again closes it.
 			context.getInput().pressKey(BuildBrowserKey.KEY);
-			context.waitFor(client -> client.screen == null);
+			context.waitFor(client -> client.gui.screen() == null);
 
 			// Select closes the overlay and selects the hall's only placement.
 			open(context);
 			clickButton(context, BIG, BuildBrowserScreen.SELECT);
-			context.waitFor(client -> client.screen == null);
+			context.waitFor(client -> client.gui.screen() == null);
 			context.waitFor(client -> {
 				ClientPlacement selected = ClientPlacements.selected();
 				return selected != null && selected.build().equals(BIG);
@@ -173,7 +173,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			open(context);
 			waitForReady(context, SMALL, 3);
 			clickButton(context, SMALL, BuildBrowserScreen.PLACE);
-			context.waitFor(client -> client.screen == null);
+			context.waitFor(client -> client.gui.screen() == null);
 			context.waitFor(client -> {
 				PlacePreview place = PreviewManager.place();
 				return place != null && place.blocks().name().equals(SMALL + "/p2") && place.blocks().version() == 3;
@@ -191,21 +191,21 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			open(context);
 			clickButton(context, SMALL, BuildBrowserScreen.SELECT);
 			context.waitForScreen(PlacementPickerScreen.class);
-			String header = context.computeOnClient(client -> client.screen.getTitle().getString());
+			String header = context.computeOnClient(client -> client.gui.screen().getTitle().getString());
 			if (!header.contains(SMALL)) {
 				throw new AssertionError("Expected the placement picker's header to name " + SMALL + " but it says " + header);
 			}
 			moveAway(context);
 			context.waitTicks(2);
 			context.takeScreenshot("mcvcs-builds-overlay-picker");
-			context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+			context.getInput().pressKey(InputConstants.KEY_ESCAPE);
 			context.waitForScreen(BuildBrowserScreen.class);
 
 			// Clicking a placement closes both and selects it.
 			clickButton(context, SMALL, BuildBrowserScreen.SELECT);
 			context.waitForScreen(PlacementPickerScreen.class);
 			clickRow(context, Build.MAIN);
-			context.waitFor(client -> client.screen == null);
+			context.waitFor(client -> client.gui.screen() == null);
 			context.waitFor(client -> {
 				ClientPlacement selected = ClientPlacements.selected();
 				return selected != null && selected.label().equals(SMALL + "/" + Build.MAIN);
@@ -216,14 +216,14 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			clickButton(context, SMALL, BuildBrowserScreen.TP);
 			context.waitForScreen(PlacementPickerScreen.class);
 			clickRow(context, Build.MAIN);
-			context.waitFor(client -> client.screen == null);
+			context.waitFor(client -> client.gui.screen() == null);
 			BlockPos onTower = new BlockPos(towerMin.getX() + 1, towerMax.getY() + 1, towerMin.getZ() + 1);
 			context.waitFor(client -> client.player.blockPosition().equals(onTower));
 
 			// TP closes the overlay and puts the player on top of the bridge, at its centre.
 			open(context);
 			clickButton(context, LONG, BuildBrowserScreen.TP);
-			context.waitFor(client -> client.screen == null);
+			context.waitFor(client -> client.gui.screen() == null);
 			BlockPos onBridge = new BlockPos(bridgeMin.getX() + 70, bridgeMax.getY() + 1, bridgeMin.getZ() + 1);
 			context.waitFor(client -> client.player.blockPosition().equals(onBridge));
 
@@ -237,7 +237,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			});
 			hover(context, BIG);
 			context.runOnClient(client -> {
-				BuildBrowserScreen screen = (BuildBrowserScreen) client.screen;
+				BuildBrowserScreen screen = (BuildBrowserScreen) client.gui.screen();
 				if (screen.buttonOf(BuildBrowserScreen.SELECT).active || screen.buttonOf(BuildBrowserScreen.TP).active || !screen.buttonOf(BuildBrowserScreen.PLACE).active) {
 					throw new AssertionError("Expected only Place to be pressable on a build with no placements");
 				}
@@ -250,20 +250,20 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 
 			// The three dots in a hovered cell's corner open its menu; Escape closes only the menu.
 			clickButton(context, LONG, BuildBrowserScreen.MORE);
-			context.waitFor(client -> client.screen instanceof BuildBrowserScreen screen && screen.buttonOf(BuildBrowserScreen.DELETE) != null);
+			context.waitFor(client -> client.gui.screen() instanceof BuildBrowserScreen screen && screen.buttonOf(BuildBrowserScreen.DELETE) != null);
 			context.waitTicks(2);
 			context.takeScreenshot("mcvcs-builds-overlay-menu");
-			context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
-			context.waitFor(client -> client.screen instanceof BuildBrowserScreen screen && screen.buttonOf(BuildBrowserScreen.DELETE) == null);
+			context.getInput().pressKey(InputConstants.KEY_ESCAPE);
+			context.waitFor(client -> client.gui.screen() instanceof BuildBrowserScreen screen && screen.buttonOf(BuildBrowserScreen.DELETE) == null);
 
 			// Delete asks first, with the box to also empty the placements unticked; Cancel goes back and keeps the build.
 			openDelete(context, LONG);
-			String question = context.computeOnClient(client -> client.screen.getTitle().getString());
+			String question = context.computeOnClient(client -> client.gui.screen().getTitle().getString());
 			if (!question.equals("Are you sure you want to delete " + LONG + "?")) {
 				throw new AssertionError("Expected the delete window to ask about " + LONG + " but it says " + question);
 			}
 			context.runOnClient(client -> {
-				Checkbox checkbox = client.screen.children().stream().filter(Checkbox.class::isInstance).map(Checkbox.class::cast).findFirst().orElseThrow();
+				Checkbox checkbox = client.gui.screen().children().stream().filter(Checkbox.class::isInstance).map(Checkbox.class::cast).findFirst().orElseThrow();
 				if (checkbox.selected()) {
 					throw new AssertionError("Expected the box to also delete the placed blocks to start unticked");
 				}
@@ -306,7 +306,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			context.waitTicks(2);
 			context.takeScreenshot("mcvcs-builds-overlay-deleted");
 			context.getInput().pressKey(BuildBrowserKey.KEY);
-			context.waitFor(client -> client.screen == null);
+			context.waitFor(client -> client.gui.screen() == null);
 		} finally {
 			ClientConfig.load();
 		}
@@ -320,10 +320,10 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			if (Arrays.stream(client.options.keyMappings).noneMatch(mapping -> mapping == BuildBrowserKey.KEY)) {
 				throw new AssertionError("Expected the builds overlay key among the game's key mappings");
 			}
-			if (BuildBrowserKey.KEY.getDefaultKey().getValue() != GLFW.GLFW_KEY_B) {
+			if (BuildBrowserKey.KEY.getDefaultKey().getValue() != InputConstants.KEY_B) {
 				throw new AssertionError("Expected the builds overlay key to default to B but got " + BuildBrowserKey.KEY.getDefaultKey());
 			}
-			if (!I18n.exists(BuildBrowserKey.KEY.getName())) {
+			if (!Language.getInstance().has(BuildBrowserKey.KEY.getName())) {
 				throw new AssertionError("Expected a translation for " + BuildBrowserKey.KEY.getName());
 			}
 		});
@@ -332,13 +332,13 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 	/** In a world without cheats the player may not run {@code /vcs}, so the overlay lists nothing and says why. */
 	private static void checkDenied(ClientGameTestContext context) {
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(false)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 			context.getInput().pressKey(BuildBrowserKey.KEY);
 			context.waitForScreen(BuildBrowserScreen.class);
 			context.waitFor(client -> BuildBrowser.listState() == BuildBrowser.ListState.DENIED);
 			context.takeScreenshot("mcvcs-builds-overlay-denied");
-			context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
-			context.waitFor(client -> client.screen == null);
+			context.getInput().pressKey(InputConstants.KEY_ESCAPE);
+			context.waitFor(client -> client.gui.screen() == null);
 		}
 	}
 
@@ -397,7 +397,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 	private static void clickButton(ClientGameTestContext context, String name, String label) {
 		hover(context, name);
 		ScreenRectangle button = context.computeOnClient(client -> {
-			Button found = client.screen instanceof BuildBrowserScreen screen ? screen.buttonOf(label) : null;
+			Button found = client.gui.screen() instanceof BuildBrowserScreen screen ? screen.buttonOf(label) : null;
 			if (found == null) {
 				throw new AssertionError("Expected a " + label + " button on the cell of " + name);
 			}
@@ -416,9 +416,9 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 	/** Clicks the button or checkbox labelled {@code label} in the delete window. */
 	private static void clickWidget(ClientGameTestContext context, String label) {
 		ScreenRectangle widget = context.computeOnClient(client -> {
-			ScreenRectangle found = client.screen instanceof DeleteBuildScreen screen ? screen.widgetOf(label) : null;
+			ScreenRectangle found = client.gui.screen() instanceof DeleteBuildScreen screen ? screen.widgetOf(label) : null;
 			if (found == null) {
-				throw new AssertionError("Expected " + label + " on " + client.screen);
+				throw new AssertionError("Expected " + label + " on " + client.gui.screen());
 			}
 			return found;
 		});
@@ -428,9 +428,9 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 	/** Clicks the row of the placement called {@code name} in the placement picker. */
 	private static void clickRow(ClientGameTestContext context, String name) {
 		ScreenRectangle row = context.computeOnClient(client -> {
-			ScreenRectangle found = client.screen instanceof PlacementPickerScreen screen ? screen.rowOf(name) : null;
+			ScreenRectangle found = client.gui.screen() instanceof PlacementPickerScreen screen ? screen.rowOf(name) : null;
 			if (found == null) {
-				throw new AssertionError("Expected a row for " + name + " on " + client.screen);
+				throw new AssertionError("Expected a row for " + name + " on " + client.gui.screen());
 			}
 			return found;
 		});
@@ -439,9 +439,9 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 
 	private static ScreenRectangle cellOf(ClientGameTestContext context, String name) {
 		return context.computeOnClient(client -> {
-			ScreenRectangle found = client.screen instanceof BuildBrowserScreen screen ? screen.cellOf(name) : null;
+			ScreenRectangle found = client.gui.screen() instanceof BuildBrowserScreen screen ? screen.cellOf(name) : null;
 			if (found == null) {
-				throw new AssertionError("Expected a cell for " + name + " on " + client.screen);
+				throw new AssertionError("Expected a cell for " + name + " on " + client.gui.screen());
 			}
 			return found;
 		});
@@ -456,7 +456,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 	/** Clicks at {@code (x, y)} in GUI coordinates. */
 	private static void clickAt(ClientGameTestContext context, double x, double y) {
 		moveTo(context, x, y);
-		context.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);
+		context.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
 		context.waitTicks(2);
 	}
 

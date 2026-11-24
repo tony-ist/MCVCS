@@ -22,8 +22,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsList;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
-import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.BlockPos;
+import net.minecraft.locale.Language;
 import net.minecraft.world.level.block.Blocks;
 
 /**
@@ -42,7 +42,7 @@ public class VcsSelectHotkeyGameTest extends VcsGameTest {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(FIRST, SECOND);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// Two 3x2x2 stone boxes: the first in front of and to the right of the player, the second to the left.
 			BlockPos firstMin = playerPos(singleplayer).offset(2, 0, 2);
@@ -109,7 +109,7 @@ public class VcsSelectHotkeyGameTest extends VcsGameTest {
 				throw new AssertionError("Expected the select hotkey among the game's key mappings");
 			}
 			for (String key : new String[] {SelectHotkey.KEY.getName(), SelectHotkey.KEY.getCategory().id().toLanguageKey("key.category")}) {
-				if (!I18n.exists(key)) {
+				if (!Language.getInstance().has(key)) {
 					throw new AssertionError("Expected a translation for " + key);
 				}
 			}
@@ -118,9 +118,9 @@ public class VcsSelectHotkeyGameTest extends VcsGameTest {
 		context.setScreen(() -> new KeyBindsScreen(null, Minecraft.getInstance().options));
 		context.waitForScreen(KeyBindsScreen.class);
 		context.runOnClient(client -> {
-			KeyBindsList list = client.screen.children().stream()
+			KeyBindsList list = client.gui.screen().children().stream()
 				.filter(KeyBindsList.class::isInstance).map(KeyBindsList.class::cast).findFirst()
-				.orElseThrow(() -> new AssertionError("Expected a key binds list on " + client.screen));
+				.orElseThrow(() -> new AssertionError("Expected a key binds list on " + client.gui.screen()));
 			list.setScrollAmount(list.maxScrollAmount());
 		});
 		context.waitTicks(2);

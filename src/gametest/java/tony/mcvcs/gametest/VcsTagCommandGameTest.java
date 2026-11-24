@@ -47,7 +47,7 @@ public class VcsTagCommandGameTest extends VcsGameTest {
 	protected void run(ClientGameTestContext context) {
 		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			BlockPos min = playerPos(singleplayer).offset(2, 1, 2);
 			BlockPos max = min.offset(2, 1, 1);

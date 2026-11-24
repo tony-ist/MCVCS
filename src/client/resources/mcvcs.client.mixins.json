@@ -5,6 +5,7 @@
 	"client": [
 		"ClientChunkCacheMixin",
 		"MouseHandlerMixin",
+		"PictureInPictureRendererAccessor",
 		"RenderSectionRegionAccessor",
 		"RenderSectionRegionMixin",
 		"SectionCompilerMixin"

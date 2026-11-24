@@ -9,7 +9,7 @@ import java.util.Map;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
 import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.client.renderer.block.BlockModelLighter;
@@ -166,7 +166,7 @@ final class ThumbnailMesher {
 		if (builder == null) {
 			ByteBufferBuilder buffer = new ByteBufferBuilder(layer.vertexFormat().getVertexSize() * 4 * 256);
 			buffers.put(layer, buffer);
-			builder = new BufferBuilder(buffer, VertexFormat.Mode.QUADS, layer.vertexFormat());
+			builder = new BufferBuilder(buffer, PrimitiveTopology.QUADS, layer.vertexFormat());
 			builders.put(layer, builder);
 		}
 		return builder;

@@ -7,6 +7,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientChunkCache;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
@@ -15,6 +16,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
 
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongList;
@@ -170,34 +172,22 @@ public final class PreviewManager {
 	}
 
 	/**
-	 * {@code emptySections} without the sections a preview draws blocks in, or {@code emptySections} itself when no
-	 * preview touches any of them. See {@link tony.mcvcs.client.mixin.ClientChunkCacheMixin} for why. Called on the
-	 * render thread every frame, so it only copies the set when it has to.
+	 * Takes the sections a preview draws blocks in out of {@code becameEmpty}, the sections the chunk cache is about to
+	 * report as newly all air, so a preview standing in empty air stays meshed. See
+	 * {@link tony.mcvcs.client.mixin.ClientChunkCacheMixin} for why.
 	 */
-	public static LongOpenHashSet withoutPreviewed(ClientLevel level, LongOpenHashSet emptySections) {
-		LongOpenHashSet result = emptySections;
+	public static void keepPreviewed(ClientLevel level, LongOpenHashSet becameEmpty) {
+		if (becameEmpty.isEmpty()) {
+			return;
+		}
 		ClientPreview preview = active;
 		if (preview != null && preview.dimension().equals(level.dimension())) {
-			result = without(result, emptySections, preview.box());
+			becameEmpty.removeAll(sections(preview.box()));
 		}
 		PlacePreview showing = drawnPlace;
 		if (showing != null && showing.blocks().dimension().equals(level.dimension())) {
-			result = without(result, emptySections, showing.box());
+			becameEmpty.removeAll(sections(showing.box()));
 		}
-		return result;
-	}
-
-	/** {@code result} without the sections {@code box} touches, copying {@code emptySections} the first time one is removed. */
-	private static LongOpenHashSet without(LongOpenHashSet result, LongOpenHashSet emptySections, BuildBox box) {
-		for (long section : sections(box)) {
-			if (result.contains(section)) {
-				if (result == emptySections) {
-					result = new LongOpenHashSet(emptySections);
-				}
-				result.remove(section);
-			}
-		}
-		return result;
 	}
 
 	private static void blocks(PreviewBlocksPayload payload, Minecraft client) {
@@ -285,24 +275,45 @@ public final class PreviewManager {
 			return;
 		}
 		if (previous != null) {
-			rebuild(client, previous);
+			rebuild(client.level, previous, false);
 		}
+		// After the box left behind, so sections both cover end up marked as not empty.
 		if (current != null) {
-			rebuild(client, current);
+			rebuild(client.level, current, true);
 		}
 	}
 
-	private static void rebuild(Minecraft client, BuildBox box) {
+	private static void rebuild(ClientLevel level, BuildBox box, boolean covered) {
 		BlockPos min = box.min();
 		BlockPos max = box.max();
-		// Expands by one block on each side, so neighbours re-evaluate face culling against the new contents.
-		client.levelRenderer.setBlocksDirty(min.getX(), min.getY(), min.getZ(), max.getX(), max.getY(), max.getZ());
+		// One block out on each side, so neighbours re-evaluate face culling against the new contents.
+		level.setSectionRangeDirty(
+			SectionPos.blockToSectionCoord(min.getX() - 1), SectionPos.blockToSectionCoord(min.getY() - 1), SectionPos.blockToSectionCoord(min.getZ() - 1),
+			SectionPos.blockToSectionCoord(max.getX() + 1), SectionPos.blockToSectionCoord(max.getY() + 1), SectionPos.blockToSectionCoord(max.getZ() + 1)
+		);
 		// Sections that are all air in the real world are left out of the render graph entirely, so marking them dirty
-		// alone does nothing; this is what vanilla calls when a block is placed in such a section, and it puts the
-		// section back into the graph. Harmless for sections that were never left out.
+		// alone does nothing. Reporting them as no longer empty, as vanilla does when a block is placed in one, puts them
+		// back; once the preview is gone, those that really are all air are reported empty again.
+		ClientChunkCache chunks = level.getChunkSource();
 		for (long section : sections(box)) {
-			client.levelRenderer.onSectionBecomingNonEmpty(section);
+			if (covered) {
+				chunks.addedEmptySections().remove(section);
+				chunks.removedEmptySections().add(section);
+			} else if (isAllAir(chunks, section)) {
+				chunks.removedEmptySections().remove(section);
+				chunks.addedEmptySections().add(section);
+			}
 		}
+	}
+
+	/** Whether {@code section} is loaded and holds nothing but air in the real world. */
+	private static boolean isAllAir(ClientChunkCache chunks, long section) {
+		LevelChunk chunk = chunks.getChunk(SectionPos.x(section), SectionPos.z(section), false);
+		if (chunk == null) {
+			return false;
+		}
+		int index = chunk.getSectionIndexFromSectionY(SectionPos.y(section));
+		return index >= 0 && index < chunk.getSectionsCount() && chunk.getSection(index).hasOnlyAir();
 	}
 
 	/** The {@link SectionPos#asLong packed positions} of every chunk section {@code box} touches. */

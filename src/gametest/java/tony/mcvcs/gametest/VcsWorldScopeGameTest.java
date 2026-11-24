@@ -36,7 +36,7 @@ public class VcsWorldScopeGameTest extends VcsGameTest {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext first = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			first.getClientLevel().waitForChunksRender();
+			first.getConnection().waitForChunksRender();
 
 			BlockPos min = playerPos(first).offset(2, 0, 2);
 			BlockPos max = min.offset(2, 1, 1);
@@ -49,7 +49,7 @@ public class VcsWorldScopeGameTest extends VcsGameTest {
 
 		// A different world in the same game directory, so the same mcvcs/ folder.
 		try (TestSingleplayerContext second = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			second.getClientLevel().waitForChunksRender();
+			second.getConnection().waitForChunksRender();
 
 			List<String> names = second.getServer().computeOnServer(server -> BuildRegistry.names(server));
 			if (!names.isEmpty()) {

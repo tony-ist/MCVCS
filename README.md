@@ -12,7 +12,7 @@ The client-side mod improves experience a lot. It shows bounding boxes with labe
 
 ## Requirements
 
-- Minecraft 26.1.2 with Fabric Loader and Fabric API
+- Minecraft 26.3 with Fabric Loader and Fabric API
 - WorldEdit (used for selections and for reading and writing schematics)
 - Operator level 2 (cheats) to run the commands
 

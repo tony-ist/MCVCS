@@ -48,7 +48,7 @@ public class VcsWeselectCommandGameTest extends VcsGameTest {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// A 2x2x2 stone cube hovering one block above the ground in front of the player, so nothing touches it and
 			// /vcs fit has nothing to take in until the test puts a block against it. No other test builds here:

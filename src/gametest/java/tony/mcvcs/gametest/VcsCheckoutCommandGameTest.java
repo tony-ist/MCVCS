@@ -81,7 +81,7 @@ public class VcsCheckoutCommandGameTest extends VcsGameTest {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME, REDSTONE_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// v1: a 3x3x3 stone cube hovering one block above the ground in front of and to the right of the player, with
 			// a hole in the bottom of its middle column, a sand block hovering over that hole, a barrel with a diamond in

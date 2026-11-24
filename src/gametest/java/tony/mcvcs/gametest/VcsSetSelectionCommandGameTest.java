@@ -56,7 +56,7 @@ public class VcsSetSelectionCommandGameTest extends VcsGameTest {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME, NEIGHBOUR_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
-			singleplayer.getClientLevel().waitForChunksRender();
+			singleplayer.getConnection().waitForChunksRender();
 
 			// A 2x2x2 stone cube hovering one block above the ground in front of and to the right of the player.
 			BlockPos min = playerPos(singleplayer).offset(2, 1, 2);

@@ -41,7 +41,7 @@ public record DiffChangesPayload(List<BlockState> palette, int[] indices, int[] 
 	}
 
 	private static DiffChangesPayload read(FriendlyByteBuf buf) {
-		List<BlockState> palette = buf.readList(BlockPalette.STATE_CODEC);
+		List<BlockState> palette = BlockPalette.STATES_CODEC.decode(buf);
 		int[] indices = buf.readVarIntArray();
 		int[] from = buf.readVarIntArray();
 		int[] to = buf.readVarIntArray();
@@ -50,7 +50,7 @@ public record DiffChangesPayload(List<BlockState> palette, int[] indices, int[] 
 	}
 
 	private void write(FriendlyByteBuf buf) {
-		buf.writeCollection(palette, BlockPalette.STATE_CODEC);
+		BlockPalette.STATES_CODEC.encode(buf, palette);
 		buf.writeVarIntArray(indices);
 		buf.writeVarIntArray(from);
 		buf.writeVarIntArray(to);
