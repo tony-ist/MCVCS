@@ -202,17 +202,20 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Improve UI Overlay to include versions and placements
 - Aliases for commands to type them faster
 - Command /vcs move initiates moving preview for current placement allowing to change its position with numpad keys and press 5 moves it physically in the world
-- Submodules for build. One build can have submodules inside its box. Each submodule is itself a build. When we place parent build, all submodule placements appear inside. Bounding box for parent build includes all bounding boxes for submodules. Think about what happens when submodule and parent intersect not fullly.
 - Add hotkeys to select next and previous version preview (could be made obsolete by UI Overlay)
 - Big diffs lag client too much (see it on mcinmc/p2)
 - Make diffs more visible. Right now they intersect into clutter. 
 - Make create build command in overlay
 - Ability to rotate during placement preview
 - Client config switches to toggle labels and bounding box displays
+- Make builds shared between multiple single player worlds
+- Make movement of preview during placement more intuitive, maybe only move in direction you look, not using the plane.
+- When placing a build through overlay allow people to choose version to place instead of defaulting to latest one
 
 ### Assemblies
 
 - Make checkout of builds that intersect others possible: diff works, why not checkout?
+- Submodules for build. One build can have submodules inside its box. Each submodule is itself a build. When we place parent build, all submodule placements appear inside. Bounding box for parent build includes all bounding boxes for submodules. Think about what happens when submodule and parent intersect not fullly.
 
 ### Nice to have
 
