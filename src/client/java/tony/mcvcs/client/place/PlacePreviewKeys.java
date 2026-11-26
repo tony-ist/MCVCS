@@ -40,12 +40,12 @@ import org.jspecify.annotations.Nullable;
  * copy, which needs no face at all. {@code 5} places it, running {@code /vcs confirmPlace} for the player, and says
  * why instead when the copy stands where it cannot be placed.
  * <p>
- * {@link #SCROLL} held turns the mouse wheel into {@code 8} and {@code 2}: a notch up pushes the copy away through
- * the face in sight, a notch down pulls it back. The wheel goes by any of the six faces, the top and the bottom
- * included, so looking down on the copy it lowers and raises it; with the box out of sight it goes by the face
- * nearest the player, and from inside the box by the way they look. The
- * wheel is taken over only while that key is held and a copy is being shown, so it goes on changing the held item
- * every other time, see {@code MouseHandlerMixin}.
+ * Pressing {@link #SCROLL} picks the axis the mouse wheel moves the copy along, see {@link ScrollAxis}, and keeps it
+ * until the key is let go. Looking at a face of the box, any of the six, it is the axis through that face: a notch up
+ * pushes the copy away through it, a notch down pulls it back. Looking at no face, or from inside the box, it is
+ * whichever of X, Y and Z the player looks along most: a notch up moves the copy the way they look. The axis is drawn
+ * while the key is held, see {@link PlacePreviewRenderer}. The wheel is taken over only while that key is held and a
+ * copy is being shown, so it goes on changing the held item every other time, see {@code MouseHandlerMixin}.
  * <p>
  * While no copy is shown, the wheel and {@code 5} drag and commit the box of a {@code /vcs resize} instead, see
  * {@link ClientResize}.
@@ -84,6 +84,18 @@ public final class PlacePreviewKeys {
 	 */
 	public static final KeyMapping SCROLL = key("place_scroll", GLFW.GLFW_KEY_LEFT_ALT);
 
+	/**
+	 * The axis the wheel moves the copy along while {@link #SCROLL} is held, picked when it was pressed.
+	 *
+	 * @param away the way a notch up moves the copy
+	 * @param face the face of the box that was looked at when it was picked, or null when it went by the player's view
+	 */
+	public record ScrollAxis(Direction away, @Nullable Direction face) {
+	}
+
+	/** The axis picked when {@link #SCROLL} was pressed, kept until it is let go. */
+	private static @Nullable ScrollAxis scrollAxis;
+
 	/** What {@code 5} says instead of placing when the copy stands where it cannot be placed; the reason follows. */
 	public static final String REFUSED = "Cannot place here - ";
 	/** The command {@code 5} runs, the same one the player would type. */
@@ -105,6 +117,11 @@ public final class PlacePreviewKeys {
 	}
 
 	private static void tick(Minecraft client) {
+		if (scrollHeld(client)) {
+			scrollAxis(client);
+		} else {
+			scrollAxis = null;
+		}
 		// Presses are queued until a tick looks at them, so several pressed within one tick all move the copy.
 		while (AWAY.consumeClick()) {
 			alongFace(client, true);
@@ -130,12 +147,8 @@ public final class PlacePreviewKeys {
 	}
 
 	/**
-	 * A turn of the mouse wheel, {@code amount} notches up being positive: pushes the copy away from the player
-	 * through the face of the box in sight, or pulls it back towards them turning the other way.
-	 * <p>
-	 * Unlike {@code 8} and {@code 2}, the wheel takes the top and the bottom of the box as readily as its sides, so
-	 * looking down on the copy the wheel lowers and raises it and looking up at it from below does the same. Away is
-	 * always away from the player, whichever face that is.
+	 * A turn of the mouse wheel, {@code amount} notches up being positive: moves the copy a block along the
+	 * {@link ScrollAxis}, {@link ScrollAxis#away} for a notch up and back the other way for a notch down.
 	 * <p>
 	 * Answers whether the wheel was taken over, which it is only while {@link #SCROLL} is held over a copy being
 	 * shown with no screen open.
@@ -149,12 +162,40 @@ public final class PlacePreviewKeys {
 			return ClientResize.scrolled(client, amount);
 		}
 
-		Direction face = facing(client, FACES);
-		if (face != null) {
-			// The face in sight looks back at the player, so moving away from them goes the other way.
-			move(client, amount > 0.0 ? face.getOpposite() : face);
+		// The key can go down and the wheel turn before a tick has picked the axis, so it is picked here as well.
+		ScrollAxis axis = scrollAxis(client);
+		if (axis != null) {
+			move(client, amount > 0.0 ? axis.away() : axis.away().getOpposite());
 		}
 		return true;
+	}
+
+	/** The axis the wheel moves the copy along, or null while {@link #SCROLL} is not held over a copy shown here. */
+	public static @Nullable ScrollAxis scrollAxis() {
+		return scrollAxis;
+	}
+
+	/** Whether {@link #SCROLL} is held over a copy shown in the player's dimension, with no screen open. */
+	private static boolean scrollHeld(Minecraft client) {
+		PlacePreview preview = PreviewManager.place();
+		LocalPlayer player = client.player;
+		return client.screen == null && SCROLL.isDown() && preview != null && player != null
+			&& preview.blocks().dimension().equals(player.level().dimension());
+	}
+
+	/** The axis kept since {@link #SCROLL} was pressed, picked now if none is yet; null when the key is not held. */
+	private static @Nullable ScrollAxis scrollAxis(Minecraft client) {
+		if (!scrollHeld(client)) {
+			return null;
+		}
+		if (scrollAxis == null) {
+			LocalPlayer player = client.player;
+			Vec3 look = player.getViewVector(1.0f);
+			Direction face = faceLookedAt(aabb(PreviewManager.place().box()), player.getEyePosition(), look, FACES);
+			// The face in sight looks back at the player, so moving away from them goes the other way.
+			scrollAxis = face != null ? new ScrollAxis(face.getOpposite(), face) : new ScrollAxis(Direction.getApproximateNearest(look), null);
+		}
+		return scrollAxis;
 	}
 
 	/**

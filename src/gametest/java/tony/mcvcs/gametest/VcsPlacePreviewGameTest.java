@@ -24,6 +24,7 @@ import net.minecraft.client.gui.screens.options.controls.KeyBindsList;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.Blocks;
 
 import tony.mcvcs.build.Build;
@@ -32,17 +33,18 @@ import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.place.PlacePreviewKeys;
+import tony.mcvcs.client.place.PlacePreviewKeys.ScrollAxis;
 import tony.mcvcs.client.place.PlacePreviewStatus;
 import tony.mcvcs.client.preview.PlacePreview;
 import tony.mcvcs.client.preview.PreviewManager;
 
 /**
  * {@code /vcs place} shows the copy it is about to put down instead of placing it, and the numpad keys line it up:
- * away and back through the side of the box in sight, sideways along it, up and down, a block at a time. Holding the
- * scroll key turns the mouse wheel into the away and back keys, a block per notch, off any of the six faces: the top
- * and the bottom included, where away means down and up, which is what the numpad keys will not do. The wheel is left
- * alone while that key is not held. With no face of it in sight the keys and the wheel go by the face nearest the
- * player, and from inside the box by where the player looks. Numpad {@code 5} then places the copy
+ * away and back through the side of the box in sight, sideways along it, up and down, a block at a time. Pressing the
+ * scroll key picks the axis the mouse wheel moves the copy along, a block per notch, and keeps it while held: through
+ * the face in sight, any of the six, or with none in sight (or from inside the box) the axis the player looks along
+ * most. The wheel is left alone while that key is not held. With no face in sight the numpad keys go by the face
+ * nearest the player, and from inside the box by where the player looks. Numpad {@code 5} then places the copy
  * where it was left, as {@code /vcs confirmPlace} does, and says why instead when it stands where it cannot be
  * placed; {@code /vcs cancelPlace} drops it.
  */
@@ -135,6 +137,48 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 			// Back to watching it from the north, where every key has a side of the box to work from again.
 			watchFrom(singleplayer, context, viewpoint);
 
+			// Pressing the scroll key while looking at the north face keeps that face's axis for as long as it is held,
+			// drawn with an arrow out of the box each way, so looking away from the copy still moves it along Z.
+			aim(context, box);
+			context.getInput().holdKey(PlacePreviewKeys.SCROLL);
+			try {
+				context.waitTicks(2);
+				assertScrollAxis(context, new ScrollAxis(Direction.SOUTH, Direction.NORTH));
+				screenshotLastFrame(context, "mcvcs-vcs-place-preview-axis");
+				// Walking round to the side keeps the axis, and shows its arrows standing out of both ends of the box.
+				teleport(singleplayer, viewpoint.offset(-6, 3, 7));
+				context.waitTicks(2);
+				aim(context, box);
+				assertScrollAxis(context, new ScrollAxis(Direction.SOUTH, Direction.NORTH));
+				screenshotLastFrame(context, "mcvcs-vcs-place-preview-axis-side");
+				// Far off, the axis and its chevrons grow with the distance, so they are still easy to make out.
+				teleport(singleplayer, viewpoint.offset(-30, 12, 36));
+				context.waitTicks(2);
+				aim(context, box);
+				screenshotLastFrame(context, "mcvcs-vcs-place-preview-axis-far");
+				context.runOnClient(client -> client.player.setXRot(-90.0f));
+				context.waitTicks(2);
+				context.getInput().scroll(1.0);
+				box = new BuildBox(box.min().offset(0, 0, 1), box.max().offset(0, 0, 1));
+				assertShowing(context, box);
+			} finally {
+				context.getInput().releaseKey(PlacePreviewKeys.SCROLL);
+			}
+			context.waitTicks(2);
+			assertScrollAxis(context, null);
+			watchFrom(singleplayer, context, viewpoint);
+
+			// Pressed looking at no face, the axis is the one the player looks along most: a notch up moves the copy
+			// the way they look. Turned east and a little up, away from the copy, that is east.
+			context.runOnClient(client -> {
+				client.player.setYRot(-90.0f);
+				client.player.setXRot(-20.0f);
+			});
+			context.waitTicks(2);
+			box = scrollAsIs(context, box, 1.0, 1, 0, 0);
+			box = scrollAsIs(context, box, -1.0, -1, 0, 0);
+			watchFrom(singleplayer, context, viewpoint);
+
 			// The wheel is left alone while that key is not held, so it goes on doing whatever it usually does.
 			aim(context, box);
 			context.getInput().scroll(1.0);
@@ -145,13 +189,14 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 			box = sprintPress(context, PlacePreviewKeys.AWAY, box, 0, 0, 1);
 			box = sprintPress(context, PlacePreviewKeys.CLOSER, box, 0, 0, -1);
 
-			// Looking at the sky there is no face of the box in sight, so the keys and the wheel go by the face nearest
-			// the player instead, the north one, as if they were still looking at it.
+			// Looking at the sky there is no face of the box in sight, so the keys go by the face nearest the player
+			// instead, the north one, as if they were still looking at it. The wheel goes by where the player looks,
+			// up, so a notch down lowers the copy.
 			context.runOnClient(client -> client.player.setXRot(-90.0f));
 			context.waitTicks(2);
 			box = pressAsIs(context, PlacePreviewKeys.AWAY, box, 0, 0, 1);
 			box = pressAsIs(context, PlacePreviewKeys.LEFT, box, 1, 0, 0);
-			box = scrollAsIs(context, box, -1.0, 0, 0, -1);
+			box = scrollAsIs(context, box, -1.0, 0, -1, 0);
 			box = pressAsIs(context, PlacePreviewKeys.RIGHT, box, -1, 0, 0);
 			screenshotLastFrame(context, "mcvcs-vcs-place-preview-no-face");
 
@@ -372,6 +417,14 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 		} catch (RuntimeException | AssertionError e) {
 			throw new AssertionError("Expected the copy to be " + (expected ? "placeable" : "refused") + " but it is "
 				+ context.computeOnClient(client -> PlacePreviewStatus.status()), e);
+		}
+	}
+
+	/** The axis the wheel moves the copy along is {@code expected}, null meaning none is picked. */
+	private static void assertScrollAxis(ClientGameTestContext context, ScrollAxis expected) {
+		ScrollAxis actual = context.computeOnClient(client -> PlacePreviewKeys.scrollAxis());
+		if (!java.util.Objects.equals(actual, expected)) {
+			throw new AssertionError("Expected the scroll axis " + expected + " but it is " + actual);
 		}
 	}
 

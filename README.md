@@ -114,7 +114,7 @@ With the mod on your client, pressing `V` **selects** the placement under your c
 
 Pressing `B` opens the **builds overlay**, and pressing it again closes it.
 
-Holding left alt and scrolling mouse wheel **moves** the `/vcs place` preview around, or **drags** a face of the `/vcs resize` box.
+Holding left alt and scrolling mouse wheel **moves** the `/vcs place` preview around, or **drags** a face of the `/vcs resize` box. For the preview, pressing alt picks the axis it moves along, shown with arrows: through the face you look at, or, looking at none, the axis you look along most.
 
 Every key can be **rebound** like any other under Options, Controls, Key Binds, in the MCVCS category.
 
