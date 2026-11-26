@@ -14,6 +14,7 @@ Use PowerShell only.
    - On `main`, working tree clean (`git status --porcelain`), up to date with `origin/main` (`git fetch`, then `git status -sb` shows no `behind`). Otherwise stop.
    - `gh auth status` succeeds.
 2. **Versions**
+   - MC = `minecraft_version` in `gradle.properties`.
    - Current = `version` in `gradle.properties`. Previous tag = `git describe --tags --abbrev=0`. If they differ, stop and ask.
    - New = current with the requested part incremented and lower parts reset to 0 (`1.7.1` → major `2.0.0`, minor `1.8.0`, patch `1.7.2`).
    - Stop if tag `<new>` already exists locally or `gh release view <new>` succeeds.
@@ -32,7 +33,7 @@ Use PowerShell only.
    - `git tag <new>` (lightweight, like existing tags)
 6. **Publish**
    - `git push origin main <new>`
-   - `gh release create <new> <jar> --title "<new>" --notes-file <notes.md> --verify-tag`
+   - `gh release create <new> <jar> --title "<new> for MC <mc>" --notes-file <notes.md> --verify-tag`
 7. Report the release URL.
 
 Never move or delete existing tags. Never force-push, amend, or use `--no-verify`.
