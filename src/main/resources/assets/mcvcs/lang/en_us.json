@@ -9,5 +9,22 @@
 	"key.mcvcs.place_up": "Move Placement Preview Up",
 	"key.mcvcs.place_down": "Move Placement Preview Down",
 	"key.mcvcs.place_confirm": "Confirm Placement Preview or Resize",
-	"key.mcvcs.place_scroll": "Move Preview or Resize Box By Wheel"
+	"key.mcvcs.place_scroll": "Move Preview or Resize Box By Wheel",
+	"options.mcvcs.title": "MCVCS Settings",
+	"options.mcvcs.world": "In the World",
+	"options.mcvcs.overlay": "Builds Overlay",
+	"options.mcvcs.show_labels": "Build Labels",
+	"options.mcvcs.show_labels.tooltip": "Names floating above the builds near you",
+	"options.mcvcs.show_selection_box": "Selection Box",
+	"options.mcvcs.show_selection_box.tooltip": "Outline of the selected build. A previewed version is outlined in green either way",
+	"options.mcvcs.rotation_speed": "Turning Speed",
+	"options.mcvcs.rotation_speed.value": "%s°/s",
+	"options.mcvcs.rotation_speed.tooltip": "How fast the previews turn, in degrees per second",
+	"options.mcvcs.cell_size": "Preview Size",
+	"options.mcvcs.cell_size.tooltip": "Width and height of each preview, in GUI pixels",
+	"options.mcvcs.auto_download_limit": "Auto Download",
+	"options.mcvcs.auto_download_limit.never": "Never",
+	"options.mcvcs.auto_download_limit.always": "Always",
+	"options.mcvcs.auto_download_limit.value": "%s blocks",
+	"options.mcvcs.auto_download_limit.tooltip": "Biggest build whose preview is downloaded when the overlay opens. Bigger ones wait for a click"
 }

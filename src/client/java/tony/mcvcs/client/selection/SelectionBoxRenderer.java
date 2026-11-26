@@ -7,6 +7,7 @@ import net.minecraft.gizmos.Gizmos;
 import net.minecraft.world.phys.AABB;
 
 import tony.mcvcs.client.build.ClientPlacements;
+import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.client.preview.ClientPreview;
 import tony.mcvcs.client.preview.PreviewManager;
 import tony.mcvcs.client.resize.ClientResize;
@@ -20,6 +21,8 @@ import tony.mcvcs.build.BuildBox;
  * clearly visible when the build is in view, never painted over terrain or entities standing in front of it, and
  * gone when the player looks away or moves behind a wall. While a version is previewed there the outline
  * turns green, so the player can tell at a glance that the blocks inside are not the real ones.
+ * <p>
+ * {@link ClientConfig.Settings#showSelectionBox} turns the outline off, except the green one while a version is previewed.
  */
 public final class SelectionBoxRenderer {
 	/** Line color (ARGB): a light cyan that stands out against both terrain and sky; the selected placement's label shares it. */
@@ -51,9 +54,15 @@ public final class SelectionBoxRenderer {
 			return;
 		}
 
+		// The config can hide the outline, but not while a version is previewed: then it is what says the blocks are not real.
+		ClientPreview preview = PreviewManager.active();
+		boolean previewed = preview != null && preview.isOf(placement);
+		if (!previewed && !ClientConfig.settings().showSelectionBox()) {
+			return;
+		}
+
 		BuildBox box = placement.box();
 		AABB aabb = AABB.encapsulatingFullBlocks(box.min(), box.max()).inflate(OUTSET);
-		ClientPreview preview = PreviewManager.active();
-		Gizmos.cuboid(aabb, preview != null && preview.isOf(placement) ? PREVIEW_STYLE : STYLE);
+		Gizmos.cuboid(aabb, previewed ? PREVIEW_STYLE : STYLE);
 	}
 }

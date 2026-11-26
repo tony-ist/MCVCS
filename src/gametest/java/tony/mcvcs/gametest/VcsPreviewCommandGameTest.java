@@ -20,6 +20,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.fabric.api.client.gametest.v1.world.TestWorldSave;
 
+import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.client.preview.ClientPreview;
 import tony.mcvcs.client.preview.PreviewManager;
 import tony.mcvcs.build.Build;
@@ -88,6 +89,12 @@ public class VcsPreviewCommandGameTest extends VcsGameTest {
 			lookAt(context, min, max.above(2));
 			singleplayer.getClientLevel().waitForChunksRender();
 			screenshotLastFrame(context, "mcvcs-vcs-preview-v1");
+
+			// The config can hide the selection box and labels, but the green box still says these blocks are not real.
+			context.runOnClient(client -> ClientConfig.override(ClientConfig.settings().withDisplay(false, false)));
+			lookAt(context, min, max.above(2));
+			screenshotLastFrame(context, "mcvcs-vcs-preview-v1-display-off");
+			context.runOnClient(client -> ClientConfig.load());
 
 			runCommand(context, "vcs preview 2");
 			preview = waitForPreview(context, 2);

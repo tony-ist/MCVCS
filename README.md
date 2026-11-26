@@ -122,13 +122,15 @@ Every key can be **rebound** like any other under Options, Controls, Key Binds, 
 
 ## Client settings
 
-What belongs to neither the key binds screen nor the server lives in `config/mcvcs.json`, written with its defaults the first time you run the mod:
+What belongs to neither the key binds screen nor the server lives in `config/mcvcs.json`, written with its defaults the first time you run the mod. With [Mod Menu](https://modrinth.com/mod/modmenu) installed, its **Config** button opens a screen to change them in game; they are saved when the screen is closed.
 
 ```json
 {
   "rotationSpeed": 36.0,
   "cellSize": 96,
-  "autoDownloadLimit": 1000000
+  "autoDownloadLimit": 1000000,
+  "showLabels": true,
+  "showSelectionBox": true
 }
 ```
 
@@ -137,6 +139,8 @@ What belongs to neither the key binds screen nor the server lives in `config/mcv
 | `rotationSpeed` | How fast the previews in the builds overlay turn, in degrees per second. 0 to 720, 36 by default, which is one turn every 10 seconds; 0 holds them still. |
 | `cellSize` | Width and height of each preview in the builds overlay, in GUI pixels. 48 to 512, 96 by default. |
 | `autoDownloadLimit` | The biggest build, in blocks of its box, whose preview the builds overlay downloads by itself. Bigger builds wait for a click. 1,000,000 by default; 0 makes every build wait. |
+| `showLabels` | Whether placements near you have their names floating above them. `true` by default. |
+| `showSelectionBox` | Whether the selected placement is outlined. `true` by default. The green outline of a previewed version shows either way. |
 
 The file is read again every time you join a world or server, so an edit takes hold without restarting the game. A file that cannot be read is logged and ignored, leaving the settings as they were. A file missing some of these settings, or holding ones older versions of the mod wrote, is written out again with exactly these settings, keeping the values it gave.
 
@@ -204,10 +208,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 ## TODO
 
 ### Roadmap
-
-- diff off in overlay
-- Dots menu in overlay: add diff to it
-- Client config switches to toggle labels and bounding box displays
 
 - Make movement of preview during placement more intuitive, maybe only move in direction you look, not using the plane.
 - /vcs tag latest 1.0.0 should be possible and autocomplete latest. /vcs tag 1.0.0 should tag head by default

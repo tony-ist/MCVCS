@@ -20,6 +20,9 @@
 		],
 		"client": [
 			"tony.mcvcs.client.MCVCSClient"
+		],
+		"modmenu": [
+			"tony.mcvcs.client.config.ModMenuIntegration"
 		]
 	},
 	"mixins": [

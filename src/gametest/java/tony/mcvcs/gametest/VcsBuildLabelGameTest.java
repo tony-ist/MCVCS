@@ -15,6 +15,7 @@ import java.util.List;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
+import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.client.label.BuildLabelRenderer;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.build.ClientPlacement;
@@ -70,6 +71,12 @@ public class VcsBuildLabelGameTest extends VcsGameTest {
 			// Selected: the box and, above it, the label in the box's color.
 			lookAt(context, nearMin, nearMax.above(2));
 			screenshotLastFrame(context, "mcvcs-vcs-label-selected");
+
+			// Switched off in the config: neither the label nor the box, though the build stays selected.
+			context.runOnClient(client -> ClientConfig.override(ClientConfig.settings().withDisplay(false, false)));
+			lookAt(context, nearMin, nearMax.above(2));
+			screenshotLastFrame(context, "mcvcs-vcs-label-hidden");
+			context.runOnClient(client -> ClientConfig.load());
 
 			// Deselecting drops the box but not the build or its label.
 			runCommand(context, "vcs deselect");

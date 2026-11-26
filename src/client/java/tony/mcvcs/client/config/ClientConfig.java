@@ -24,14 +24,18 @@ import tony.mcvcs.MCVCS;
 /**
  * The client's own settings, in {@code config/mcvcs.json} next to every other mod's config, holding what belongs to
  * neither the key binds screen nor the server: how the builds overlay draws its grid, see
- * {@link tony.mcvcs.client.browser.BuildBrowserScreen}.
+ * {@link tony.mcvcs.client.browser.BuildBrowserScreen}, and whether placements are labelled and the selected one
+ * outlined in the world.
  * <pre>
  * {
  *   "rotationSpeed": 36.0,
  *   "cellSize": 96,
- *   "autoDownloadLimit": 1000000
+ *   "autoDownloadLimit": 1000000,
+ *   "showLabels": true,
+ *   "showSelectionBox": true
  * }
  * </pre>
+ * The settings can be changed in game on {@link ClientConfigScreen}, which Mod Menu opens with its Config button.
  * The file is written with its defaults the first time the client starts without one, so there is something to edit,
  * and read again whenever a world or server is joined, so an edit takes hold without restarting the game. A file
  * that cannot be read is logged and ignored, leaving the settings as they were: a typo in it must not stop the mod
@@ -61,15 +65,27 @@ public final class ClientConfig {
 	 * @param cellSize          width and height of each preview in the builds overlay, in GUI pixels
 	 * @param autoDownloadLimit biggest build, in blocks of its box, whose preview the overlay downloads by itself;
 	 *                          bigger ones wait for a click, and 0 makes every one wait
+	 * @param showLabels        whether placements have their names floating above them, see
+	 *                          {@link tony.mcvcs.client.label.BuildLabelRenderer}
+	 * @param showSelectionBox  whether the selected placement is outlined, see
+	 *                          {@link tony.mcvcs.client.selection.SelectionBoxRenderer}; a version previewed there is
+	 *                          outlined either way
 	 */
-	public record Settings(double rotationSpeed, int cellSize, int autoDownloadLimit) {
-		public static final Settings DEFAULT = new Settings(DEFAULT_ROTATION_SPEED, DEFAULT_CELL_SIZE, DEFAULT_AUTO_DOWNLOAD_LIMIT);
+	public record Settings(double rotationSpeed, int cellSize, int autoDownloadLimit, boolean showLabels, boolean showSelectionBox) {
+		public static final Settings DEFAULT = new Settings(DEFAULT_ROTATION_SPEED, DEFAULT_CELL_SIZE, DEFAULT_AUTO_DOWNLOAD_LIMIT, true, true);
 		/** Reading only: a missing setting falls back to its default, so a file need only name what it changes. */
 		public static final Codec<Settings> CODEC = RecordCodecBuilder.create(instance -> instance.group(
 			Codec.doubleRange(0.0, MAX_ROTATION_SPEED).optionalFieldOf("rotationSpeed", DEFAULT_ROTATION_SPEED).forGetter(Settings::rotationSpeed),
 			Codec.intRange(MIN_CELL_SIZE, MAX_CELL_SIZE).optionalFieldOf("cellSize", DEFAULT_CELL_SIZE).forGetter(Settings::cellSize),
-			Codec.intRange(0, Integer.MAX_VALUE).optionalFieldOf("autoDownloadLimit", DEFAULT_AUTO_DOWNLOAD_LIMIT).forGetter(Settings::autoDownloadLimit)
+			Codec.intRange(0, Integer.MAX_VALUE).optionalFieldOf("autoDownloadLimit", DEFAULT_AUTO_DOWNLOAD_LIMIT).forGetter(Settings::autoDownloadLimit),
+			Codec.BOOL.optionalFieldOf("showLabels", true).forGetter(Settings::showLabels),
+			Codec.BOOL.optionalFieldOf("showSelectionBox", true).forGetter(Settings::showSelectionBox)
 		).apply(instance, Settings::new));
+
+		/** These settings, with the display of labels and of the selection box switched as given. */
+		public Settings withDisplay(boolean labels, boolean selectionBox) {
+			return new Settings(rotationSpeed, cellSize, autoDownloadLimit, labels, selectionBox);
+		}
 
 		/**
 		 * The settings as they are written out, every one of them spelled out. {@link #CODEC} would do the encoding
@@ -81,6 +97,8 @@ public final class ClientConfig {
 			json.addProperty("rotationSpeed", rotationSpeed);
 			json.addProperty("cellSize", cellSize);
 			json.addProperty("autoDownloadLimit", autoDownloadLimit);
+			json.addProperty("showLabels", showLabels);
+			json.addProperty("showSelectionBox", showSelectionBox);
 			return json;
 		}
 	}
@@ -107,6 +125,12 @@ public final class ClientConfig {
 	/** Replaces the settings in force until the file is next read, e.g. to hold the previews still for a test. */
 	public static void override(Settings value) {
 		settings = value;
+	}
+
+	/** Puts {@code value} in force and writes it to the file, as the settings screen does when it is closed. */
+	public static void save(Settings value) {
+		settings = value;
+		write(file(), value);
 	}
 
 	/** Where the settings are read from. */

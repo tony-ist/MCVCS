@@ -46,7 +46,7 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
-			ClientConfig.override(new ClientConfig.Settings(0.0, ClientConfig.DEFAULT_CELL_SIZE, 40));
+			ClientConfig.override(new ClientConfig.Settings(0.0, ClientConfig.DEFAULT_CELL_SIZE, 40, true, true));
 
 			// A 3x3x3 block of stone bricks with its top corner left empty.
 			BlockPos min = playerPos(singleplayer).offset(4, 3, 4);

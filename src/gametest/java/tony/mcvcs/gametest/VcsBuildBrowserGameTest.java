@@ -82,7 +82,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 			// Held still, so the screenshots show the same side every run; the big build's 48 blocks are past the limit.
-			ClientConfig.override(new ClientConfig.Settings(0.0, ClientConfig.DEFAULT_CELL_SIZE, 40));
+			ClientConfig.override(new ClientConfig.Settings(0.0, ClientConfig.DEFAULT_CELL_SIZE, 40, true, true));
 
 			// A 3x4x3 tower of stone with a grass top, glass in the middle and leaves on top, hovering over the ground.
 			BlockPos towerMin = playerPos(singleplayer).offset(4, 3, 4);
@@ -151,12 +151,12 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 
 			// The previews turn: two frames a moment apart show them from different sides.
 			moveAway(context);
-			ClientConfig.override(new ClientConfig.Settings(90.0, ClientConfig.DEFAULT_CELL_SIZE, 40));
+			ClientConfig.override(new ClientConfig.Settings(90.0, ClientConfig.DEFAULT_CELL_SIZE, 40, true, true));
 			context.waitTicks(5);
 			context.takeScreenshot("mcvcs-builds-overlay-turning-1");
 			context.waitTicks(10);
 			context.takeScreenshot("mcvcs-builds-overlay-turning-2");
-			ClientConfig.override(new ClientConfig.Settings(0.0, ClientConfig.DEFAULT_CELL_SIZE, 40));
+			ClientConfig.override(new ClientConfig.Settings(0.0, ClientConfig.DEFAULT_CELL_SIZE, 40, true, true));
 
 			// A commit while the overlay is open shows up only once it is opened again; it has no refresh button.
 			if (context.computeOnClient(client -> headerButton(client, "Refresh")) != null) {

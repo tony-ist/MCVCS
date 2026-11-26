@@ -15,6 +15,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import tony.mcvcs.client.build.ClientPlacements;
+import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.client.preview.ClientPreview;
 import tony.mcvcs.client.preview.PreviewManager;
 import tony.mcvcs.client.resize.ClientResize;
@@ -32,6 +33,9 @@ import tony.mcvcs.build.BuildBox;
  * is how you tell which build you are standing in. A label fades in over the last few blocks of its range instead of
  * popping into view, and the selected placement's label takes the color of its box. While a version is previewed at a
  * placement, its label says so and names the version, in the green of the preview box.
+ * <p>
+ * {@link ClientConfig.Settings#showLabels} turns every one of these labels off. The ones {@code /vcs place} and
+ * {@code /vcs resize} draw over the box they are working on stay.
  */
 public final class BuildLabelRenderer {
 	/** How close the camera must be to a placement's box, in blocks, for its label to show. */
@@ -63,7 +67,7 @@ public final class BuildLabelRenderer {
 
 	private static void emit(LevelExtractionContext context) {
 		List<ClientPlacement> placements = ClientPlacements.all();
-		if (placements.isEmpty()) {
+		if (placements.isEmpty() || !ClientConfig.settings().showLabels()) {
 			return;
 		}
 
