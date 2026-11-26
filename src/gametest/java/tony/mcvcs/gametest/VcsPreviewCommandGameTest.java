@@ -39,7 +39,7 @@ public class VcsPreviewCommandGameTest extends VcsGameTest {
 	@Override
 	protected void run(ClientGameTestContext context) {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
-		resetBuilds(BUILD_NAME, FLOATING_NAME);
+		resetBuilds();
 		TestWorldSave save;
 		BlockPos floatingMin;
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {

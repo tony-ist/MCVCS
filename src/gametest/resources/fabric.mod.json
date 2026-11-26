@@ -30,7 +30,7 @@
 			"tony.mcvcs.gametest.VcsReloadGameTest",
 			"tony.mcvcs.gametest.VcsMigrationGameTest",
 			"tony.mcvcs.gametest.VcsSchematicFormatGameTest",
-			"tony.mcvcs.gametest.VcsWorldScopeGameTest",
+			"tony.mcvcs.gametest.VcsSharedBuildsGameTest",
 			"tony.mcvcs.gametest.VcsHelpCommandGameTest",
 			"tony.mcvcs.gametest.VcsVersionCheckGameTest"
 		]

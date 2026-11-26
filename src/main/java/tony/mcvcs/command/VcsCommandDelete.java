@@ -2,14 +2,18 @@ package tony.mcvcs.command;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -26,10 +30,11 @@ import tony.mcvcs.network.PreviewSender;
 
 /**
  * {@code /vcs delete <buildname> [-c]}: asks the player to confirm deleting the build; nothing is touched yet.
- * {@code /vcs confirmDelete} then removes the build's folder with every version in it and every player's selection of
- * any of its placements. The blocks of those placements are left standing in the world unless {@link #CLEAR} was
- * given, in which case every one of their boxes is emptied first. The confirmation is remembered until it is used,
- * replaced by another {@code /vcs delete}, or the player leaves.
+ * {@code /vcs confirmDelete} then removes the build's folder with every version in it, its placements in every world
+ * and every player's selection of any of them. The blocks of the placements in this world are left standing unless
+ * {@link #CLEAR} was given, in which case every one of their boxes is emptied first; the blocks in other worlds always
+ * stay, and the confirmation warns about them. The confirmation is remembered until it is used, replaced by another
+ * {@code /vcs delete}, or the player leaves.
  */
 public final class VcsCommandDelete {
 	/** Flag after {@code /vcs delete} that also empties the box of every placement of the build. */
@@ -46,11 +51,11 @@ public final class VcsCommandDelete {
 
 	static final VcsHelp HELP = new VcsHelp("delete", "/vcs delete <buildname> [" + CLEAR + "]",
 		"delete a build, once you confirm",
-		"Asks you to confirm deleting the build. Nothing is deleted until you run `/vcs confirmDelete`; the request is forgotten if you leave the server first, and a second `/vcs delete` replaces it. The blocks of its placements are left standing in the world.",
-		new VcsHelp.Key(CLEAR, "also empty the boxes of every placement of the build"));
+		"Asks you to confirm deleting the build. Nothing is deleted until you run `/vcs confirmDelete`; the request is forgotten if you leave the server first, and a second `/vcs delete` replaces it. The blocks of its placements are left standing in the world. Builds are shared by all worlds, so its placements in other worlds are removed too, but their blocks always stay there.",
+		new VcsHelp.Key(CLEAR, "also empty the boxes of every placement of the build in this world"));
 	static final VcsHelp CONFIRM_HELP = new VcsHelp("confirmDelete", "/vcs confirmDelete",
 		"delete the build your last `/vcs delete` named",
-		"Deletes the build your last `/vcs delete` named: its folder with every version in it is removed and anyone who had one of its placements selected loses that selection. This cannot be undone.");
+		"Deletes the build your last `/vcs delete` named: its folder with every version in it is removed, along with its placements in every world, and anyone who had one of its placements selected loses that selection. This cannot be undone.");
 
 	private VcsCommandDelete() {
 	}
@@ -66,16 +71,33 @@ public final class VcsCommandDelete {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<Build> build = BuildRegistry.find(source.getServer(), buildName);
 		if (build.isEmpty()) {
-			source.sendFailure(Component.literal("No build named ").append(VcsMessages.name(buildName)).append(" in this world"));
+			source.sendFailure(Component.literal("No build named ").append(VcsMessages.name(buildName)));
 			return 0;
 		}
 
 		int placements = build.get().placements().size();
+		List<String> otherWorlds = List.copyOf(build.get().placementsInOtherWorlds().keySet());
 		PENDING_DELETES.put(player.getUUID(), new Pending(build.get(), clear));
-		source.sendSuccess(() -> Component.literal("Delete build ").append(VcsMessages.name(buildName))
-			.append(clear ? ", emptying its " + placements + (placements == 1 ? " placement" : " placements") : ", leaving its placements standing as blocks")
-			.append("? This cannot be undone, all versions will be lost! Run ").append(ChatButtons.command("/vcs confirmDelete")).append(" to proceed."), false);
+		MutableComponent question = Component.literal("Delete build ").append(VcsMessages.name(buildName))
+			.append(clear ? ", emptying its " + placements + (placements == 1 ? " placement" : " placements") + (otherWorlds.isEmpty() ? "" : " in this world")
+				: ", leaving its placements standing as blocks")
+			.append("? This cannot be undone, all versions will be lost!");
+		if (!otherWorlds.isEmpty()) {
+			question.append(" ").append(Component.literal(otherWorldsWarning(otherWorlds)).withStyle(ChatFormatting.GOLD));
+		}
+		question.append(" Run ").append(ChatButtons.command("/vcs confirmDelete")).append(" to proceed.");
+		source.sendSuccess(() -> question, false);
 		return 1;
+	}
+
+	/**
+	 * What deleting a build does to its placements in {@code otherWorlds}, the worlds other than this one it is placed
+	 * in, which must not be empty: they are removed with it, but their blocks stay, since only this world is loaded.
+	 */
+	public static String otherWorldsWarning(List<String> otherWorlds) {
+		String worlds = otherWorlds.stream().map(world -> "'" + world + "'").collect(Collectors.joining(", "));
+		return "Warning: this build is shared with " + (otherWorlds.size() == 1 ? "another world, " + worlds : otherWorlds.size() + " other worlds: " + worlds)
+			+ ". Its placements there will be removed too, but their blocks will stay in " + (otherWorlds.size() == 1 ? "that world." : "those worlds.");
 	}
 
 	/** {@code /vcs confirmDelete}. */
@@ -92,7 +114,7 @@ public final class VcsCommandDelete {
 		// The build may have gone, or the player moved to another world, since they asked.
 		Optional<Build> current = BuildRegistry.find(server, build.name());
 		if (!build.isIn(server) || current.isEmpty()) {
-			source.sendFailure(Component.literal("No build named ").append(VcsMessages.name(build.name())).append(" in this world"));
+			source.sendFailure(Component.literal("No build named ").append(VcsMessages.name(build.name())));
 			return 0;
 		}
 

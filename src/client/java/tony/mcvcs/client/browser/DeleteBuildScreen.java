@@ -32,7 +32,7 @@ public final class DeleteBuildScreen extends Screen {
 	/** Labels of the window's buttons and checkbox. */
 	public static final String DELETE = "Delete";
 	public static final String CANCEL = "Cancel";
-	public static final String CLEAR = "Also delete all placed blocks";
+	public static final String CLEAR = "Also delete all placed blocks in this world";
 
 	/** How wide the window is, unless the screen is narrower. */
 	private static final int WIDTH = 240;
@@ -45,6 +45,8 @@ public final class DeleteBuildScreen extends Screen {
 
 	private static final int WHITE = 0xFFFFFFFF;
 	private static final int GREY = 0xFFA0A0A0;
+	/** The warning that the build is placed in other worlds too. */
+	private static final int GOLD = 0xFFFFAA00;
 	/** Laid over the overlay, so the window stands out from it. */
 	private static final int DIM = 0xA0000000;
 	private static final int PANEL = 0xF0101018;
@@ -72,7 +74,7 @@ public final class DeleteBuildScreen extends Screen {
 			.onValueChange((box, value) -> clear = value)
 			.build();
 		checkbox.setTooltip(Tooltip.create(Component.literal(build.placements() == 0
-			? "It is not placed anywhere, so there are no blocks to delete"
+			? "It is not placed in this world, so there are no blocks to delete"
 			: "Empties the " + (build.placements() == 1 ? "box of its placement" : "boxes of its " + build.placements() + " placements")
 				+ "; without this, their blocks stay in the world")));
 		addRenderableWidget(checkbox);
@@ -116,7 +118,23 @@ public final class DeleteBuildScreen extends Screen {
 			graphics.centeredText(font, line, width / 2, y, GREY);
 			y += font.lineHeight;
 		}
+		List<FormattedCharSequence> shared = sharedWarning(layout);
+		if (!shared.isEmpty()) {
+			y += PADDING / 2;
+			for (FormattedCharSequence line : shared) {
+				graphics.centeredText(font, line, width / 2, y, GOLD);
+				y += font.lineHeight;
+			}
+		}
 		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+	}
+
+	/** That the build's placements in other worlds go too but their blocks stay, wrapped to the window; empty if it has none there. */
+	private List<FormattedCharSequence> sharedWarning(Layout layout) {
+		if (build.otherWorlds().isEmpty()) {
+			return List.of();
+		}
+		return font.split(Component.literal(VcsCommandDelete.otherWorldsWarning(build.otherWorlds())), layout.width() - 2 * PADDING);
 	}
 
 	/** The question, wrapped to the window. */
@@ -186,7 +204,9 @@ public final class DeleteBuildScreen extends Screen {
 	private Layout layout() {
 		int panelWidth = Math.min(WIDTH, width - 2 * MARGIN);
 		Layout sized = new Layout(0, 0, panelWidth, 0, 0, 0);
-		int text = (question(sized).size() + warning(sized).size()) * font.lineHeight + PADDING / 2;
+		List<FormattedCharSequence> shared = sharedWarning(sized);
+		int text = (question(sized).size() + warning(sized).size() + shared.size()) * font.lineHeight + PADDING / 2
+			+ (shared.isEmpty() ? 0 : PADDING / 2);
 		int checkbox = Checkbox.getBoxSize(font);
 		int panelHeight = PADDING + text + PADDING + checkbox + PADDING + BUTTON_HEIGHT + PADDING;
 		int left = (width - panelWidth) / 2;

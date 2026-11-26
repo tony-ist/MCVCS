@@ -47,7 +47,7 @@ public class VcsCreateCommandGameTest extends VcsGameTest {
 	protected void run(ClientGameTestContext context) {
 		// /vcs requires op, which in singleplayer means cheats must be on.
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
-		resetBuilds(BUILD_NAME, OVERLAPPING_NAME, ADJACENT_NAME);
+		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 
@@ -105,9 +105,9 @@ public class VcsCreateCommandGameTest extends VcsGameTest {
 			// a diamond put in the box beforehand shows that nothing was rewritten.
 			setBlock(singleplayer, opposite, Blocks.DIAMOND_BLOCK.defaultBlockState());
 			List<Component> same = run(context, "vcs create " + BUILD_NAME);
-			assertOnlyMessage(same, "Build " + BUILD_NAME + " already exists in this world; select it with /vcs select " + BUILD_NAME);
+			assertOnlyMessage(same, "Build " + BUILD_NAME + " already exists; select it with /vcs select " + BUILD_NAME);
 			List<Component> otherCase = run(context, "vcs create " + BUILD_NAME.toUpperCase(Locale.ROOT));
-			assertOnlyMessage(otherCase, "Build " + BUILD_NAME + " already exists in this world");
+			assertOnlyMessage(otherCase, "Build " + BUILD_NAME + " already exists; select it with");
 			assertBlock(read(schematic(BUILD_NAME, 1)), opposite, Blocks.STONE);
 			assertNoFolderOfItsOwn(BUILD_NAME.toUpperCase(Locale.ROOT), BUILD_NAME);
 			setBlock(singleplayer, opposite, Blocks.STONE.defaultBlockState());

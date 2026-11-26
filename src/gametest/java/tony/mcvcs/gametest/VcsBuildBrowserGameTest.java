@@ -70,7 +70,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 	protected void run(ClientGameTestContext context) {
 		checkKey(context);
 
-		resetBuilds(SMALL, BIG, LONG, NEW, SHED);
+		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 			// Held still, so the screenshots show the same side every run; the big build's 48 blocks are past the limit.

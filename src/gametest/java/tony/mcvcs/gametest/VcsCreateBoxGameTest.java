@@ -60,7 +60,7 @@ public class VcsCreateBoxGameTest extends VcsGameTest {
 
 	@Override
 	protected void run(ClientGameTestContext context) {
-		resetBuilds(BOX_NAME, REVERSED_NAME, OVERLAPPING_NAME);
+		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 

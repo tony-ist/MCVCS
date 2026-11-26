@@ -70,29 +70,21 @@ final class VcsTestSupport {
 	}
 
 	/**
-	 * Removes the given build folders and every player's selection left behind by earlier runs, so a test cannot
-	 * pass on stale output. Builds and selections are stored in the game directory, not with the world, so a
-	 * fresh world alone does not clear them; each test uses names of its own and worlds get fresh save folders, so
-	 * this mostly matters when a save folder name is reused between runs.
+	 * Removes every build and every player's selection left behind by earlier tests and runs, so a test cannot pass
+	 * on stale output. Builds and selections are stored in the game directory, not with the world, and every world
+	 * sees every build, so a fresh world alone does not clear them.
 	 */
-	static void resetBuilds(String... names) {
-		try {
-			Files.deleteIfExists(BuildStorage.selectionsFile());
-		} catch (IOException e) {
-			throw new AssertionError("Failed to delete stale selections", e);
+	static void resetBuilds() {
+		Path root = BuildStorage.root();
+		if (!Files.exists(root)) {
+			return;
 		}
-		for (String name : names) {
-			Path directory = BuildStorage.directory(name);
-			if (!Files.exists(directory)) {
-				continue;
+		try (Stream<Path> files = Files.walk(root)) {
+			for (Path file : files.sorted(Comparator.reverseOrder()).toList()) {
+				Files.delete(file);
 			}
-			try (Stream<Path> files = Files.walk(directory)) {
-				for (Path file : files.sorted(Comparator.reverseOrder()).toList()) {
-					Files.delete(file);
-				}
-			} catch (IOException e) {
-				throw new AssertionError("Failed to delete stale build folder " + directory, e);
-			}
+		} catch (IOException e) {
+			throw new AssertionError("Failed to delete stale builds in " + root, e);
 		}
 	}
 

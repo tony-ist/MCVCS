@@ -105,7 +105,7 @@ public final class VcsCommandPlace {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<Build> found = BuildRegistry.find(source.getServer(), buildName);
 		if (found.isEmpty()) {
-			source.sendFailure(Component.literal("No build named ").append(VcsMessages.name(buildName)).append(" in this world; see ").append(ChatButtons.command("/vcs builds")));
+			source.sendFailure(Component.literal("No build named ").append(VcsMessages.name(buildName)).append("; see ").append(ChatButtons.command("/vcs builds")));
 			return 0;
 		}
 
@@ -163,7 +163,7 @@ public final class VcsCommandPlace {
 		Optional<Build> found = BuildRegistry.find(server, pending.build());
 		if (found.isEmpty()) {
 			drop(player);
-			source.sendFailure(Component.literal("No build named ").append(VcsMessages.name(pending.build())).append(" in this world any more"));
+			source.sendFailure(Component.literal("No build named ").append(VcsMessages.name(pending.build())).append(" any more"));
 			return 0;
 		}
 		Build build = found.get();

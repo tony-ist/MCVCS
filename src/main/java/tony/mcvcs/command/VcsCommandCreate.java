@@ -159,16 +159,16 @@ public final class VcsCommandCreate {
 			source.sendFailure(Component.literal("Build name ").append(VcsMessages.name(buildName)).append(" must start with a letter from a to z and may only contain letters, digits, _ + - and dots between them"));
 			return false;
 		}
-		// A build is created once and committed to after that; creating it again would throw its versions away. Build
-		// folders are shared by every world in the game directory, so a name can only belong to one world, and the file
-		// system may not tell two names apart by case, so neither does the check.
-		Optional<Build> taken = BuildRegistry.findInAnyWorldIgnoringCase(buildName);
+		// A build is created once and committed to after that; creating it again would throw its versions away. Builds
+		// are shared by every world in the game directory, so the name may be taken by one created in another world, and
+		// the file system may not tell two names apart by case, so neither does the check.
+		Optional<Build> taken = BuildRegistry.findIgnoringCase(source.getServer(), buildName);
 		if (taken.isPresent()) {
 			Build existing = taken.get();
-			if (existing.world().equals(Build.worldOf(source.getServer()))) {
-				source.sendFailure(Component.literal("Build ").append(VcsMessages.name(existing.name())).append(" already exists in this world; select it with ").append(ChatButtons.command("/vcs select " + existing.name())).append(", or choose another name"));
+			if (existing.placements().isEmpty()) {
+				source.sendFailure(Component.literal("Build ").append(VcsMessages.name(existing.name())).append(" already exists; place it in this world with ").append(ChatButtons.command("/vcs place " + existing.name())).append(", or choose another name"));
 			} else {
-				source.sendFailure(Component.literal("Build name ").append(VcsMessages.name(existing.name())).append(" is already used by a build in world '" + existing.world() + "'"));
+				source.sendFailure(Component.literal("Build ").append(VcsMessages.name(existing.name())).append(" already exists; select it with ").append(ChatButtons.command("/vcs select " + existing.name())).append(", or choose another name"));
 			}
 			return false;
 		}

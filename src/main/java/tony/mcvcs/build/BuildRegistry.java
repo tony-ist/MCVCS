@@ -22,8 +22,8 @@ import tony.mcvcs.network.BuildSync;
  * build in the world acts on the selected placement.
  * <p>
  * A selection is a reference by name, so a commit by one player is seen by everyone who has a placement of that
- * build selected. Builds and selections live in the {@link BuildStorage} folder, not in any world save, but each
- * records the world it belongs to and everything here is scoped to the world the server runs, see
+ * build selected. Builds and selections live in the {@link BuildStorage} folder, not in any world save. Every world
+ * sees every build, but placements and selections are scoped to the world the server runs, see
  * {@link Build#worldOf}. They are there whether or not the player's client has this mod. Only the server thread
  * touches this.
  */
@@ -32,13 +32,13 @@ public final class BuildRegistry {
 	}
 
 	/**
-	 * Makes the placement called {@code placement} of {@code build}, which must already be saved and belong to the
+	 * Makes the placement called {@code placement} of {@code build}, which must already be saved and be read for the
 	 * player's world, {@code player}'s selected placement there and tells their client, see {@link BuildSync}.
 	 */
 	public static void select(ServerPlayer player, Build build, String placement) throws IOException {
 		MinecraftServer server = player.level().getServer();
 		if (!build.isIn(server)) {
-			throw new IllegalArgumentException("Build '" + build.name() + "' belongs to world '" + build.world() + "', not '" + Build.worldOf(server) + "'");
+			throw new IllegalArgumentException("Build '" + build.name() + "' was read for world '" + build.world() + "', not '" + Build.worldOf(server) + "'");
 		}
 		if (build.placement(placement).isEmpty()) {
 			throw new IllegalArgumentException("Build '" + build.name() + "' has no placement '" + placement + "'");
@@ -60,7 +60,7 @@ public final class BuildRegistry {
 
 	/**
 	 * The placement {@code player} has selected in the world they are playing, if any; a selection whose build folder
-	 * is gone, whose placement has been unplaced or which now belongs to another world counts as none.
+	 * is gone or whose placement has been unplaced counts as none.
 	 */
 	public static Optional<BuildPlacement> selected(ServerPlayer player) {
 		String world = Build.worldOf(player.level().getServer());
@@ -87,17 +87,17 @@ public final class BuildRegistry {
 		}
 	}
 
-	/** The build whose name is {@code name} up to letter case, in whichever world it belongs to, if one exists. */
-	public static Optional<Build> findInAnyWorldIgnoringCase(String name) {
+	/** The build whose name is {@code name} up to letter case, as seen from the world {@code server} runs, if one exists. */
+	public static Optional<Build> findIgnoringCase(MinecraftServer server, String name) {
 		try {
-			return BuildStorage.findInAnyWorldIgnoringCase(name);
+			return BuildStorage.findIgnoringCase(Build.worldOf(server), name);
 		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to read build named like '{}'", name, e);
 			return Optional.empty();
 		}
 	}
 
-	/** All builds in the world {@code server} runs, sorted by name. */
+	/** All builds, as seen from the world {@code server} runs, sorted by name; some may have no placement there. */
 	public static List<Build> all(MinecraftServer server) {
 		try {
 			return BuildStorage.all(Build.worldOf(server));
@@ -116,9 +116,14 @@ public final class BuildRegistry {
 		return List.copyOf(placements);
 	}
 
-	/** Names of all builds in the world {@code server} runs, sorted. */
+	/** Names of all builds, sorted; every world sees the same ones. */
 	public static List<String> names(MinecraftServer server) {
-		return all(server).stream().map(Build::name).toList();
+		try {
+			return BuildStorage.names();
+		} catch (IOException e) {
+			MCVCS.LOGGER.error("Failed to list builds", e);
+			return List.of();
+		}
 	}
 
 	/**

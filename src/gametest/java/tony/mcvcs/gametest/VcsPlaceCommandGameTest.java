@@ -56,7 +56,7 @@ public class VcsPlaceCommandGameTest extends VcsGameTest {
 	@Override
 	protected void run(ClientGameTestContext context) {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
-		resetBuilds(BUILD_NAME);
+		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 
@@ -75,7 +75,7 @@ public class VcsPlaceCommandGameTest extends VcsGameTest {
 			read(schematic(BUILD_NAME, 1));
 
 			// A build that does not exist is refused before anything is pasted.
-			assertOnlyMessage(run(context, "vcs place gametest-place-missing"), "No build named gametest-place-missing in this world");
+			assertOnlyMessage(run(context, "vcs place gametest-place-missing"), "No build named gametest-place-missing; see /vcs builds");
 			// So is a version the build does not have.
 			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME + " 2"), "Build " + BUILD_NAME + " only has versions 1 to 1");
 			// And so is a placement name that does not start with a letter from a to z.

@@ -37,7 +37,7 @@ public class VcsBuildLabelGameTest extends VcsGameTest {
 	@Override
 	protected void run(ClientGameTestContext context) {
 		// Before the world exists: the player is told the builds on join, so they must be gone by then.
-		resetBuilds(NEAR, FAR);
+		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 

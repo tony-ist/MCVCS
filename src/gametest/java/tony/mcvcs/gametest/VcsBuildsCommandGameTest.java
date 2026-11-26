@@ -48,13 +48,13 @@ public class VcsBuildsCommandGameTest extends VcsGameTest {
 	@Override
 	protected void run(ClientGameTestContext context) {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
-		resetBuilds(FIRST, SECOND);
+		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 
 			// Nothing to list yet.
 			List<Component> empty = listBuilds(context);
-			if (empty.size() != 1 || !empty.get(0).getString().startsWith("No builds in this world")) {
+			if (empty.size() != 1 || !empty.get(0).getString().startsWith("No builds yet")) {
 				throw new AssertionError("Expected only a 'No builds' message but got " + strings(empty));
 			}
 
@@ -80,7 +80,7 @@ public class VcsBuildsCommandGameTest extends VcsGameTest {
 			if (listed.size() != 5) {
 				throw new AssertionError("Expected a header, two builds and their placements but got " + strings(listed));
 			}
-			if (!listed.get(0).getString().equals("2 builds in this world:")) {
+			if (!listed.get(0).getString().equals("2 builds:")) {
 				throw new AssertionError("Unexpected header '" + listed.get(0).getString() + "'");
 			}
 			assertBuildLine(listed.get(1), FIRST);

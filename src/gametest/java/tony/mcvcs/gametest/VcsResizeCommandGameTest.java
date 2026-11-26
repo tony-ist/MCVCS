@@ -53,7 +53,7 @@ public class VcsResizeCommandGameTest extends VcsGameTest {
 
 	@Override
 	protected void run(ClientGameTestContext context) {
-		resetBuilds(BUILD_NAME, NEIGHBOUR_NAME);
+		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 			// Spectating, the player stays where they are put and the wheel has nothing else to do.

@@ -60,7 +60,7 @@ public class VcsReloadGameTest extends VcsGameTest {
 		BlockPos gold;
 
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
-		resetBuilds(BUILD_NAME, OTHER);
+		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 			save = singleplayer.getWorldSave();
@@ -95,7 +95,7 @@ public class VcsReloadGameTest extends VcsGameTest {
 		try (TestSingleplayerContext reopened = save.open()) {
 			reopened.getClientLevel().waitForChunksRender();
 
-			// The server knows both builds again, and only those: other tests' builds belong to other worlds. It
+			// The server knows both builds again, and only those: other tests' builds were cleared before this one. It
 			// also remembers which one the player had selected.
 			List<String> names = reopened.getServer().computeOnServer(server -> BuildRegistry.names(server));
 			if (!names.equals(List.of(BUILD_NAME, OTHER))) {
@@ -140,9 +140,13 @@ public class VcsReloadGameTest extends VcsGameTest {
 		// placement lays it at the world position that corner had when the build was created.
 		BlockPos extent = max.subtract(min);
 		JsonObject versions = build.getAsJsonObject("versions");
-		JsonObject placement = build.getAsJsonObject("placements").getAsJsonObject(Build.MAIN);
+		// Placements are kept by world, since every world shares the build; there is no world field of its own.
+		JsonObject byWorld = build.getAsJsonObject("placements");
+		JsonObject placement = byWorld.getAsJsonObject(world) == null ? null : byWorld.getAsJsonObject(world).getAsJsonObject(Build.MAIN);
 		if (!build.get("name").getAsString().equals(name)
-			|| !build.get("world").getAsString().equals(world)
+			|| build.has("world")
+			|| byWorld.size() != 1
+			|| placement == null
 			|| build.get("version").getAsInt() != version
 			|| versions.size() != version
 			|| !blockPos(versions.getAsJsonObject(String.valueOf(version)).get("min")).equals(BlockPos.ZERO)

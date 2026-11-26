@@ -55,7 +55,7 @@ public class VcsDeleteCommandGameTest extends VcsGameTest {
 	@Override
 	protected void run(ClientGameTestContext context) {
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
-		resetBuilds(BUILD_NAME);
+		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 

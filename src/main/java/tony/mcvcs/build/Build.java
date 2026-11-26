@@ -17,8 +17,14 @@ import net.minecraft.util.ExtraCodecs;
 import net.minecraft.world.level.storage.LevelResource;
 
 /**
- * A build under version control: the name it was created with, the world it belongs to, the extent of every version
- * saved for it and the placements of it standing in that world.
+ * A build under version control, as seen from one world: the name it was created with, the extent of every version
+ * saved for it and the placements of it standing in each world.
+ * <p>
+ * A build is shared by every world in the game directory: its versions and tags are the same everywhere, and a commit
+ * from any world saves the build's next version. Placements belong to the world they stand in, see
+ * {@link #placementsByWorld}. {@link #world} is the world this copy is read for, and {@link #placements()} and
+ * everything built on it only ever see that world's placements; the other worlds' are carried along untouched so the
+ * build can be written back whole.
  * <p>
  * Versions are shared by every placement: a commit from any of them saves the build's next version, and any of them
  * can then check that version out. What differs between placements is where they stand and which version they hold,
@@ -26,19 +32,19 @@ import net.minecraft.world.level.storage.LevelResource;
  * <p>
  * Geometry is kept in <em>build space</em>, the build's own coordinates, in which version 1's minimum corner is
  * {@code (0, 0, 0)}: {@link #versions} holds each version's extent there, and a placement turns build space into
- * world positions with its {@link Placement#origin}. Nothing here references a world, so it can all be stored on
- * disk by {@link BuildStorage} next to the schematics.
+ * world positions with its {@link Placement#origin}. It can all be stored on disk by {@link BuildStorage} next to the
+ * schematics.
  *
- * @param name       build name as given to {@code /vcs create}
- * @param world      the save the build belongs to, see {@link #worldOf}
- * @param version    last saved version, starting at 1 for the schematic {@code /vcs create} writes
- * @param versions   the extent of every version from 1 to {@link #version}, in build space
- * @param placements every placement of the build standing in the world, by name; may be empty once they have all
- *                   been {@code /vcs unplace}d, which leaves the versions on disk
- * @param tags       the version each tag names, by tag, e.g. {@code 2.0.0 -> 2}; a version may have any number of tags
- *                   but a tag names only one version, see {@link #TAG}
+ * @param name              build name as given to {@code /vcs create}
+ * @param world             the world this copy of the build is read for, see {@link #worldOf}; not stored
+ * @param version           last saved version, starting at 1 for the schematic {@code /vcs create} writes
+ * @param versions          the extent of every version from 1 to {@link #version}, in build space
+ * @param placementsByWorld every placement of the build, by world and then by name; a world with none is left out.
+ *                          A world whose save folder was renamed or deleted keeps its entry, which no world reads
+ * @param tags              the version each tag names, by tag, e.g. {@code 2.0.0 -> 2}; a version may have any number of
+ *                          tags but a tag names only one version, see {@link #TAG}
  */
-public record Build(String name, String world, int version, Map<Integer, BuildBox> versions, Map<String, Placement> placements, Map<String, Integer> tags) {
+public record Build(String name, String world, int version, Map<Integer, BuildBox> versions, Map<String, Map<String, Placement>> placementsByWorld, Map<String, Integer> tags) {
 	/**
 	 * What a build or placement name may look like. The build name becomes the build's folder on disk, so this is
 	 * the set of characters a command word may contain minus anything that could name another folder: no {@code .}
@@ -68,21 +74,32 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 			return DataResult.error(() -> "Version '" + key + "' is not a number");
 		}
 	}, String::valueOf);
-	public static final Codec<Build> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-		Codec.STRING.fieldOf("name").forGetter(Build::name),
-		Codec.STRING.fieldOf("world").forGetter(Build::world),
-		ExtraCodecs.POSITIVE_INT.fieldOf("version").forGetter(Build::version),
-		Codec.unboundedMap(VERSION_KEY, BuildBox.CODEC).fieldOf("versions").forGetter(Build::versions),
-		Codec.unboundedMap(Codec.STRING, Placement.CODEC).fieldOf("placements").forGetter(Build::placements),
-		// Optional so that build.json written before tags existed still loads.
-		Codec.unboundedMap(Codec.STRING, ExtraCodecs.POSITIVE_INT).optionalFieldOf("tags", Map.of()).forGetter(Build::tags)
-	).apply(instance, Build::new));
+	/**
+	 * How {@code build.json} holds a build, read as seen from {@code world}. The world is not written: the file is the
+	 * same whichever world writes it, with every world's placements under {@code placements}, by world.
+	 */
+	public static Codec<Build> codec(String world) {
+		return RecordCodecBuilder.create(instance -> instance.group(
+			Codec.STRING.fieldOf("name").forGetter(Build::name),
+			ExtraCodecs.POSITIVE_INT.fieldOf("version").forGetter(Build::version),
+			Codec.unboundedMap(VERSION_KEY, BuildBox.CODEC).fieldOf("versions").forGetter(Build::versions),
+			Codec.unboundedMap(Codec.STRING, Codec.unboundedMap(Codec.STRING, Placement.CODEC)).fieldOf("placements").forGetter(Build::placementsByWorld),
+			// Optional so that build.json written before tags existed still loads.
+			Codec.unboundedMap(Codec.STRING, ExtraCodecs.POSITIVE_INT).optionalFieldOf("tags", Map.of()).forGetter(Build::tags)
+		).apply(instance, (name, version, versions, placements, tags) -> new Build(name, world, version, versions, placements, tags)));
+	}
 
 	public Build {
 		// Sorted so that build.json reads in order, however the maps were put together; an immutable copy that keeps
 		// that order, which Map.copyOf does not promise.
 		versions = sorted(versions);
-		placements = sorted(placements);
+		Map<String, Map<String, Placement>> byWorld = new LinkedHashMap<>();
+		placementsByWorld.forEach((key, inWorld) -> {
+			if (!inWorld.isEmpty()) {
+				byWorld.put(key, sorted(inWorld));
+			}
+		});
+		placementsByWorld = sorted(byWorld);
 		tags = sorted(tags);
 		for (int v = 1; v <= version; v++) {
 			if (!versions.containsKey(v)) {
@@ -92,13 +109,15 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 		if (versions.size() != version) {
 			throw new IllegalArgumentException("Build '" + name + "' has versions 1 to " + version + " but extents for " + versions.keySet());
 		}
-		for (Map.Entry<String, Placement> placement : placements.entrySet()) {
-			if (!isValidName(placement.getKey())) {
-				throw new IllegalArgumentException("Invalid placement name '" + placement.getKey() + "' in build '" + name + "'");
-			}
-			if (placement.getValue().head() > version) {
-				throw new IllegalArgumentException("Placement '" + placement.getKey() + "' cannot hold v" + placement.getValue().head()
-					+ " when build '" + name + "' only has versions 1 to " + version);
+		for (Map<String, Placement> inWorld : placementsByWorld.values()) {
+			for (Map.Entry<String, Placement> placement : inWorld.entrySet()) {
+				if (!isValidName(placement.getKey())) {
+					throw new IllegalArgumentException("Invalid placement name '" + placement.getKey() + "' in build '" + name + "'");
+				}
+				if (placement.getValue().head() > version) {
+					throw new IllegalArgumentException("Placement '" + placement.getKey() + "' cannot hold v" + placement.getValue().head()
+						+ " when build '" + name + "' only has versions 1 to " + version);
+				}
 			}
 		}
 		for (Map.Entry<String, Integer> tag : tags.entrySet()) {
@@ -112,9 +131,9 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 		}
 	}
 
-	/** A build with no tags yet, as {@code /vcs create} makes one. */
+	/** A build with no tags yet and placements in {@code world} alone, as {@code /vcs create} makes one. */
 	public Build(String name, String world, int version, Map<Integer, BuildBox> versions, Map<String, Placement> placements) {
-		this(name, world, version, versions, placements, Map.of());
+		this(name, world, version, versions, Map.of(world, placements), Map.of());
 	}
 
 	/** An unmodifiable copy of {@code map} in the order of its keys, so the JSON written from it is stable. */
@@ -153,9 +172,32 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 		return server.getWorldPath(LevelResource.ROOT).toAbsolutePath().normalize().getFileName().toString();
 	}
 
-	/** Whether the build belongs to the world {@code server} runs. */
+	/** Whether this copy of the build is read for the world {@code server} runs. */
 	public boolean isIn(MinecraftServer server) {
 		return world.equals(worldOf(server));
+	}
+
+	/** Every placement of the build standing in {@link #world}, by name; empty if it has none there. */
+	public Map<String, Placement> placements() {
+		return placementsByWorld.getOrDefault(world, Map.of());
+	}
+
+	/** How many placements the build has in each world other than {@link #world}, by world name, sorted; empty if none. */
+	public Map<String, Integer> placementsInOtherWorlds() {
+		Map<String, Integer> counts = new LinkedHashMap<>();
+		placementsByWorld.forEach((key, inWorld) -> {
+			if (!key.equals(world)) {
+				counts.put(key, inWorld.size());
+			}
+		});
+		return Collections.unmodifiableMap(counts);
+	}
+
+	/** The build with {@code placements} as every placement it has in {@link #world}; the other worlds' stay as they are. */
+	private Build withPlacements(Map<String, Placement> placements) {
+		Map<String, Map<String, Placement>> updated = new LinkedHashMap<>(placementsByWorld);
+		updated.put(world, placements);
+		return new Build(name, world, version, versions, updated, tags);
 	}
 
 	/** The extent of {@code version} in build space, which every placement lays at its own origin. */
@@ -179,12 +221,12 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 
 	/** The placement called {@code name}, if the build has one. */
 	public Optional<Placement> placement(String name) {
-		return Optional.ofNullable(placements.get(name));
+		return Optional.ofNullable(placements().get(name));
 	}
 
 	/** Every placement's name, sorted. */
 	public List<String> placementNames() {
-		return List.copyOf(placements.keySet());
+		return List.copyOf(placements().keySet());
 	}
 
 	/**
@@ -192,17 +234,17 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 	 * has one, otherwise the first by name; empty only while the build has no placement at all.
 	 */
 	public Optional<String> defaultPlacementName() {
-		if (placements.containsKey(MAIN)) {
+		if (placements().containsKey(MAIN)) {
 			return Optional.of(MAIN);
 		}
-		return placements.keySet().stream().findFirst();
+		return placements().keySet().stream().findFirst();
 	}
 
 	/** A placement name this build has no placement under: {@link #PLACEMENT_PREFIX} and the lowest free number from 2 up. */
 	public String freePlacementName() {
 		for (int n = 2; ; n++) {
 			String candidate = PLACEMENT_PREFIX + n;
-			if (!placements.containsKey(candidate)) {
+			if (!placements().containsKey(candidate)) {
 				return candidate;
 			}
 		}
@@ -210,16 +252,16 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 
 	/** The build with {@code placement} under {@code name}, replacing any placement of that name. */
 	public Build withPlacement(String name, Placement placement) {
-		Map<String, Placement> updated = new LinkedHashMap<>(placements);
+		Map<String, Placement> updated = new LinkedHashMap<>(placements());
 		updated.put(name, placement);
-		return new Build(this.name, world, version, versions, updated, tags);
+		return withPlacements(updated);
 	}
 
 	/** The build without the placement called {@code name}, as {@code /vcs unplace} leaves it. */
 	public Build withoutPlacement(String name) {
-		Map<String, Placement> updated = new LinkedHashMap<>(placements);
+		Map<String, Placement> updated = new LinkedHashMap<>(placements());
 		updated.remove(name);
-		return new Build(this.name, world, version, versions, updated, tags);
+		return withPlacements(updated);
 	}
 
 	/**
@@ -230,7 +272,7 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 	public Build withNextVersion(BuildBox extent) {
 		Map<Integer, BuildBox> updated = new TreeMap<>(versions);
 		updated.put(version + 1, extent);
-		return new Build(name, world, version + 1, updated, placements, tags);
+		return new Build(name, world, version + 1, updated, placementsByWorld, tags);
 	}
 
 	/** The version {@code tag} names, if it names one. */
@@ -253,13 +295,13 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 	public Build withTag(String tag, int version) {
 		Map<String, Integer> updated = new LinkedHashMap<>(tags);
 		updated.put(tag, version);
-		return new Build(name, world, this.version, versions, placements, updated);
+		return new Build(name, world, this.version, versions, placementsByWorld, updated);
 	}
 
 	/** The build without {@code tag}; the version it named keeps its other tags. */
 	public Build withoutTag(String tag) {
 		Map<String, Integer> updated = new LinkedHashMap<>(tags);
 		updated.remove(tag);
-		return new Build(name, world, version, versions, placements, updated);
+		return new Build(name, world, version, versions, placementsByWorld, updated);
 	}
 }

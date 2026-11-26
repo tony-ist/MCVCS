@@ -52,13 +52,13 @@ public final class VcsCommandSelect {
 		PendingClick.disarm(player);
 		Optional<Build> found = BuildRegistry.find(source.getServer(), buildName);
 		if (found.isEmpty()) {
-			source.sendFailure(Component.literal("No build named ").append(VcsMessages.name(buildName)).append(" in this world; create it with ").append(ChatButtons.command("/vcs create " + buildName)));
+			source.sendFailure(Component.literal("No build named ").append(VcsMessages.name(buildName)).append("; create it with ").append(ChatButtons.command("/vcs create " + buildName)));
 			return 0;
 		}
 
 		Build build = found.get();
 		if (build.placements().isEmpty()) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" is not placed anywhere; run ").append(ChatButtons.command("/vcs place " + buildName)).append(" to put it in the world"));
+			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" is not placed in this world; run ").append(ChatButtons.command("/vcs place " + buildName)).append(" to put it in the world"));
 			return 0;
 		}
 		if (build.placements().size() > 1) {
@@ -77,7 +77,7 @@ public final class VcsCommandSelect {
 		PendingClick.disarm(player);
 		Optional<Build> build = BuildRegistry.find(source.getServer(), buildName);
 		if (build.isEmpty()) {
-			source.sendFailure(Component.literal("No build named ").append(VcsMessages.name(buildName)).append(" in this world; create it with ").append(ChatButtons.command("/vcs create " + buildName)));
+			source.sendFailure(Component.literal("No build named ").append(VcsMessages.name(buildName)).append("; create it with ").append(ChatButtons.command("/vcs create " + buildName)));
 			return 0;
 		}
 		Optional<BuildPlacement> placement = BuildPlacement.of(build.get(), placementName);

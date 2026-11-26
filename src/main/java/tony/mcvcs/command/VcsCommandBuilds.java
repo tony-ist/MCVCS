@@ -29,8 +29,8 @@ public final class VcsCommandBuilds {
 	public static final String TP_BUTTON = "Tp";
 
 	static final VcsHelp HELP = new VcsHelp("builds", "/vcs builds",
-		"list the builds in this world",
-		"Lists every build in this world with its latest version, then each of its placements with the version it holds and its size. Each placement has a [Select] button that selects it, or a [selected] marker if it already is, and a [Tp] button that teleports you onto it.");
+		"list all builds and their placements in this world",
+		"Lists every build with its latest version, then each of its placements in this world with the version it holds and its size. Each placement has a [Select] button that selects it, or a [selected] marker if it already is, and a [Tp] button that teleports you onto it.");
 
 	private VcsCommandBuilds() {
 	}
@@ -39,12 +39,12 @@ public final class VcsCommandBuilds {
 		ServerPlayer player = source.getPlayerOrException();
 		List<Build> builds = BuildRegistry.all(source.getServer());
 		if (builds.isEmpty()) {
-			source.sendFailure(Component.literal("No builds in this world; create one with ").append(ChatButtons.template("/vcs create <buildname>")));
+			source.sendFailure(Component.literal("No builds yet; create one with ").append(ChatButtons.template("/vcs create <buildname>")));
 			return 0;
 		}
 
 		String selected = BuildRegistry.selected(player).map(BuildPlacement::label).orElse(null);
-		source.sendSuccess(() -> Component.literal(builds.size() + (builds.size() == 1 ? " build" : " builds") + " in this world:"), false);
+		source.sendSuccess(() -> Component.literal(builds.size() + (builds.size() == 1 ? " build" : " builds") + ":"), false);
 		int placements = 0;
 		for (Build build : builds) {
 			source.sendSuccess(() -> buildLine(build), false);
@@ -59,7 +59,7 @@ public final class VcsCommandBuilds {
 	/** The heading of one build: its name and how many versions it has, with the latest one's tags. */
 	private static MutableComponent buildLine(Build build) {
 		return Component.literal("- ").append(VcsMessages.name(build.name())).append(" " + build.versionLabel(build.version())
-			+ (build.placements().isEmpty() ? ", not placed anywhere" : ""));
+			+ (build.placements().isEmpty() ? ", not placed in this world" : ""));
 	}
 
 	/**

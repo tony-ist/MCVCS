@@ -140,7 +140,7 @@ public final class VcsCommandUnplace {
 
 		try {
 			BuildStorage.update(placement.build().withoutPlacement(placement.name()));
-			BuildStorage.clearSelectionsOf(placement.build().name(), placement.name());
+			BuildStorage.clearSelectionsOf(placement.build().world(), placement.build().name(), placement.name());
 		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to unplace '{}' for {}", placement.label(), player.getGameProfile().name(), e);
 			source.sendFailure(Component.literal("Failed to remove placement: " + e.getMessage()));

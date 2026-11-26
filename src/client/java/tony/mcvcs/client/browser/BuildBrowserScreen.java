@@ -232,7 +232,7 @@ public final class BuildBrowserScreen extends Screen {
 			case DENIED -> graphics.centeredText(font, "You need operator permission (cheats) to browse builds", width / 2, height / 2, RED);
 			case LOADED -> {
 				if (BuildBrowser.builds().isEmpty()) {
-					graphics.centeredText(font, "No builds in this world yet; run /vcs create <buildname> to start one", width / 2, height / 2, GREY);
+					graphics.centeredText(font, "No builds yet; run /vcs create <buildname> to start one", width / 2, height / 2, GREY);
 				} else {
 					grid(graphics, mouseX, mouseY, partialTick);
 				}

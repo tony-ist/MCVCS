@@ -38,11 +38,11 @@ import org.jspecify.annotations.Nullable;
  * mcvcs/
  *   selections.json          which placement each player has selected in each world, by world then player UUID
  *   &lt;buildname&gt;/
- *     build.json             the {@link Build}: its world, every version's extent and every placement of it
+ *     build.json             the {@link Build}: every version's extent and every placement of it, by world
  *     &lt;buildname&gt;-v1.schem, &lt;buildname&gt;-v2.schem ... one schematic per version * </pre>
  * Every build has a folder of its own, and each schematic is a Sponge schematic, see {@link SpongeSchematic}. The folder
- * is shared by every world in the game directory, so each build records the world it belongs to and lookups
- * filter on it; a name can only be taken by one world at a time. Nothing is cached: each call reads or writes
+ * is shared by every world in the game directory, and so is every build in it: each world sees every build, but only
+ * its own placements of them, see {@link Build#world}. Nothing is cached: each call reads or writes
  * the files, so the folder is the single source of truth and can be edited or copied between game directories
  * while the server is down.
  * <p>
@@ -103,16 +103,13 @@ public final class BuildStorage {
 		return root().resolve(SELECTIONS_FILE);
 	}
 
-	/** Every build belonging to {@code world} that has a folder with a {@link #BUILD_FILE} in it, sorted by name. */
+	/** Every build that has a folder with a {@link #BUILD_FILE} in it, as seen from {@code world}, sorted by name. */
 	public static List<Build> all(String world) throws IOException {
-		List<Build> inWorld = new ArrayList<>();
+		List<Build> builds = new ArrayList<>();
 		for (String name : folderNames()) {
-			Build build = readBuild(name);
-			if (build.world().equals(world)) {
-				inWorld.add(build);
-			}
+			builds.add(readBuild(world, name));
 		}
-		return List.copyOf(inWorld);
+		return List.copyOf(builds);
 	}
 
 	/** The names of every build folder under {@link #ROOT} that has a {@link #BUILD_FILE} in it, sorted. */
@@ -130,45 +127,40 @@ public final class BuildStorage {
 		}
 	}
 
-	/** Names of every build belonging to {@code world} that has a folder with a {@link #BUILD_FILE} in it, sorted. */
-	public static List<String> names(String world) throws IOException {
-		return all(world).stream().map(Build::name).toList();
+	/** Names of every build that has a folder with a {@link #BUILD_FILE} in it, sorted. */
+	public static List<String> names() throws IOException {
+		return folderNames();
 	}
 
-	/** The build called {@code name} in whichever world it belongs to, if it has a folder with a {@link #BUILD_FILE} in it. */
-	public static Optional<Build> findInAnyWorld(String name) throws IOException {
+	/** The build called {@code name} as seen from {@code world}, if it has a folder with a {@link #BUILD_FILE} in it. */
+	public static Optional<Build> find(String world, String name) throws IOException {
 		if (!Build.isValidName(name)) {
 			return Optional.empty();
 		}
 		if (!Files.isRegularFile(buildFile(name))) {
 			return Optional.empty();
 		}
-		return Optional.of(readBuild(name));
+		return Optional.of(readBuild(world, name));
 	}
 
 	/**
-	 * The build whose name is {@code name} up to letter case, in whichever world it belongs to, if it has a folder with
-	 * a {@link #BUILD_FILE} in it. Build folders sit on file systems that may or may not tell {@code Foo} from
+	 * The build whose name is {@code name} up to letter case, as seen from {@code world}, if it has a folder with a
+	 * {@link #BUILD_FILE} in it. Build folders sit on file systems that may or may not tell {@code Foo} from
 	 * {@code foo}, so a new name must differ from every existing one by more than case.
 	 */
-	public static Optional<Build> findInAnyWorldIgnoringCase(String name) throws IOException {
+	public static Optional<Build> findIgnoringCase(String world, String name) throws IOException {
 		for (String existing : folderNames()) {
 			if (existing.equalsIgnoreCase(name)) {
-				return Optional.of(readBuild(existing));
+				return Optional.of(readBuild(world, existing));
 			}
 		}
 		return Optional.empty();
 	}
 
-	/** The build called {@code name}, if it exists and belongs to {@code world}. */
-	public static Optional<Build> find(String world, String name) throws IOException {
-		return findInAnyWorld(name).filter(build -> build.world().equals(world));
-	}
-
-	/** The build called {@code name}, reading its {@link #BUILD_FILE}. */
-	private static Build readBuild(String name) throws IOException {
+	/** The build called {@code name} as seen from {@code world}, reading its {@link #BUILD_FILE}. */
+	private static Build readBuild(String world, String name) throws IOException {
 		Path file = buildFile(name);
-		return parse(file, Build.CODEC, readJson(file));
+		return parse(file, Build.codec(world), readJson(file));
 	}
 
 	/**
@@ -184,7 +176,7 @@ public final class BuildStorage {
 		try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(file))) {
 			SpongeSchematic.write(schematic, out);
 		}
-		writeJson(buildFile(build.name()), Build.CODEC, build);
+		writeJson(buildFile(build.name()), Build.codec(build.world()), build);
 		return file;
 	}
 
@@ -198,7 +190,7 @@ public final class BuildStorage {
 		if (!Files.isRegularFile(file)) {
 			throw new NoSuchFileException(file.toString());
 		}
-		writeJson(file, Build.CODEC, build);
+		writeJson(file, Build.codec(build.world()), build);
 	}
 
 	/**
@@ -215,7 +207,7 @@ public final class BuildStorage {
 				}
 			}
 		}
-		clearSelectionsOf(name, null);
+		clearSelectionsOf(name);
 	}
 
 	/**
@@ -278,17 +270,29 @@ public final class BuildStorage {
 		writeJson(selectionsFile(), SELECTIONS_CODEC, selections);
 	}
 
+	/** Forgets every player's selection of the placement called {@code placement} of the build called {@code name} in {@code world}. */
+	public static void clearSelectionsOf(String world, String name, String placement) throws IOException {
+		clearSelections(world, name, placement);
+	}
+
+	/** Forgets every player's selection of any placement of the build called {@code name} in every world. */
+	public static void clearSelectionsOf(String name) throws IOException {
+		clearSelections(null, name, null);
+	}
+
 	/**
-	 * Forgets every player's selection of the build called {@code name} in every world, or only of its placement
-	 * called {@code placement} when one is given, leaving every other selection alone.
+	 * Forgets every player's selection of the build called {@code name}, only in {@code onlyWorld} and only of its
+	 * placement called {@code placement} when those are given, leaving every other selection alone.
 	 */
-	public static void clearSelectionsOf(String name, @Nullable String placement) throws IOException {
+	private static void clearSelections(@Nullable String onlyWorld, String name, @Nullable String placement) throws IOException {
 		Map<String, Map<UUID, Selection>> selections = new HashMap<>();
 		boolean changed = false;
 		for (Map.Entry<String, Map<UUID, Selection>> world : selections().entrySet()) {
 			Map<UUID, Selection> inWorld = new HashMap<>(world.getValue());
-			changed |= inWorld.values().removeIf(selection -> selection.build().equals(name)
-				&& (placement == null || selection.placement().equals(placement)));
+			if (onlyWorld == null || world.getKey().equals(onlyWorld)) {
+				changed |= inWorld.values().removeIf(selection -> selection.build().equals(name)
+					&& (placement == null || selection.placement().equals(placement)));
+			}
 			if (!inWorld.isEmpty()) {
 				selections.put(world.getKey(), inWorld);
 			}

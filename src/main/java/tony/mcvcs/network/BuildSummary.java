@@ -13,22 +13,26 @@ import tony.mcvcs.build.BuildBox;
  * What the builds overlay shows of one build before its previews have arrived: its name and every committed version
  * with that version's tags and extent in build space, whose volume decides whether its preview is downloaded straight
  * away. Of its placements only their number is sent, which decides whether the overlay offers to select the build and
- * teleport to it: the preview is about the build's versions, not where they stand.
+ * teleport to it: the preview is about the build's versions, not where they stand. The other worlds it is placed in
+ * are named, so deleting it can warn that their placements go too.
  *
- * @param name       the build's name
- * @param versions   every version from 1 up, oldest first; never empty
- * @param placements how many placements the build has
+ * @param name        the build's name
+ * @param versions    every version from 1 up, oldest first; never empty
+ * @param placements  how many placements the build has in this world
+ * @param otherWorlds every other world the build has a placement in, sorted
  */
-public record BuildSummary(String name, List<Version> versions, int placements) {
+public record BuildSummary(String name, List<Version> versions, int placements, List<String> otherWorlds) {
 	public static final StreamCodec<ByteBuf, BuildSummary> STREAM_CODEC = StreamCodec.composite(
 		ByteBufCodecs.STRING_UTF8, BuildSummary::name,
 		Version.STREAM_CODEC.apply(ByteBufCodecs.list()), BuildSummary::versions,
 		ByteBufCodecs.VAR_INT, BuildSummary::placements,
+		ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list()), BuildSummary::otherWorlds,
 		BuildSummary::new
 	);
 
 	public BuildSummary {
 		versions = List.copyOf(versions);
+		otherWorlds = List.copyOf(otherWorlds);
 		if (versions.isEmpty()) {
 			throw new IllegalArgumentException("Build '" + name + "' has no versions");
 		}
@@ -39,7 +43,7 @@ public record BuildSummary(String name, List<Version> versions, int placements) 
 		List<Version> versions = build.versionNumbers().stream()
 			.map(version -> new Version(version, build.tagsOf(version), build.extent(version)))
 			.toList();
-		return new BuildSummary(build.name(), versions, build.placements().size());
+		return new BuildSummary(build.name(), versions, build.placements().size(), List.copyOf(build.placementsInOtherWorlds().keySet()));
 	}
 
 	/** The newest committed version. */

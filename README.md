@@ -28,6 +28,8 @@ The client-side mod improves experience a lot. It shows bounding boxes with labe
 
 A **build** is your creation with all its saved versions. A **placement** is a copy of a build standing in the world; a build can have several. Most commands act on your **selected** placement.
 
+Builds are shared by all single player worlds of one Minecraft instance: a build created in one world can be placed and committed to from any other. Placements belong to the world they stand in.
+
 ### Builds
 
 - `/vcs create <buildname> [placementname] [-b]`\
@@ -36,10 +38,10 @@ A **build** is your creation with all its saved versions. A **placement** is a c
 - `/vcs cancelCreate`\
   Stops waiting for the punch; no build is created.
 - `/vcs builds`\
-  Lists all builds and their placements, with buttons to select or teleport to each one.
+  Lists all builds and their placements in this world, with buttons to select or teleport to each one.
 - `/vcs delete <buildname> [-c]`\
-  Deletes a build with all its versions, after you confirm with `/vcs confirmDelete`. Its blocks stay in the world.
-  - `-c`: also clears the blocks of all its placements.
+  Deletes a build with all its versions and its placements in every world, after you confirm with `/vcs confirmDelete`. Its blocks stay in the world. If the build is placed in other worlds, you are warned; its blocks there always stay.
+  - `-c`: also clears the blocks of all its placements in this world.
 - `/vcs confirmDelete`\
   Confirms the deletion. This cannot be undone.
 
@@ -139,7 +141,7 @@ The file is read again every time you join a world or server, so an edit takes h
 ## How it works
 
 - Schematics are written in Sponge v3 format, which WorldEdit and other tools can load, to the mod's own `mcvcs/` folder in the game directory (next to `config/`, `saves/` and so on). Only blocks and block entities are saved, not entities or biomes. Each build has a folder named after it holding one file per version: `mcvcs/<buildname>/<buildname>-v1.schem`, `mcvcs/<buildname>/<buildname>-v2.schem`.
-- `build.json` contains information about bounding box for each version, and origin point for placements.
+- `build.json` contains information about bounding box for each version, and origin point for placements, grouped by world. A world is identified by its save folder name, so renaming the folder leaves its placements behind.
 - Bottom north-west corner of the version 1 of the build is its bounding box's `[0, 0, 0]` coordinate, that is stored in `build.json`.
 - Origin of the placement is coordinates of a point in the world which corresponds to `[0, 0, 0]` point of the build's version. For example, `main` placement with version 2 from example below will have origin `[100, 64, -30]` in the world. This origin will correspond to `[0, 0, 0]` point of version 2's bounding box.
 - After checkout of any version, we move `head` pointer to that version. So now other commands like `diff` work against this version. Head is also used to warn you before checkouts that you have uncommited changes.
@@ -161,15 +163,19 @@ Example `build.json`:
 ```json
 {
   "name": "tower",
-  "world": "New World",
   "version": 2,
   "versions": {
     "1": {"min": [0, 0, 0], "max": [7, 12, 7]},
     "2": {"min": [-1, 0, -1], "max": [8, 15, 8]}
   },
   "placements": {
-    "main":    {"dimension": "minecraft:overworld", "origin": [100, 64, -30], "head": 2},
-    "testrig": {"dimension": "minecraft:overworld", "origin": [400, 70, 0], "head": 1}
+    "New World": {
+      "main":    {"dimension": "minecraft:overworld", "origin": [100, 64, -30], "head": 2},
+      "testrig": {"dimension": "minecraft:overworld", "origin": [400, 70, 0], "head": 1}
+    },
+    "Creative test": {
+      "main":    {"dimension": "minecraft:overworld", "origin": [0, 100, 0], "head": 1}
+    }
   },
   "tags": {
     "1.0.0": 1,
@@ -197,14 +203,13 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
-- Improve UI Overlay to include versions and placements
-- Make builds shared between multiple single player worlds
-- Make movement of preview during placement more intuitive, maybe only move in direction you look, not using the plane.
-- When placing a build through overlay allow people to choose version to place instead of defaulting to latest one
+- Checkout from overlay with versions preview
+- Renaming of builds: command and ovelay button
 
+- Make movement of preview during placement more intuitive, maybe only move in direction you look, not using the plane.
 - /vcs tag latest 1.0.0 should be possible and autocomplete latest. /vcs tag 1.0.0 should tag head by default
 - Aliases for commands to type them faster
-- Command /vcs move initiates moving preview for current placement allowing to change its position with numpad keys and press 5 moves it physically in the world
+- New command /vcs move initiates moving preview for current placement allowing to change its position with numpad keys and press 5 moves it physically in the world
 - Add hotkeys to select next and previous version preview (could be made obsolete by UI Overlay)
 - Big diffs lag client too much (see it on mcinmc/p2)
 - Make diffs more visible. Right now they intersect into clutter. 

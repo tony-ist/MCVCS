@@ -15,7 +15,8 @@ import tony.mcvcs.build.BuildStorage;
 public final class Migrations {
 	/** Every migration, oldest first. */
 	private static final List<Migration> ALL = List.of(
-		new SchematicFileNameMigration()
+		new SchematicFileNameMigration(),
+		new SharedBuildsMigration()
 	);
 
 	private Migrations() {

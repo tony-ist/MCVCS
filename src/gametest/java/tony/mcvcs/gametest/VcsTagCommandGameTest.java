@@ -45,7 +45,7 @@ public class VcsTagCommandGameTest extends VcsGameTest {
 
 	@Override
 	protected void run(ClientGameTestContext context) {
-		resetBuilds(BUILD_NAME);
+		resetBuilds();
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 

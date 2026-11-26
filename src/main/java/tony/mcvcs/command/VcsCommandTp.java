@@ -36,7 +36,7 @@ public final class VcsCommandTp {
 		}
 		Optional<String> placement = build.get().defaultPlacementName();
 		if (placement.isEmpty()) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" is not placed anywhere; run ")
+			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" is not placed in this world; run ")
 				.append(ChatButtons.command("/vcs place " + buildName)).append(" to put it in the world"));
 			return 0;
 		}
@@ -74,7 +74,7 @@ public final class VcsCommandTp {
 	private static Optional<Build> find(CommandSourceStack source, String buildName) {
 		Optional<Build> build = BuildRegistry.find(source.getServer(), buildName);
 		if (build.isEmpty()) {
-			source.sendFailure(Component.literal("No build named ").append(VcsMessages.name(buildName)).append(" in this world; see ").append(ChatButtons.command("/vcs builds")));
+			source.sendFailure(Component.literal("No build named ").append(VcsMessages.name(buildName)).append("; see ").append(ChatButtons.command("/vcs builds")));
 		}
 		return build;
 	}
