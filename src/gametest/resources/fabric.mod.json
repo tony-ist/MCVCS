@@ -14,6 +14,7 @@
 			"tony.mcvcs.gametest.VcsPreviewCommandGameTest",
 			"tony.mcvcs.gametest.VcsDiffCommandGameTest",
 			"tony.mcvcs.gametest.VcsFitCommandGameTest",
+			"tony.mcvcs.gametest.VcsResizeCommandGameTest",
 			"tony.mcvcs.gametest.VcsCheckoutCommandGameTest",
 			"tony.mcvcs.gametest.VcsSelectionBoxGameTest",
 			"tony.mcvcs.gametest.VcsBuildLabelGameTest",

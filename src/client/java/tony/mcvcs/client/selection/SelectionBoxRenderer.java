@@ -9,6 +9,7 @@ import net.minecraft.world.phys.AABB;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.preview.ClientPreview;
 import tony.mcvcs.client.preview.PreviewManager;
+import tony.mcvcs.client.resize.ClientResize;
 import tony.mcvcs.build.ClientPlacement;
 import tony.mcvcs.build.BuildBox;
 
@@ -42,6 +43,11 @@ public final class SelectionBoxRenderer {
 	private static void emit(LevelExtractionContext context) {
 		ClientPlacement placement = ClientPlacements.selected();
 		if (placement == null || !placement.dimension().equals(context.level().dimension())) {
+			return;
+		}
+		// The box being resized is drawn by ResizeRenderer, where the player has dragged it.
+		ClientResize.Resize resize = ClientResize.active();
+		if (resize != null && resize.label().equals(placement.label())) {
 			return;
 		}
 

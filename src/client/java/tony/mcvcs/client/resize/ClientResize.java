@@ -1,0 +1,213 @@
+package tony.mcvcs.client.resize;
+
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+
+import tony.mcvcs.build.BoxExpansion;
+import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.ClientPlacement;
+import tony.mcvcs.client.build.ClientPlacements;
+import tony.mcvcs.client.place.PlacePreviewKeys;
+import tony.mcvcs.network.ResizeBeginPayload;
+import tony.mcvcs.network.ResizeClearPayload;
+import tony.mcvcs.network.ResizeMovePayload;
+import org.jspecify.annotations.Nullable;
+
+/**
+ * The box a {@code /vcs resize} is showing, and the mouse wheel that drags its faces. The wheel and Numpad 5 are the
+ * keys of {@link PlacePreviewKeys}, which hand them over here while no {@code /vcs place} copy is shown.
+ * <p>
+ * With {@link PlacePreviewKeys#SCROLL} held, a notch up pushes the face the player looks at away from them and a notch
+ * down pulls it closer, one block each. From outside the box that face is the one in sight, or the nearest one when
+ * none is; from inside it is the one ahead of them, so pushing it away grows the box. A box is never thinner than one
+ * block. Every change is sent to the server, which checks the box when it is confirmed.
+ * <p>
+ * The box overlapping another placement, or going past {@link BoxExpansion#MAX_VOLUME}, is worked out here as well,
+ * so it is drawn red and said on the action bar while the player drags, see {@link #reason()}.
+ */
+public final class ClientResize {
+	/** What Numpad 5 says instead of confirming when the box would be refused; the reason follows. */
+	public static final String REFUSED = "Cannot resize - ";
+	private static final String CONFIRM_COMMAND = "vcs confirmResize";
+	private static final Direction[] FACES = Direction.values();
+
+	/**
+	 * @param label     the placement being resized, e.g. {@code tower/main}
+	 * @param dimension where it stands
+	 * @param box       the box as the player has dragged it so far
+	 */
+	public record Resize(String label, ResourceKey<Level> dimension, BuildBox box) {
+	}
+
+	private static volatile @Nullable Resize state;
+
+	private ClientResize() {
+	}
+
+	public static void register() {
+		ClientPlayNetworking.registerGlobalReceiver(ResizeBeginPayload.TYPE, (payload, context) -> {
+			state = new Resize(payload.label(), payload.dimension(), payload.box());
+			announce(context.client());
+		});
+		ClientPlayNetworking.registerGlobalReceiver(ResizeClearPayload.TYPE, (payload, context) -> state = null);
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> state = null);
+	}
+
+	/** The resize going on, or null when there is none. */
+	public static @Nullable Resize active() {
+		return state;
+	}
+
+	/** The resize going on in the dimension the player is in, which is the only one they can see or drag. */
+	private static @Nullable Resize here(Minecraft client) {
+		Resize resize = state;
+		LocalPlayer player = client.player;
+		return resize == null || player == null || !resize.dimension().equals(player.level().dimension()) ? null : resize;
+	}
+
+	/**
+	 * A notch of the mouse wheel with {@link PlacePreviewKeys#SCROLL} held and no screen open; answers whether it was
+	 * taken, which it is whenever a resize is going on here.
+	 */
+	public static boolean scrolled(Minecraft client, double amount) {
+		Resize resize = here(client);
+		if (resize == null) {
+			return false;
+		}
+
+		Target target = target(client, resize.box());
+		Direction direction = amount > 0.0 ? target.away() : target.away().getOpposite();
+		BlockPos min = resize.box().min();
+		BlockPos max = resize.box().max();
+		if (target.face().getAxisDirection() == Direction.AxisDirection.POSITIVE) {
+			max = max.relative(direction);
+		} else {
+			min = min.relative(direction);
+		}
+		if (min.getX() > max.getX() || min.getY() > max.getY() || min.getZ() > max.getZ()) {
+			client.player.sendOverlayMessage(Component.literal("The box cannot be thinner than one block").withStyle(ChatFormatting.RED));
+			return true;
+		}
+
+		BuildBox box = new BuildBox(min, max);
+		state = new Resize(resize.label(), resize.dimension(), box);
+		ClientPlayNetworking.send(new ResizeMovePayload(box));
+		announce(client);
+		return true;
+	}
+
+	/** Numpad 5: commits the box, or says why it would be refused instead of running a command bound to fail. */
+	public static void confirm(Minecraft client) {
+		LocalPlayer player = client.player;
+		if (state == null || player == null) {
+			return;
+		}
+		String reason = reason();
+		if (reason != null) {
+			player.sendOverlayMessage(Component.literal(REFUSED + reason).withStyle(ChatFormatting.RED));
+			return;
+		}
+		player.connection.sendCommand(CONFIRM_COMMAND);
+	}
+
+	/**
+	 * Why {@code /vcs confirmResize} would refuse the box as it stands, in a few words, or null when it would not:
+	 * it overlaps another placement, or it is too big.
+	 */
+	public static @Nullable String reason() {
+		Resize resize = state;
+		if (resize == null) {
+			return null;
+		}
+		for (ClientPlacement placement : ClientPlacements.all()) {
+			if (!placement.label().equals(resize.label()) && placement.dimension().equals(resize.dimension()) && placement.box().intersects(resize.box())) {
+				return "overlaps " + placement.label();
+			}
+		}
+		if (resize.box().volume() > BoxExpansion.MAX_VOLUME) {
+			return "over the limit of " + BoxExpansion.MAX_VOLUME + " blocks";
+		}
+		return null;
+	}
+
+	/** Puts the box's size on the action bar, or in red why it would be refused. */
+	private static void announce(Minecraft client) {
+		Resize resize = state;
+		LocalPlayer player = client.player;
+		if (resize == null || player == null) {
+			return;
+		}
+		String reason = reason();
+		BuildBox box = resize.box();
+		player.sendOverlayMessage(reason != null
+			? Component.literal(reason).withStyle(ChatFormatting.RED)
+			: Component.literal(box.sizeX() + "x" + box.sizeY() + "x" + box.sizeZ() + " (" + box.volume() + " blocks)"));
+	}
+
+	/**
+	 * The face the wheel drags, and the way that is away from the player.
+	 *
+	 * @param face the face of the box that moves
+	 * @param away the way a notch up moves it: into the box when seen from outside, out of it when seen from inside
+	 */
+	public record Target(Direction face, Direction away) {
+	}
+
+	/** What the wheel would drag for the player as they look now, or null when no resize is going on here. */
+	public static @Nullable Target target(Minecraft client) {
+		Resize resize = here(client);
+		return resize == null ? null : target(client, resize.box());
+	}
+
+	private static Target target(Minecraft client, BuildBox box) {
+		AABB aabb = PlacePreviewKeys.aabb(box);
+		Vec3 eye = client.player.getEyePosition();
+		Vec3 look = client.player.getViewVector(1.0f);
+		if (aabb.contains(eye)) {
+			Direction ahead = exitFace(aabb, eye, look);
+			return new Target(ahead, ahead);
+		}
+		Direction face = PlacePreviewKeys.faceLookedAt(aabb, eye, look, FACES);
+		if (face == null) {
+			face = PlacePreviewKeys.nearestFace(aabb, eye, look, FACES);
+		}
+		// The face in sight looks back at the player, so away from them is the other way.
+		return new Target(face, face.getOpposite());
+	}
+
+	/** The face a ray from {@code eye}, inside {@code aabb}, leaves the box through. */
+	private static Direction exitFace(AABB aabb, Vec3 eye, Vec3 look) {
+		Direction exit = Direction.UP;
+		double nearest = Double.POSITIVE_INFINITY;
+		for (Direction face : FACES) {
+			double along = face.getStepX() * look.x + face.getStepY() * look.y + face.getStepZ() * look.z;
+			if (along <= 0.0) {
+				continue;
+			}
+			double distance = switch (face) {
+				case NORTH -> eye.z - aabb.minZ;
+				case SOUTH -> aabb.maxZ - eye.z;
+				case WEST -> eye.x - aabb.minX;
+				case EAST -> aabb.maxX - eye.x;
+				case DOWN -> eye.y - aabb.minY;
+				case UP -> aabb.maxY - eye.y;
+			};
+			double t = distance / along;
+			if (t < nearest) {
+				exit = face;
+				nearest = t;
+			}
+		}
+		return exit;
+	}
+}

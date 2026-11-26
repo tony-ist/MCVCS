@@ -37,6 +37,7 @@ import tony.mcvcs.build.Placement;
  * <li>{@code /vcs preview <version | tag | off>}: {@link VcsCommandPreview}</li>
  * <li>{@code /vcs diff [version | tag | off]}: {@link VcsCommandDiff}</li>
  * <li>{@code /vcs fit}: {@link VcsCommandFit}</li>
+ * <li>{@code /vcs resize}, {@code /vcs confirmResize} and {@code /vcs cancelResize}: {@link VcsCommandResize}</li>
  * <li>{@code /vcs checkout <version | tag | latest> [-f]}: {@link VcsCommandCheckout}</li>
  * <li>{@code /vcs delete <buildname> [-c]} and {@code /vcs confirmDelete}: {@link VcsCommandDelete}</li>
  * <li>{@code /vcs tp [buildname [placementname]]}: {@link VcsCommandTp}</li>
@@ -65,6 +66,7 @@ public final class VcsCommand {
 		VcsCommandDelete.register();
 		VcsCommandUnplace.register();
 		VcsCommandPlace.register();
+		VcsCommandResize.register();
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
 			dispatcher.register(Commands.literal("vcs")
 				.requires(Commands.hasPermission(PERMISSION))
@@ -143,6 +145,12 @@ public final class VcsCommand {
 						.executes(context -> VcsCommandDiff.run(context.getSource(), VersionRef.of(context)))))
 				.then(sub(VcsCommandFit.HELP)
 					.executes(context -> VcsCommandFit.run(context.getSource())))
+				.then(sub(VcsCommandResize.HELP)
+					.executes(context -> VcsCommandResize.run(context.getSource())))
+				.then(sub(VcsCommandResize.CONFIRM_HELP)
+					.executes(context -> VcsCommandResize.confirm(context.getSource())))
+				.then(sub(VcsCommandResize.CANCEL_HELP)
+					.executes(context -> VcsCommandResize.cancel(context.getSource())))
 				.then(sub(VcsCommandCheckout.HELP)
 					.then(Commands.literal("latest")
 						.executes(context -> VcsCommandCheckout.run(context.getSource(), LATEST, false))

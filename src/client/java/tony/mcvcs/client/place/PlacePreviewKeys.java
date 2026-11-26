@@ -20,6 +20,7 @@ import org.lwjgl.glfw.GLFW;
 import tony.mcvcs.client.place.PlacePreviewStatus.Status;
 import tony.mcvcs.client.preview.PlacePreview;
 import tony.mcvcs.client.preview.PreviewManager;
+import tony.mcvcs.client.resize.ClientResize;
 import tony.mcvcs.client.selection.SelectHotkey;
 import tony.mcvcs.network.PlacePreviewMovePayload;
 import tony.mcvcs.build.BuildBox;
@@ -45,6 +46,9 @@ import org.jspecify.annotations.Nullable;
  * nearest the player, and from inside the box by the way they look. The
  * wheel is taken over only while that key is held and a copy is being shown, so it goes on changing the held item
  * every other time, see {@code MouseHandlerMixin}.
+ * <p>
+ * While no copy is shown, the wheel and {@code 5} drag and commit the box of a {@code /vcs resize} instead, see
+ * {@link ClientResize}.
  * <p>
  * Each press, and each notch of the wheel, moves one block. The client draws the copy in its new place at once and
  * tells the server where it went, see {@link PlacePreviewMovePayload}; nothing is put into the world until the
@@ -137,8 +141,12 @@ public final class PlacePreviewKeys {
 	 * shown with no screen open.
 	 */
 	public static boolean scrolled(Minecraft client, double amount) {
-		if (amount == 0.0 || client.screen != null || !SCROLL.isDown() || PreviewManager.place() == null) {
+		if (amount == 0.0 || client.screen != null || !SCROLL.isDown()) {
 			return false;
+		}
+		// With no copy shown the wheel drags the box a /vcs resize is showing, if any.
+		if (PreviewManager.place() == null) {
+			return ClientResize.scrolled(client, amount);
 		}
 
 		Direction face = facing(client, FACES);
@@ -157,7 +165,12 @@ public final class PlacePreviewKeys {
 	private static void confirm(Minecraft client) {
 		PlacePreview preview = PreviewManager.place();
 		LocalPlayer player = client.player;
-		if (preview == null || player == null) {
+		if (preview == null) {
+			// With no copy shown, 5 commits the box a /vcs resize is showing, if any.
+			ClientResize.confirm(client);
+			return;
+		}
+		if (player == null) {
 			return;
 		}
 

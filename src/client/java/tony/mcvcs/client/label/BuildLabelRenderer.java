@@ -17,6 +17,7 @@ import net.minecraft.world.phys.Vec3;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.preview.ClientPreview;
 import tony.mcvcs.client.preview.PreviewManager;
+import tony.mcvcs.client.resize.ClientResize;
 import tony.mcvcs.client.selection.SelectionBoxRenderer;
 import tony.mcvcs.build.ClientPlacement;
 import tony.mcvcs.build.BuildBox;
@@ -73,8 +74,10 @@ public final class BuildLabelRenderer {
 		// The text hangs down from its position, so the position is lifted by the text's own height to keep the gap.
 		double lift = GAP + Minecraft.getInstance().font.lineHeight * SCALE / 16.0;
 
+		ClientResize.Resize resize = ClientResize.active();
 		for (ClientPlacement placement : placements) {
-			if (!placement.dimension().equals(dimension)) {
+			// The placement being resized is labelled by ResizeRenderer, above the box as dragged.
+			if (!placement.dimension().equals(dimension) || resize != null && resize.label().equals(placement.label())) {
 				continue;
 			}
 			float opacity = opacity(placement.box(), camera);

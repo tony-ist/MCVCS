@@ -90,6 +90,10 @@ A **build** is your creation with all its saved versions. A **placement** is a c
 
 - `/vcs fit`\
   Resizes the selected placement's box to fit the build inside it and saves it as a new version. Use it after you build past the box's edges or clear part of it.
+- `/vcs resize`\
+  Resizes the selected placement's box by hand. Hold `Left Alt` and scroll to drag the face you look at, then press numpad `5` or run `/vcs confirmResize` to save it as a new version. The box turns red if it overlaps another placement. Needs the mod on your client.
+- `/vcs cancelResize`\
+  Stops resizing and leaves the box as it was.
 
 ### Help
 
@@ -106,7 +110,7 @@ With the mod on your client, pressing `V` **selects** the placement under your c
 
 Pressing `B` opens the **builds overlay**, and pressing it again closes it.
 
-Holding left alt and scrolling mouse wheel **moves** the `/vcs place` preview around.
+Holding left alt and scrolling mouse wheel **moves** the `/vcs place` preview around, or **drags** a face of the `/vcs resize` box.
 
 Every key can be **rebound** like any other under Options, Controls, Key Binds, in the MCVCS category.
 
