@@ -30,8 +30,9 @@ A **build** is your creation with all its saved versions. A **placement** is a c
 
 ### Builds
 
-- `/vcs create <buildname> [placementname]`\
+- `/vcs create <buildname> [placementname] [-b]`\
   Creates a new build and its main placement from a group of blocks you punch. When you punch a block, the selection grows until there is only air around it, and this bounding box becomes your build v1. Keep your build hovering in the air so it doesn't grow into the ground.
+  - `-b`: punch two opposite corners instead; the box between them becomes the build.
 - `/vcs builds`\
   Lists all builds and their placements, with buttons to select or teleport to each one.
 - `/vcs delete <buildname> [-c]`\

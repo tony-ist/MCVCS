@@ -8,6 +8,7 @@
 		"fabric-client-gametest": [
 			"tony.mcvcs.gametest.VcsCreateCommandGameTest",
 			"tony.mcvcs.gametest.VcsCreateOnClickGameTest",
+			"tony.mcvcs.gametest.VcsCreateBoxGameTest",
 			"tony.mcvcs.gametest.VcsCommitCommandGameTest",
 			"tony.mcvcs.gametest.VcsTagCommandGameTest",
 			"tony.mcvcs.gametest.VcsPreviewCommandGameTest",

@@ -2,7 +2,10 @@ package tony.mcvcs.command;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+
+import org.jspecify.annotations.Nullable;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.Event;
@@ -25,7 +28,8 @@ import tony.mcvcs.MCVCS;
 import tony.mcvcs.network.PendingClickPayload;
 
 /**
- * The block a command asks the player to click. {@code /vcs create} grows a build from it, and {@code /vcs select}
+ * The block a command asks the player to click. {@code /vcs create} grows a build from it, or with {@code -b} takes it
+ * and the block clicked after it as the corners of the build's box, and {@code /vcs select}
  * takes the placement it belongs to; either way the command {@linkplain #arm arms} the player and their next punch of
  * a block, with anything or nothing in hand, or right-click of one with an empty main hand, hands the block over. The
  * click does nothing else: the block is neither broken nor used, and Fabric has the server tell the client so, in case
@@ -95,10 +99,18 @@ public final class PendingClick {
 	 * {@code hint} on their action bar until then.
 	 */
 	public static void arm(ServerPlayer player, Component hint, Action action) {
+		arm(player, hint, null, action);
+	}
+
+	/**
+	 * As {@link #arm(ServerPlayer, Component, Action)}, for a click that picks the second corner of a box whose first
+	 * corner is {@code corner}, so the client outlines the box from it to the block in sight; null for a lone block.
+	 */
+	public static void arm(ServerPlayer player, Component hint, @Nullable BlockPos corner, Action action) {
 		PENDING.put(player.getUUID(), new Pending(hint, action));
 		player.sendOverlayMessage(hint);
 		if (ServerPlayNetworking.canSend(player, PendingClickPayload.TYPE)) {
-			ServerPlayNetworking.send(player, new PendingClickPayload(true));
+			ServerPlayNetworking.send(player, new PendingClickPayload(true, Optional.ofNullable(corner)));
 		}
 	}
 
@@ -113,7 +125,7 @@ public final class PendingClick {
 	private static void ended(ServerPlayer player) {
 		player.sendOverlayMessage(Component.empty());
 		if (ServerPlayNetworking.canSend(player, PendingClickPayload.TYPE)) {
-			ServerPlayNetworking.send(player, new PendingClickPayload(false));
+			ServerPlayNetworking.send(player, new PendingClickPayload(false, Optional.empty()));
 		}
 	}
 

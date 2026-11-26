@@ -23,8 +23,9 @@ import tony.mcvcs.build.Placement;
 import tony.mcvcs.network.ChatButtons;
 
 /**
- * {@code /vcs create <buildname> [placementname]}: turns the block the player clicks next, and everything connected
- * to it, into a build and saves it as version 1, see {@link PendingClick}; the click leaves the block alone. The name
+ * {@code /vcs create <buildname> [placementname] [-b]}: turns the block the player clicks next, and everything connected
+ * to it, into a build and saves it as version 1, see {@link PendingClick}; the click leaves the block alone. With
+ * {@code -b} the player clicks two opposite corners instead, and the box between them is the build. The name
  * may not be that of any existing build in any world, ignoring case, and the box may not overlap any placement of any
  * build.
  * <p>
@@ -33,9 +34,12 @@ import tony.mcvcs.network.ChatButtons;
  * build's other placements, made later by {@code /vcs place}, measure from the same build space.
  */
 public final class VcsCommandCreate {
-	static final VcsHelp HELP = new VcsHelp("create", "/vcs create <buildname> [placementname]",
+	/** Flag that makes the build the box between two punched corners instead of what is connected to one block. */
+	static final String BOX = "-b";
+	static final VcsHelp HELP = new VcsHelp("create", "/vcs create <buildname> [placementname] [-b]",
 		"start a build from the block you punch",
-		"Starts a build called <buildname> and saves it as version 1. Punch any block of the build: the selection grows over everything connected to that block, so it should hover in the air, touching nothing that is not part of it.");
+		"Starts a build called <buildname> and saves it as version 1. Punch any block of the build: the selection grows over everything connected to that block, so it should hover in the air, touching nothing that is not part of it.",
+		new VcsHelp.Key(BOX, "punch two opposite corners instead; the box between them becomes the build"));
 
 	private VcsCommandCreate() {
 	}
@@ -51,6 +55,44 @@ public final class VcsCommandCreate {
 		source.sendSuccess(() -> Component.literal("Punch a block of the build, or right-click it with an empty hand, to create build ")
 			.append(VcsMessages.name(buildName)).append(" from it and everything connected to it"), false);
 		return 1;
+	}
+
+	/**
+	 * {@code /vcs create <buildname> [placementname] -b}: creates the build from the box between the next two blocks
+	 * the player clicks, see {@link PendingClick}, replacing whatever an earlier command left waiting for a click.
+	 */
+	static int runBox(CommandSourceStack source, String buildName, String placementName) throws CommandSyntaxException {
+		ServerPlayer player = source.getPlayerOrException();
+		PendingClick.disarm(player);
+		if (!isNameFree(source, buildName) || !isPlacementNameValid(source, placementName)) {
+			return 0;
+		}
+		PendingClick.arm(player, Component.literal("Punch the first corner of ").append(VcsMessages.name(buildName)),
+			(clicker, level, first) -> armSecondCorner(clicker, level, buildName, placementName, first));
+		source.sendSuccess(() -> Component.literal("Punch two opposite corners, or right-click them with an empty hand, to create build ")
+			.append(VcsMessages.name(buildName)).append(" from the box between them"), false);
+		return 1;
+	}
+
+	/** Waits for the second corner of the box whose first corner the player clicked at {@code first} in {@code firstLevel}. */
+	private static void armSecondCorner(ServerPlayer player, ServerLevel firstLevel, String buildName, String placementName, BlockPos first) {
+		PendingClick.arm(player, Component.literal("Punch the second corner of ").append(VcsMessages.name(buildName)), first, (clicker, level, second) -> {
+			CommandSourceStack source = clicker.createCommandSourceStack();
+			if (level != firstLevel) {
+				source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" was not created: its corners are in different dimensions"));
+				return;
+			}
+			BuildBox box = new BuildBox(first, first).union(new BuildBox(second, second));
+			if (box.volume() > BoxExpansion.MAX_VOLUME) {
+				source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" was not created: its box of " + box.volume()
+					+ " blocks is over the limit of " + BoxExpansion.MAX_VOLUME + " blocks"));
+				return;
+			}
+			// Checked again, since another player may have used the name while the corners were waited for.
+			if (isNameFree(source, buildName)) {
+				create(source, clicker, buildName, placementName, level, box);
+			}
+		});
 	}
 
 	/**
