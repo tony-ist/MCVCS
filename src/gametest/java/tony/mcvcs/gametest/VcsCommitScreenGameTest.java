@@ -35,7 +35,7 @@ import tony.mcvcs.network.CommitPreviewPayload;
  * The builds overlay's Commit button, left of Checkout, opens a window previewing the selected placement as it would
  * be committed: with nothing changed it says so and greys out Commit and Show modified blocks; with a block added,
  * one removed and one changed it counts each and marks them in the preview; Show modified blocks runs
- * {@code /vcs diff}; Commit with a tag typed commits the placement as the next version with that tag.
+ * {@code /vcs diff}; the overlay's Diff button, left of Commit, counts the changes and toggles their highlighting; Commit with a tag typed commits the placement as the next version with that tag.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsCommitScreenGameTest extends VcsGameTest {
@@ -81,6 +81,26 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 			setBlock(singleplayer, max, Blocks.STONE_BRICKS.defaultBlockState());
 			setBlock(singleplayer, min.offset(2, 2, 0), Blocks.AIR.defaultBlockState());
 			setBlock(singleplayer, min.offset(0, 2, 2), Blocks.COBBLESTONE.defaultBlockState());
+
+			// The Diff button, left of Commit, counts them and toggles their highlighting in the world.
+			context.getInput().pressKey(BuildBrowserKey.KEY);
+			context.waitForScreen(BuildBrowserScreen.class);
+			context.waitFor(client -> headerButton(client, BuildBrowserScreen.DIFF + " (3)") != null);
+			context.runOnClient(client -> {
+				Button diff = headerButton(client, BuildBrowserScreen.DIFF + " (3)");
+				if (!diff.active || diff.getRight() > headerButton(client, BuildBrowserScreen.COMMIT).getX()) {
+					throw new AssertionError("Expected Diff (3) pressable and left of Commit");
+				}
+			});
+			clickHeader(context, BuildBrowserScreen.DIFF + " (3)");
+			context.waitFor(client -> DiffManager.active() != null && headerButton(client, BuildBrowserScreen.HIDE_DIFF) != null);
+			context.waitTicks(2);
+			context.takeScreenshot("mcvcs-browser-hide-diff");
+			clickHeader(context, BuildBrowserScreen.HIDE_DIFF);
+			context.waitFor(client -> DiffManager.active() == null && headerButton(client, BuildBrowserScreen.DIFF + " (3)") != null);
+			context.getInput().pressKey(BuildBrowserKey.KEY);
+			context.waitFor(client -> client.screen == null);
+
 			openCommit(context);
 			waitForSummary(context);
 			context.runOnClient(client -> {
@@ -168,6 +188,11 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 		return client.screen instanceof BuildBrowserScreen screen ? screen.children().stream()
 			.filter(child -> child instanceof Button found && found.getMessage().getString().equals(label))
 			.map(Button.class::cast).findFirst().orElse(null) : null;
+	}
+
+	private static void clickHeader(ClientGameTestContext context, String label) {
+		Button button = context.computeOnClient(client -> headerButton(client, label));
+		clickAt(context, button.getX() + button.getWidth() / 2.0, button.getY() + button.getHeight() / 2.0);
 	}
 
 	private static void clickWidget(ClientGameTestContext context, String label) {

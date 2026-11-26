@@ -24,6 +24,8 @@ import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LeavesBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import org.lwjgl.glfw.GLFW;
 
 import tony.mcvcs.build.Build;
@@ -87,7 +89,9 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			BlockPos towerMax = towerMin.offset(2, 3, 2);
 			fillBox(singleplayer, towerMin, towerMax, Blocks.STONE_BRICKS.defaultBlockState(), towerMin, Blocks.STONE_BRICKS.defaultBlockState());
 			fillBox(singleplayer, towerMin.above(), towerMax.below(2), Blocks.GLASS.defaultBlockState(), towerMin.above(), Blocks.GLASS.defaultBlockState());
-			fillBox(singleplayer, towerMin.above(3), towerMax, Blocks.OAK_LEAVES.defaultBlockState(), towerMin.above(3), Blocks.GRASS_BLOCK.defaultBlockState());
+			// Persistent, or with no log near they decay at random during the test.
+			BlockState leaves = Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true);
+			fillBox(singleplayer, towerMin.above(3), towerMax, leaves, towerMin.above(3), Blocks.GRASS_BLOCK.defaultBlockState());
 			create(context, singleplayer, SMALL, towerMin, towerMax);
 			read(schematic(SMALL, 1));
 

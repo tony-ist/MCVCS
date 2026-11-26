@@ -26,9 +26,11 @@ import org.jspecify.annotations.Nullable;
 import tony.mcvcs.build.ClientPlacement;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.config.ClientConfig;
+import tony.mcvcs.client.diff.DiffManager;
 import tony.mcvcs.client.preview.PreviewManager;
 import tony.mcvcs.client.selection.PendingClickHighlight;
 import tony.mcvcs.network.BuildSummary;
+import tony.mcvcs.network.PlacementStatusPayload;
 
 /**
  * The builds overlay: every build in the world in a grid, each cell showing the newest committed version of its build
@@ -46,8 +48,10 @@ import tony.mcvcs.network.BuildSummary;
  * outside its buttons, which downloads the preview. The {@code Create} button in the top right corner starts a new build, see
  * {@link CreateBuildScreen}; while that build waits for its punch, it reads {@code Cancel creation} and cancels it.
  * {@code Checkout} left of it checks out a version into the selected placement, see {@link CheckoutScreen}, and
- * {@code Commit} left of that previews and commits it, see {@link CommitScreen}. While a {@code /vcs place} copy is
- * being lined up, a {@code Cancel place} button left of those runs {@code /vcs cancelPlace}.
+ * {@code Commit} left of that previews and commits it, see {@link CommitScreen}. {@code Diff} left of that shows how
+ * many blocks of the selected placement changed since the version it holds and runs {@code /vcs diff} to highlight
+ * them in the world; while they are highlighted it reads {@code Hide diff} and runs {@code /vcs diff off}. While a
+ * {@code /vcs place} copy is being lined up, a {@code Cancel place} button left of those runs {@code /vcs cancelPlace}.
  * <p>
  * The list is asked for when the overlay opens, and not otherwise, see
  * {@link BuildBrowser}. How big the cells are and how fast they turn come from {@link ClientConfig}. The game keeps
@@ -83,7 +87,13 @@ public final class BuildBrowserScreen extends Screen {
 	public static final String CHECKOUT = "Checkout";
 	/** Label of the header button left of {@link #CHECKOUT}, which previews and commits the selected placement, see {@link CommitScreen}. */
 	public static final String COMMIT = "Commit";
-	/** Label of the header button, left of {@link #COMMIT}, shown only while a {@code /vcs place} copy is being lined up. */
+	/**
+	 * Label of the header button left of {@link #COMMIT}, followed by how many blocks of the selected placement changed,
+	 * which runs {@code /vcs diff}; while a diff is highlighted it reads {@link #HIDE_DIFF} and runs {@code /vcs diff off}.
+	 */
+	public static final String DIFF = "Diff";
+	public static final String HIDE_DIFF = "Hide diff";
+	/** Label of the header button, left of {@link #DIFF}, shown only while a {@code /vcs place} copy is being lined up. */
 	public static final String CANCEL_PLACE = "Cancel place";
 	/** Labels of the buttons a hovered cell shows. */
 	public static final String SELECT = "Select";
@@ -120,6 +130,12 @@ public final class BuildBrowserScreen extends Screen {
 	/** The placement the checkout button's tooltip was last made for. */
 	private @Nullable ClientPlacement checkoutFor;
 	private boolean checkoutTooltipSet;
+	/** The header's diff button, which toggles the highlighting of what changed in the selected placement. */
+	private @Nullable Button diff;
+	/** The placement whose modified blocks were last asked for, or null to ask again. */
+	private @Nullable ClientPlacement statusFor;
+	/** The diff button's tooltip as last set. */
+	private @Nullable String diffTooltip;
 	/** The header's cancel place button, visible only while a {@code /vcs place} copy is being lined up. */
 	private @Nullable Button cancelPlace;
 	/** The build whose cell the buttons are on, or null while no cell is hovered and they are hidden. */
@@ -143,6 +159,8 @@ public final class BuildBrowserScreen extends Screen {
 
 	@Override
 	public void added() {
+		// The blocks may have changed since the overlay was last open.
+		statusFor = null;
 		if (!listed) {
 			listed = true;
 			BuildBrowser.refresh();
@@ -170,11 +188,17 @@ public final class BuildBrowserScreen extends Screen {
 			.build());
 		checkoutTooltipSet = false;
 		updateCheckout();
+		// Placed by updateDiff, since its width follows its label.
+		diff = addRenderableWidget(Button.builder(Component.literal(DIFF), button -> toggleDiff())
+			.bounds(commitLeft, 6, 0, 20)
+			.build());
+		diffTooltip = null;
 		int cancelPlaceWidth = font.width(CANCEL_PLACE) + BUTTON_PADDING;
 		cancelPlace = addRenderableWidget(Button.builder(Component.literal(CANCEL_PLACE), button -> sendCommand("vcs cancelPlace"))
-			.bounds(commitLeft - 4 - cancelPlaceWidth, 6, cancelPlaceWidth, 20)
+			.bounds(commitLeft, 6, cancelPlaceWidth, 20)
 			.tooltip(Tooltip.create(Component.literal("Drop the copy being placed")))
 			.build());
+		updateDiff();
 		updateCancelPlace();
 		// Clickable but not drawn with the other widgets: they go over the previews, so the grid draws them after its cells.
 		for (Button button : buttons()) {
@@ -254,6 +278,72 @@ public final class BuildBrowserScreen extends Screen {
 		}
 	}
 
+	/**
+	 * Labels the diff button {@link #HIDE_DIFF} while a diff is highlighted, and otherwise with how many blocks of the
+	 * selected placement changed since the version it holds, asking the server again whenever the selection changes; it
+	 * is greyed out while that is awaited or nothing changed. Then lines it and the cancel place button up left of
+	 * {@code Commit}.
+	 */
+	private void updateDiff() {
+		if (diff == null || commit == null) {
+			return;
+		}
+		ClientPlacement selected = selectedBuild() == null ? null : ClientPlacements.selected();
+		if (selected != null && !selected.equals(statusFor)) {
+			statusFor = selected;
+			BuildBrowser.requestStatus();
+		}
+		String label;
+		String tooltip;
+		if (DiffManager.active() != null) {
+			label = HIDE_DIFF;
+			tooltip = "Stop highlighting the changed blocks";
+			diff.active = true;
+		} else if (selected == null) {
+			label = DIFF;
+			tooltip = "Select a placement first to see what changed in it";
+			diff.active = false;
+		} else {
+			PlacementStatusPayload status = BuildBrowser.status();
+			int modified = status != null && status.placement().equals(selected.label()) ? status.modified() : PlacementStatusPayload.UNKNOWN;
+			if (status == null) {
+				label = DIFF + " (...)";
+				tooltip = "Counting the changed blocks";
+				diff.active = false;
+			} else if (modified == PlacementStatusPayload.UNKNOWN) {
+				label = DIFF + " (?)";
+				tooltip = "Highlight the blocks changed in " + selected.label() + " since v" + selected.head();
+				diff.active = true;
+			} else if (modified == 0) {
+				label = DIFF + " (0)";
+				tooltip = "Nothing changed in " + selected.label() + " since v" + selected.head();
+				diff.active = false;
+			} else {
+				label = DIFF + " (" + String.format("%,d", modified) + ")";
+				tooltip = "Highlight the " + String.format("%,d", modified) + (modified == 1 ? " block" : " blocks")
+					+ " changed in " + selected.label() + " since v" + selected.head();
+				diff.active = true;
+			}
+		}
+		if (!diff.getMessage().getString().equals(label) || !tooltip.equals(diffTooltip)) {
+			diffTooltip = tooltip;
+			diff.setMessage(Component.literal(label));
+			diff.setTooltip(Tooltip.create(Component.literal(tooltip)));
+		}
+		// As wide as Hide diff at least, so it does not jump about when toggled.
+		int diffWidth = Math.max(font.width(HIDE_DIFF), font.width(label)) + BUTTON_PADDING;
+		diff.setWidth(diffWidth);
+		diff.setX(commit.getX() - 4 - diffWidth);
+		if (cancelPlace != null) {
+			cancelPlace.setX(diff.getX() - 4 - cancelPlace.getWidth());
+		}
+	}
+
+	/** Runs {@code /vcs diff} against the version the selected placement holds, or {@code /vcs diff off} while one is highlighted. */
+	private void toggleDiff() {
+		sendCommand(DiffManager.active() != null ? "vcs diff off" : "vcs diff");
+	}
+
 	/** Shows the cancel place button only while a {@code /vcs place} copy is being lined up. */
 	private void updateCancelPlace() {
 		if (cancelPlace != null) {
@@ -295,10 +385,11 @@ public final class BuildBrowserScreen extends Screen {
 	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
 		updateCreate();
 		updateCheckout();
+		updateDiff();
 		updateCancelPlace();
 		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
 		// Centred, unless the header's buttons reach that far; then as far right as they leave room for.
-		int buttonsLeft = cancelPlace != null && cancelPlace.visible ? cancelPlace.getX() : commit != null ? commit.getX() : width;
+		int buttonsLeft = cancelPlace != null && cancelPlace.visible ? cancelPlace.getX() : diff != null ? diff.getX() : width;
 		int titleWidth = font.width(title);
 		int titleX = Math.max(GAP, Math.min((width - titleWidth) / 2, buttonsLeft - GAP - titleWidth));
 		graphics.text(font, title, titleX, 12, WHITE);
