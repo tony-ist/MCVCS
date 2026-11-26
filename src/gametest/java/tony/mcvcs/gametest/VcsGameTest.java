@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
+import net.minecraft.sounds.SoundSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +36,8 @@ abstract class VcsGameTest implements FabricClientGameTest {
 
 	@Override
 	public final void runTest(ClientGameTestContext context) {
-		String name = getClass().getSimpleName();
+		// Fabric only mutes music for game tests; mute everything so test runs are silent.
+		context.runOnClient(client -> client.options.getSoundSourceOptionInstance(SoundSource.MASTER).set(0.0));		String name = getClass().getSimpleName();
 		if (SELECTED != null && !SELECTED.contains(name)) {
 			LOGGER.info("Skipping {}: not in -D{}={}", name, FILTER_PROPERTY, SELECTED);
 			return;
