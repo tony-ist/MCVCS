@@ -45,10 +45,19 @@ public final class PreviewGrid {
 	 * @throws IllegalArgumentException if the schematic is not the size of {@code extent}
 	 */
 	public static BoxSnapshot sample(Schematic schematic, BuildBox extent, int scale) {
-		BoxSnapshot saved = schematic.blocks();
+		return sample(schematic.blocks(), extent, scale);
+	}
+
+	/**
+	 * The blocks of {@code saved}, which is the size of {@code extent}, sampled onto its {@link #grid} at {@code scale}
+	 * the same way as {@link #sample(Schematic, BuildBox, int)}; used for blocks not yet committed as well.
+	 *
+	 * @throws IllegalArgumentException if the snapshot is not the size of {@code extent}
+	 */
+	public static BoxSnapshot sample(BoxSnapshot saved, BuildBox extent, int scale) {
 		BuildBox region = saved.box();
 		if (region.sizeX() != extent.sizeX() || region.sizeY() != extent.sizeY() || region.sizeZ() != extent.sizeZ()) {
-			throw new IllegalArgumentException("Schematic is " + region.sizeX() + "x" + region.sizeY() + "x" + region.sizeZ()
+			throw new IllegalArgumentException("Blocks are " + region.sizeX() + "x" + region.sizeY() + "x" + region.sizeZ()
 				+ " but the version is " + extent.sizeX() + "x" + extent.sizeY() + "x" + extent.sizeZ());
 		}
 

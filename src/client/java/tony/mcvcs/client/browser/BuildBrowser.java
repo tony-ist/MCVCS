@@ -17,11 +17,15 @@ import org.jspecify.annotations.Nullable;
 
 import tony.mcvcs.MCVCS;
 import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.ClientPlacement;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.network.BuildListPayload;
 import tony.mcvcs.network.BuildListRequestPayload;
 import tony.mcvcs.network.BuildSummary;
+import tony.mcvcs.network.CommitChangesPayload;
+import tony.mcvcs.network.CommitPreviewPayload;
+import tony.mcvcs.network.CommitPreviewRequestPayload;
 import tony.mcvcs.network.PlacementStatusPayload;
 import tony.mcvcs.network.PlacementStatusRequestPayload;
 import tony.mcvcs.network.ThumbnailBeginPayload;
@@ -71,6 +75,7 @@ public final class BuildBrowser {
 	/** Whether the list is to be asked for again when the placements next arrive, see {@link #refreshAfterCommand}. */
 	private static boolean refreshOnSync;
 	private static @Nullable PlacementStatusPayload status;
+	private static @Nullable CommitPreview commitPreview;
 
 	private BuildBrowser() {
 	}
@@ -85,6 +90,23 @@ public final class BuildBrowser {
 		});
 		ClientPlayNetworking.registerGlobalReceiver(ThumbnailBlocksPayload.TYPE, (payload, context) -> blocks(payload));
 		ClientPlayNetworking.registerGlobalReceiver(PlacementStatusPayload.TYPE, (payload, context) -> status = payload);
+		ClientPlayNetworking.registerGlobalReceiver(CommitPreviewPayload.TYPE, (payload, context) -> {
+			CommitPreview preview = commitPreview;
+			if (preview == null) {
+				return;
+			}
+			if (payload.build().isEmpty()) {
+				preview.thumbnail().fail("No placement selected", false);
+			} else if (payload.build().equals(preview.placement().build())) {
+				preview.summarise(payload);
+			}
+		});
+		ClientPlayNetworking.registerGlobalReceiver(CommitChangesPayload.TYPE, (payload, context) -> {
+			CommitPreview preview = commitPreview;
+			if (preview != null && payload.build().equals(preview.placement().build())) {
+				preview.mark(payload);
+			}
+		});
 		ClientPlacements.onUpdate(() -> {
 			if (refreshOnSync) {
 				refreshOnSync = false;
@@ -153,6 +175,30 @@ public final class BuildBrowser {
 		return status;
 	}
 
+	/**
+	 * Asks the server what committing {@code placement}, the selected one, would save, dropping what it said last time;
+	 * see {@link #commitPreview()}.
+	 */
+	public static void requestCommitPreview(ClientPlacement placement) {
+		dropCommitPreview();
+		commitPreview = new CommitPreview(placement);
+		ClientPlayNetworking.send(CommitPreviewRequestPayload.INSTANCE);
+	}
+
+	/** What committing the selected placement would save, since {@link #requestCommitPreview} last asked; null if dropped. */
+	public static @Nullable CommitPreview commitPreview() {
+		return commitPreview;
+	}
+
+	/** Forgets the commit preview, freeing its GPU memory; the commit window does this when it closes. */
+	public static void dropCommitPreview() {
+		CommitPreview preview = commitPreview;
+		commitPreview = null;
+		if (preview != null) {
+			preview.thumbnail().close();
+		}
+	}
+
 	/** The preview of {@code build}'s newest version, or null if it has not been asked for. */
 	public static @Nullable Thumbnail thumbnail(BuildSummary build) {
 		return thumbnail(build, build.latest());
@@ -210,6 +256,12 @@ public final class BuildBrowser {
 
 	/** The preview being sent for version {@code version} of {@code build}, if it is still wanted. */
 	private static @Nullable Thumbnail inFlight(String build, int version) {
+		if (version == CommitPreviewPayload.VERSION) {
+			CommitPreview preview = commitPreview;
+			Thumbnail thumbnail = preview == null ? null : preview.thumbnail();
+			return thumbnail != null && thumbnail.key().build().equals(build)
+				&& (thumbnail.state() == Thumbnail.State.REQUESTED || thumbnail.state() == Thumbnail.State.DOWNLOADING) ? thumbnail : null;
+		}
 		for (Thumbnail thumbnail : THUMBNAILS.values()) {
 			Thumbnail.Key key = thumbnail.key();
 			Thumbnail.State state = thumbnail.state();
@@ -226,13 +278,26 @@ public final class BuildBrowser {
 			return;
 		}
 		BlockState[] blocks = thumbnail.accept(payload);
-		if (blocks != null) {
-			mesh(thumbnail, blocks);
+		if (blocks == null) {
+			return;
 		}
+		CommitPreview preview = commitPreview;
+		BuildBox grid = thumbnail.grid();
+		byte[] marks = preview != null && preview.thumbnail() == thumbnail && grid != null ? preview.marks(grid) : null;
+		mesh(thumbnail, blocks, marks);
 	}
 
-	/** Builds the mesh of {@code thumbnail} from its {@code blocks} on {@link #MESHER} and uploads it on the client thread. */
-	private static void mesh(Thumbnail thumbnail, BlockState[] blocks) {
+	/** Whether {@code thumbnail} is still wanted: not dropped or replaced since it was asked for. */
+	private static boolean wanted(Thumbnail thumbnail) {
+		CommitPreview preview = commitPreview;
+		return THUMBNAILS.get(thumbnail.key()) == thumbnail || preview != null && preview.thumbnail() == thumbnail;
+	}
+
+	/**
+	 * Builds the mesh of {@code thumbnail} from its {@code blocks}, with the changed ones {@code marks} marks, see
+	 * {@link ThumbnailMesher}, on {@link #MESHER} and uploads it on the client thread.
+	 */
+	private static void mesh(Thumbnail thumbnail, BlockState[] blocks, byte @Nullable [] marks) {
 		Minecraft client = Minecraft.getInstance();
 		Holder<Biome> biome = client.level != null && client.player != null ? client.level.getBiome(client.player.blockPosition()) : null;
 		CardinalLighting lighting = client.level != null ? client.level.cardinalLighting() : CardinalLighting.DEFAULT;
@@ -250,7 +315,7 @@ public final class BuildBrowser {
 		MESHER.execute(() -> {
 			ThumbnailMesher.Result result;
 			try {
-				result = ThumbnailMesher.mesh(grid, blocks, context);
+				result = ThumbnailMesher.mesh(grid, blocks, marks, context);
 			} catch (ThumbnailMesher.TooDetailedException e) {
 				MCVCS.LOGGER.warn("Not previewing '{}' v{}: more than {} vertices", thumbnail.key().build(), thumbnail.key().version(), ThumbnailMesher.MAX_VERTICES);
 				client.execute(() -> thumbnail.fail(e.getMessage(), false));
@@ -261,7 +326,7 @@ public final class BuildBrowser {
 				return;
 			}
 			client.execute(() -> {
-				if (generation != started || THUMBNAILS.get(thumbnail.key()) != thumbnail) {
+				if (generation != started || !wanted(thumbnail)) {
 					result.free();
 					return;
 				}
@@ -275,6 +340,7 @@ public final class BuildBrowser {
 		generation++;
 		THUMBNAILS.values().forEach(Thumbnail::close);
 		THUMBNAILS.clear();
+		dropCommitPreview();
 		builds = List.of();
 		listState = ListState.NONE;
 		refreshOnSync = false;

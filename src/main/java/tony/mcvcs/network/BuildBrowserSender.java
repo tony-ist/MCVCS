@@ -9,6 +9,9 @@ import java.util.concurrent.Executors;
 
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import it.unimi.dsi.fastutil.bytes.ByteArrayList;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -19,7 +22,9 @@ import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
+import tony.mcvcs.diff.BlockChange;
 import tony.mcvcs.diff.BuildDiff;
+import tony.mcvcs.diff.ChangeKind;
 import tony.mcvcs.build.BuildStorage;
 import tony.mcvcs.build.PreviewGrid;
 import tony.mcvcs.build.Schematic;
@@ -28,7 +33,8 @@ import tony.mcvcs.command.VcsCommand;
 /**
  * Server side of the builds overlay: answers a client that asks for the builds in the world with a
  * {@link BuildListPayload}, and one that asks for the blocks of a version with a {@link ThumbnailBeginPayload} and
- * {@link ThumbnailBlocksPayload}s, or a {@link ThumbnailFailedPayload}.
+ * {@link ThumbnailBlocksPayload}s, or a {@link ThumbnailFailedPayload}. The commit window's request is answered the
+ * same way for the blocks of the selected placement, preceded by what changed, see {@link CommitPreviewPayload}.
  * <p>
  * Both answer only players who may run {@code /vcs}, since the blocks of every build are as much the mod's data as
  * the commands are. A big version is sent as a coarser grid of itself, see {@link PreviewGrid}. Reading a schematic and cutting it into slices can take a while for a big build, so it is done on
@@ -60,6 +66,85 @@ public final class BuildBrowserSender {
 		PayloadTypeRegistry.serverboundPlay().register(PlacementStatusRequestPayload.TYPE, PlacementStatusRequestPayload.STREAM_CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(PlacementStatusPayload.TYPE, PlacementStatusPayload.STREAM_CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(PlacementStatusRequestPayload.TYPE, (payload, context) -> sendStatus(context.player()));
+		PayloadTypeRegistry.serverboundPlay().register(CommitPreviewRequestPayload.TYPE, CommitPreviewRequestPayload.STREAM_CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(CommitPreviewPayload.TYPE, CommitPreviewPayload.STREAM_CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(CommitChangesPayload.TYPE, CommitChangesPayload.STREAM_CODEC);
+		ServerPlayNetworking.registerGlobalReceiver(CommitPreviewRequestPayload.TYPE, (payload, context) -> sendCommitPreview(context.player()));
+	}
+
+	/**
+	 * Tells {@code player} what committing their selected placement would save: how many blocks were added, removed and
+	 * changed since the version it holds, which blocks those are, and every block in its box, sampled the way a
+	 * version's preview is. The box is copied on the server thread, since it reads the world; the rest is worked out on
+	 * {@link #READER}.
+	 */
+	private static void sendCommitPreview(ServerPlayer player) {
+		Optional<BuildPlacement> selected = allowed(player) ? BuildRegistry.selected(player) : Optional.empty();
+		ServerLevel level = selected.map(placement -> player.level().getServer().getLevel(placement.dimension())).orElse(null);
+		if (selected.isEmpty() || level == null) {
+			ServerPlayNetworking.send(player, new CommitPreviewPayload("", "", CommitPreviewPayload.UNKNOWN, CommitPreviewPayload.UNKNOWN, CommitPreviewPayload.UNKNOWN));
+			return;
+		}
+		BuildPlacement placement = selected.get();
+		String name = placement.build().name();
+		int version = CommitPreviewPayload.VERSION;
+		BuildBox box = placement.box();
+		BoxSnapshot now = BoxSnapshot.ofLevel(box, level);
+		READER.execute(() -> {
+			try {
+				int scale = PreviewGrid.scaleFor(box);
+				BuildBox grid = PreviewGrid.grid(box, scale);
+				// One byte per block of the grid: 0 for unchanged, otherwise one more than the kind of change.
+				byte[] marks = new byte[Math.toIntExact(grid.volume())];
+				int[] counts = new int[ChangeKind.values().length];
+				boolean known = true;
+				try {
+					BuildDiff diff = BuildDiff.between(
+						BoxSnapshot.ofSchematic(box, BuildStorage.readSchematic(name, placement.head()), box), now);
+					for (BlockChange change : diff.changes()) {
+						ChangeKind kind = change.kind();
+						counts[kind.ordinal()]++;
+						BlockPos pos = change.pos().subtract(box.min());
+						int cell = grid.index(pos.getX() / scale, pos.getY() / scale, pos.getZ() / scale);
+						byte mark = (byte) (kind.ordinal() + 1);
+						marks[cell] = marks[cell] == 0 || marks[cell] == mark ? mark : (byte) (ChangeKind.CHANGED.ordinal() + 1);
+					}
+				} catch (IOException | IllegalArgumentException e) {
+					// As for the commit itself, a version that cannot be compared does not stop the new one being shown.
+					MCVCS.LOGGER.warn("Failed to compare '{}' with v{} for {}", placement.label(), placement.head(), player.getGameProfile().name(), e);
+					known = false;
+				}
+				ServerPlayNetworking.send(player, known
+					? new CommitPreviewPayload(name, placement.label(), counts[ChangeKind.ADDED.ordinal()], counts[ChangeKind.REMOVED.ordinal()], counts[ChangeKind.CHANGED.ordinal()])
+					: new CommitPreviewPayload(name, placement.label(), CommitPreviewPayload.UNKNOWN, CommitPreviewPayload.UNKNOWN, CommitPreviewPayload.UNKNOWN));
+				sendMarks(player, name, marks);
+
+				BoxSnapshot sampled = PreviewGrid.sample(now, box, scale);
+				ServerPlayNetworking.send(player, new ThumbnailBeginPayload(name, version, box, scale));
+				PreviewSender.slices(sampled, (offset, palette, indices, last) ->
+					ServerPlayNetworking.send(player, new ThumbnailBlocksPayload(name, version, offset, palette, indices, last)));
+			} catch (RuntimeException e) {
+				MCVCS.LOGGER.error("Failed to send the commit preview of '{}' to {}", placement.label(), player.getGameProfile().name(), e);
+				ServerPlayNetworking.send(player, new ThumbnailFailedPayload(name, version, "Failed to read the placement"));
+			}
+		});
+	}
+
+	/** Sends every marked block of {@code marks} as {@link CommitChangesPayload}s. */
+	private static void sendMarks(ServerPlayer player, String name, byte[] marks) {
+		IntArrayList cells = new IntArrayList();
+		ByteArrayList kinds = new ByteArrayList();
+		for (int cell = 0; cell < marks.length; cell++) {
+			if (marks[cell] != 0) {
+				cells.add(cell);
+				kinds.add((byte) (marks[cell] - 1));
+			}
+			if (cells.size() == CommitChangesPayload.PER_PACKET || (cell == marks.length - 1 && !cells.isEmpty())) {
+				ServerPlayNetworking.send(player, new CommitChangesPayload(name, cells.toIntArray(), kinds.toByteArray()));
+				cells.clear();
+				kinds.clear();
+			}
+		}
 	}
 
 	/**

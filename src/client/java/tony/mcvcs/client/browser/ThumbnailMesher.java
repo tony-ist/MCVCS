@@ -6,11 +6,14 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
+import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.color.block.BlockColors;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.client.renderer.block.BlockModelLighter;
 import net.minecraft.client.renderer.block.BlockQuadOutput;
@@ -18,7 +21,9 @@ import net.minecraft.client.renderer.block.BlockStateModelSet;
 import net.minecraft.client.renderer.block.ModelBlockRenderer;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
+import net.minecraft.util.ARGB;
 import net.minecraft.world.level.CardinalLighting;
 import net.minecraft.world.level.ColorResolver;
 import net.minecraft.world.level.biome.Biome;
@@ -32,6 +37,8 @@ import org.jspecify.annotations.Nullable;
 import org.lwjgl.system.MemoryUtil;
 
 import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.client.diff.DiffHighlightRenderer;
+import tony.mcvcs.diff.ChangeKind;
 
 /**
  * Turns the blocks of a version into the vertices of its preview, the same way the game meshes a chunk section: each
@@ -70,9 +77,18 @@ final class ThumbnailMesher {
 	/**
 	 * The vertices of one layer, copied out of the builder into memory of their own, which {@link ThumbnailMesh#upload}
 	 * or {@link Result#free} releases.
+	 *
+	 * @param label    what the GPU buffer is called
+	 * @param pipeline what it is drawn with
+	 * @param textured whether it is block geometry, drawn with the block atlas, rather than plain coloured boxes
 	 */
-	record Layer(ChunkSectionLayer layer, ByteBuffer vertices, int indexCount) {
+	record Layer(String label, RenderPipeline pipeline, boolean textured, ByteBuffer vertices, int indexCount) {
 	}
+
+	/** Opacity of the boxes marking changed blocks, see {@link #mesh(BuildBox, BlockState[], byte[], Context)}. */
+	private static final float MARK_ALPHA = 0.55f;
+	/** How far the boxes stand out from the blocks they mark, so they are drawn over the blocks' own faces. */
+	private static final float MARK_OUTSET = 0.02f;
 
 	/** The layers that have any geometry, solid first and translucent last. */
 	record Result(List<Layer> layers) {
@@ -95,6 +111,18 @@ final class ThumbnailMesher {
 	 * @throws TooDetailedException if the mesh would have more than {@link #MAX_VERTICES} vertices
 	 */
 	static Result mesh(BuildBox extent, BlockState[] blocks, Context context) {
+		return mesh(extent, blocks, null, context);
+	}
+
+	/**
+	 * Meshes {@code blocks}, which fill {@code extent} in {@link BuildBox} order, with a translucent box over every
+	 * block {@code marks} marks: by the same index, 0 for none, otherwise one more than the {@link ChangeKind} ordinal,
+	 * coloured as {@code /vcs diff} colours it. Faces between two boxes of the same kind are left out, so a whole wall
+	 * that changed is one tinted wall.
+	 *
+	 * @throws TooDetailedException if the mesh would have more than {@link #MAX_VERTICES} vertices
+	 */
+	static Result mesh(BuildBox extent, BlockState[] blocks, byte @Nullable [] marks, Context context) {
 		VersionBlocks level = new VersionBlocks(extent, blocks, context.lighting(), context.biome());
 		ModelBlockRenderer renderer = new ModelBlockRenderer(context.ambientOcclusion(), true, context.colors());
 		Map<ChunkSectionLayer, ByteBufferBuilder> buffers = new EnumMap<>(ChunkSectionLayer.class);
@@ -131,25 +159,104 @@ final class ThumbnailMesher {
 			}
 
 			List<Layer> layers = new ArrayList<>();
-			for (ChunkSectionLayer layer : ChunkSectionLayer.values()) {
-				BufferBuilder builder = builders.get(layer);
-				if (builder == null) {
-					continue;
-				}
-				try (MeshData mesh = builder.build()) {
-					if (mesh == null) {
-						continue;
+			try {
+				for (ChunkSectionLayer layer : ChunkSectionLayer.values()) {
+					BufferBuilder builder = builders.get(layer);
+					if (builder != null) {
+						copy(builder, "MCVCS preview " + layer.label(), pipeline(layer), true, layers);
 					}
-					ByteBuffer source = mesh.vertexBuffer();
-					ByteBuffer copy = MemoryUtil.memAlloc(source.remaining());
-					MemoryUtil.memCopy(source, copy);
-					layers.add(new Layer(layer, copy, mesh.drawState().indexCount()));
 				}
+				if (marks != null) {
+					try (ByteBufferBuilder buffer = new ByteBufferBuilder(DefaultVertexFormat.POSITION_COLOR.getVertexSize() * 4 * 256)) {
+						BufferBuilder builder = new BufferBuilder(buffer, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+						if (marks(extent, marks, builder, vertices)) {
+							// Translucent, so drawn after the blocks: the blocks they cover show through them.
+							copy(builder, "MCVCS preview changes", RenderPipelines.DEBUG_FILLED_BOX, false, layers);
+						}
+					}
+				}
+			} catch (RuntimeException e) {
+				new Result(layers).free();
+				throw e;
 			}
 			return new Result(List.copyOf(layers));
 		} finally {
 			BlockModelLighter.clearCache();
 			buffers.values().forEach(ByteBufferBuilder::close);
+		}
+	}
+
+	/** Copies what {@code builder} holds, if anything, into memory of its own as one more of {@code layers}. */
+	private static void copy(BufferBuilder builder, String label, RenderPipeline pipeline, boolean textured, List<Layer> layers) {
+		try (MeshData mesh = builder.build()) {
+			if (mesh == null) {
+				return;
+			}
+			ByteBuffer source = mesh.vertexBuffer();
+			ByteBuffer copy = MemoryUtil.memAlloc(source.remaining());
+			MemoryUtil.memCopy(source, copy);
+			layers.add(new Layer(label, pipeline, textured, copy, mesh.drawState().indexCount()));
+		}
+	}
+
+	/** The pipeline the game draws moving blocks of that layer with: block shading, no chunk offset, no fog of its own. */
+	private static RenderPipeline pipeline(ChunkSectionLayer layer) {
+		return switch (layer) {
+			case SOLID -> RenderPipelines.SOLID_BLOCK;
+			case CUTOUT -> RenderPipelines.CUTOUT_BLOCK;
+			case TRANSLUCENT -> RenderPipelines.TRANSLUCENT_BLOCK;
+		};
+	}
+
+	/**
+	 * Puts the faces of the boxes over the blocks {@code marks} marks into {@code builder}, wound so that only their
+	 * outsides are drawn.
+	 *
+	 * @return whether there was any
+	 */
+	private static boolean marks(BuildBox extent, byte[] marks, BufferBuilder builder, int[] vertices) {
+		boolean any = false;
+		ChangeKind[] kinds = ChangeKind.values();
+		for (int index = 0; index < marks.length && index < extent.volume(); index++) {
+			byte mark = marks[index];
+			if (mark <= 0 || mark > kinds.length) {
+				continue;
+			}
+			int color = ARGB.multiplyAlpha(switch (kinds[mark - 1]) {
+				case ADDED -> DiffHighlightRenderer.ADDED_COLOR;
+				case REMOVED -> DiffHighlightRenderer.REMOVED_COLOR;
+				case CHANGED -> DiffHighlightRenderer.CHANGED_COLOR;
+			}, MARK_ALPHA);
+			BlockPos at = extent.pos(index);
+			int x = at.getX() - extent.min().getX();
+			int y = at.getY() - extent.min().getY();
+			int z = at.getZ() - extent.min().getZ();
+			float x0 = x - MARK_OUTSET, y0 = y - MARK_OUTSET, z0 = z - MARK_OUTSET;
+			float x1 = x + 1 + MARK_OUTSET, y1 = y + 1 + MARK_OUTSET, z1 = z + 1 + MARK_OUTSET;
+			for (Direction side : Direction.values()) {
+				BlockPos next = at.relative(side);
+				if (extent.contains(next) && marks[extent.index(next.getX(), next.getY(), next.getZ())] == mark) {
+					continue;
+				}
+				count(vertices);
+				any = true;
+				// Counter-clockwise seen from outside the box.
+				switch (side) {
+					case DOWN -> quad(builder, color, x0, y0, z0, x1, y0, z0, x1, y0, z1, x0, y0, z1);
+					case UP -> quad(builder, color, x0, y1, z0, x0, y1, z1, x1, y1, z1, x1, y1, z0);
+					case NORTH -> quad(builder, color, x0, y0, z0, x0, y1, z0, x1, y1, z0, x1, y0, z0);
+					case SOUTH -> quad(builder, color, x0, y0, z1, x1, y0, z1, x1, y1, z1, x0, y1, z1);
+					case WEST -> quad(builder, color, x0, y0, z0, x0, y0, z1, x0, y1, z1, x0, y1, z0);
+					case EAST -> quad(builder, color, x1, y0, z0, x1, y1, z0, x1, y1, z1, x1, y0, z1);
+				}
+			}
+		}
+		return any;
+	}
+
+	private static void quad(BufferBuilder builder, int color, float... corners) {
+		for (int i = 0; i < corners.length; i += 3) {
+			builder.addVertex(corners[i], corners[i + 1], corners[i + 2]).setColor(color);
 		}
 	}
 

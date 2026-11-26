@@ -17,7 +17,6 @@ import com.mojang.blaze3d.textures.GpuSampler;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
@@ -35,7 +34,7 @@ import tony.mcvcs.build.BuildBox;
  * Lives until the client leaves the server, see {@link BuildBrowser}; only ever touched from the render thread.
  */
 public final class ThumbnailMesh implements AutoCloseable {
-	private record Layer(RenderPipeline pipeline, GpuBuffer vertices, int indexCount) {
+	private record Layer(RenderPipeline pipeline, boolean textured, GpuBuffer vertices, int indexCount) {
 	}
 
 	private final List<Layer> layers;
@@ -59,22 +58,13 @@ public final class ThumbnailMesh implements AutoCloseable {
 		List<Layer> layers = new ArrayList<>();
 		try {
 			for (ThumbnailMesher.Layer layer : result.layers()) {
-				GpuBuffer vertices = device.createBuffer(() -> "MCVCS preview " + layer.layer().label(), GpuBuffer.USAGE_VERTEX, layer.vertices());
-				layers.add(new Layer(pipeline(layer), vertices, layer.indexCount()));
+				GpuBuffer vertices = device.createBuffer(layer::label, GpuBuffer.USAGE_VERTEX, layer.vertices());
+				layers.add(new Layer(layer.pipeline(), layer.textured(), vertices, layer.indexCount()));
 			}
 		} finally {
 			result.free();
 		}
 		return new ThumbnailMesh(List.copyOf(layers), new Vector3f(grid.sizeX(), grid.sizeY(), grid.sizeZ()), scale);
-	}
-
-	/** The pipeline the game draws moving blocks of that layer with: block shading, no chunk offset, no fog of its own. */
-	private static RenderPipeline pipeline(ThumbnailMesher.Layer layer) {
-		return switch (layer.layer()) {
-			case SOLID -> RenderPipelines.SOLID_BLOCK;
-			case CUTOUT -> RenderPipelines.CUTOUT_BLOCK;
-			case TRANSLUCENT -> RenderPipelines.TRANSLUCENT_BLOCK;
-		};
 	}
 
 	/** Whether there is anything to draw: false for a version of nothing but air or blocks without a model. */
@@ -123,8 +113,10 @@ public final class ThumbnailMesh implements AutoCloseable {
 				RenderSystem.bindDefaultUniforms(pass);
 				pass.setUniform("Projection", projection);
 				pass.setUniform("DynamicTransforms", transforms);
-				pass.bindTexture("Sampler0", atlas, atlasSampler);
-				pass.bindTexture("Sampler2", minecraft.gameRenderer.lightmap(), lightmapSampler);
+				if (layer.textured()) {
+					pass.bindTexture("Sampler0", atlas, atlasSampler);
+					pass.bindTexture("Sampler2", minecraft.gameRenderer.lightmap(), lightmapSampler);
+				}
 				pass.setVertexBuffer(0, layer.vertices());
 				pass.setIndexBuffer(indices, quadIndices.type());
 				pass.drawIndexed(0, 0, layer.indexCount(), 1);

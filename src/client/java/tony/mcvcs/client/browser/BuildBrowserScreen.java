@@ -44,8 +44,9 @@ import tony.mcvcs.network.BuildSummary;
  * {@link ClientConfig.Settings#autoDownloadLimit} shows a placeholder instead of its preview until the cell is clicked
  * outside its buttons, which downloads the preview. The {@code Create} button in the top right corner starts a new build, see
  * {@link CreateBuildScreen}; while that build waits for its punch, it reads {@code Cancel creation} and cancels it.
- * {@code Checkout} left of it checks out a version into the selected placement, see {@link CheckoutScreen}. While a
- * {@code /vcs place} copy is being lined up, a {@code Cancel place} button left of that runs {@code /vcs cancelPlace}.
+ * {@code Checkout} left of it checks out a version into the selected placement, see {@link CheckoutScreen}, and
+ * {@code Commit} left of that previews and commits it, see {@link CommitScreen}. While a {@code /vcs place} copy is
+ * being lined up, a {@code Cancel place} button left of those runs {@code /vcs cancelPlace}.
  * <p>
  * The list is asked for when the overlay opens, and not otherwise, see
  * {@link BuildBrowser}. How big the cells are and how fast they turn come from {@link ClientConfig}. The game keeps
@@ -79,7 +80,9 @@ public final class BuildBrowserScreen extends Screen {
 	public static final String CANCEL_CREATION = "Cancel creation";
 	/** Label of the header button left of {@link #CREATE}, which checks out a version into the selected placement, see {@link CheckoutScreen}. */
 	public static final String CHECKOUT = "Checkout";
-	/** Label of the header button, left of {@link #CHECKOUT}, shown only while a {@code /vcs place} copy is being lined up. */
+	/** Label of the header button left of {@link #CHECKOUT}, which previews and commits the selected placement, see {@link CommitScreen}. */
+	public static final String COMMIT = "Commit";
+	/** Label of the header button, left of {@link #COMMIT}, shown only while a {@code /vcs place} copy is being lined up. */
 	public static final String CANCEL_PLACE = "Cancel place";
 	/** Labels of the buttons a hovered cell shows. */
 	public static final String SELECT = "Select";
@@ -110,6 +113,8 @@ public final class BuildBrowserScreen extends Screen {
 	private @Nullable Button create;
 	/** The header's checkout button, pressable only while a placement is selected. */
 	private @Nullable Button checkout;
+	/** The header's commit button, pressable only while a placement is selected. */
+	private @Nullable Button commit;
 	/** The placement the checkout button's tooltip was last made for. */
 	private @Nullable ClientPlacement checkoutFor;
 	private boolean checkoutTooltipSet;
@@ -155,11 +160,16 @@ public final class BuildBrowserScreen extends Screen {
 		checkout = addRenderableWidget(Button.builder(Component.literal(CHECKOUT), button -> openCheckout())
 			.bounds(checkoutLeft, 6, checkoutWidth, 20)
 			.build());
+		int commitWidth = font.width(COMMIT) + BUTTON_PADDING;
+		int commitLeft = checkoutLeft - 4 - commitWidth;
+		commit = addRenderableWidget(Button.builder(Component.literal(COMMIT), button -> openCommit())
+			.bounds(commitLeft, 6, commitWidth, 20)
+			.build());
 		checkoutTooltipSet = false;
 		updateCheckout();
 		int cancelPlaceWidth = font.width(CANCEL_PLACE) + BUTTON_PADDING;
 		cancelPlace = addRenderableWidget(Button.builder(Component.literal(CANCEL_PLACE), button -> sendCommand("vcs cancelPlace"))
-			.bounds(checkoutLeft - 4 - cancelPlaceWidth, 6, cancelPlaceWidth, 20)
+			.bounds(commitLeft - 4 - cancelPlaceWidth, 6, cancelPlaceWidth, 20)
 			.tooltip(Tooltip.create(Component.literal("Drop the copy being placed")))
 			.build());
 		updateCancelPlace();
@@ -215,6 +225,21 @@ public final class BuildBrowserScreen extends Screen {
 		checkout.setTooltip(Tooltip.create(Component.literal(selected == null
 			? "Select a placement first to check out a version into it"
 			: "Check out a version of " + selected.build() + " into its placement " + selected.placement())));
+		if (commit != null) {
+			commit.active = selected != null;
+			commit.setTooltip(Tooltip.create(Component.literal(selected == null
+				? "Select a placement first to commit it"
+				: "See what committing " + selected.label() + " would save, and commit it")));
+		}
+	}
+
+	/** Opens the window that previews and commits the selected placement, see {@link CommitScreen}. */
+	private void openCommit() {
+		BuildSummary build = selectedBuild();
+		ClientPlacement selected = ClientPlacements.selected();
+		if (build != null && selected != null && minecraft != null) {
+			minecraft.setScreen(new CommitScreen(this, build, selected));
+		}
 	}
 
 	/** Opens the window that checks out a version into the selected placement, see {@link CheckoutScreen}. */
@@ -270,7 +295,7 @@ public final class BuildBrowserScreen extends Screen {
 		updateCancelPlace();
 		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
 		// Centred, unless the header's buttons reach that far; then as far right as they leave room for.
-		int buttonsLeft = cancelPlace != null && cancelPlace.visible ? cancelPlace.getX() : checkout != null ? checkout.getX() : width;
+		int buttonsLeft = cancelPlace != null && cancelPlace.visible ? cancelPlace.getX() : commit != null ? commit.getX() : width;
 		int titleWidth = font.width(title);
 		int titleX = Math.max(GAP, Math.min((width - titleWidth) / 2, buttonsLeft - GAP - titleWidth));
 		graphics.text(font, title, titleX, 12, WHITE);
