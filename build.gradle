@@ -15,7 +15,10 @@ loom {
 	splitEnvironmentSourceSets()
 
 	runs {
+		// A separate run folder per Minecraft version, so worlds and configs from other versions don't clash.
+		server { runDir "run/${project.minecraft_version}" }
 		client {
+			runDir "run/${project.minecraft_version}"
 			// Without this the client logs in as a random "Player<n>" each launch, i.e. a different offline UUID every
 			// time, so anything keyed by player (selections in mcvcs/selections.json) is never found again after a restart.
 			programArgs "--username", "Dev"
