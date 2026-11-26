@@ -28,6 +28,7 @@
 			"tony.mcvcs.gametest.VcsBuildsCommandGameTest",
 			"tony.mcvcs.gametest.VcsDeselectCommandGameTest",
 			"tony.mcvcs.gametest.VcsDeleteCommandGameTest",
+			"tony.mcvcs.gametest.VcsRenameCommandGameTest",
 			"tony.mcvcs.gametest.VcsReloadGameTest",
 			"tony.mcvcs.gametest.VcsMigrationGameTest",
 			"tony.mcvcs.gametest.VcsSchematicFormatGameTest",

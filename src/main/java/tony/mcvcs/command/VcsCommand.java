@@ -40,6 +40,7 @@ import tony.mcvcs.build.Placement;
  * <li>{@code /vcs resize}, {@code /vcs confirmResize} and {@code /vcs cancelResize}: {@link VcsCommandResize}</li>
  * <li>{@code /vcs checkout <version | tag | latest> [-f]}: {@link VcsCommandCheckout}</li>
  * <li>{@code /vcs delete <buildname> [-c]} and {@code /vcs confirmDelete}: {@link VcsCommandDelete}</li>
+ * <li>{@code /vcs rename <buildname> <newname>}: {@link VcsCommandRename}</li>
  * <li>{@code /vcs tp [buildname [placementname]]}: {@link VcsCommandTp}</li>
  * <li>{@code /vcs version}: {@link VcsCommandVersion}</li>
  * <li>{@code /vcs help [command]} and {@code /vcs -h}: {@link VcsCommandHelp}</li>
@@ -170,6 +171,11 @@ public final class VcsCommand {
 							.executes(context -> VcsCommandDelete.run(context.getSource(), StringArgumentType.getString(context, "buildname"), true)))))
 				.then(sub(VcsCommandDelete.CONFIRM_HELP)
 					.executes(context -> VcsCommandDelete.confirm(context.getSource())))
+				.then(sub(VcsCommandRename.HELP)
+					.then(Commands.argument("buildname", StringArgumentType.word())
+						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))
+						.then(Commands.argument("newname", StringArgumentType.word())
+							.executes(context -> VcsCommandRename.run(context.getSource(), StringArgumentType.getString(context, "buildname"), StringArgumentType.getString(context, "newname"))))))
 				.then(sub(VcsCommandTp.HELP)
 					.executes(context -> VcsCommandTp.runSelected(context.getSource()))
 					.then(Commands.argument("buildname", StringArgumentType.word())

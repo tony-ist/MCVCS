@@ -154,9 +154,7 @@ public final class VcsCommandCreate {
 	 * compared without regard to case; the source is told why otherwise.
 	 */
 	private static boolean isNameFree(CommandSourceStack source, String buildName) {
-		// The name becomes a folder on disk, so it has to be checked before anything is written under it.
-		if (!Build.isValidNewName(buildName)) {
-			source.sendFailure(Component.literal("Build name ").append(VcsMessages.name(buildName)).append(" must start with a letter from a to z and may only contain letters, digits, _ + - and dots between them"));
+		if (!isNameValid(source, buildName)) {
 			return false;
 		}
 		// A build is created once and committed to after that; creating it again would throw its versions away. Builds
@@ -170,6 +168,16 @@ public final class VcsCommandCreate {
 			} else {
 				source.sendFailure(Component.literal("Build ").append(VcsMessages.name(existing.name())).append(" already exists; select it with ").append(ChatButtons.command("/vcs select " + existing.name())).append(", or choose another name"));
 			}
+			return false;
+		}
+		return true;
+	}
+
+	/** Whether a new build may be called {@code buildName}, taken or not; the source is told why otherwise. */
+	static boolean isNameValid(CommandSourceStack source, String buildName) {
+		// The name becomes a folder on disk, so it has to be checked before anything is written under it.
+		if (!Build.isValidNewName(buildName)) {
+			source.sendFailure(Component.literal("Build name ").append(VcsMessages.name(buildName)).append(" must start with a letter from a to z and may only contain letters, digits, _ + - and dots between them"));
 			return false;
 		}
 		return true;

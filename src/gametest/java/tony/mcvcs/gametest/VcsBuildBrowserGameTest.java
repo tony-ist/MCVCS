@@ -38,6 +38,7 @@ import tony.mcvcs.client.browser.CheckoutScreen;
 import tony.mcvcs.client.browser.CreateBuildScreen;
 import tony.mcvcs.client.browser.DeleteBuildScreen;
 import tony.mcvcs.client.browser.PlacementPickerScreen;
+import tony.mcvcs.client.browser.RenameBuildScreen;
 import tony.mcvcs.client.browser.Thumbnail;
 import tony.mcvcs.client.browser.VersionPickerScreen;
 import tony.mcvcs.client.build.ClientPlacements;
@@ -55,8 +56,8 @@ import tony.mcvcs.network.BuildSummary;
  * placement, see {@link #checkCheckout}; the buttons a hovered cell shows select the build,
  * start {@code /vcs place} of it and teleport onto it, Place asking which version for a build with several and the
  * other two asking which placement for a build with several and
- * greyed out for a build placed nowhere; the three dots' menu deletes a build once asked, emptying its placements only
- * if ticked to; Create asks for a name and starts {@code /vcs create}, with {@code -b} if ticked to; and a player who may not run {@code /vcs} is told so.
+ * greyed out for a build placed nowhere; the three dots' menu renames a build to a valid new name and deletes a build
+ * once asked, emptying its placements only if ticked to; Create asks for a name and starts {@code /vcs create}, with {@code -b} if ticked to; and a player who may not run {@code /vcs} is told so.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsBuildBrowserGameTest extends VcsGameTest {
@@ -66,6 +67,8 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 	private static final String LONG = "gametest-browser-bridge";
 	/** Named in the create window, then made directly, since no block is punched. */
 	private static final String NEW = "gametest-browser-new";
+	/** What {@link #BIG} is renamed to through its menu. */
+	private static final String RENAMED = "gametest-browser-palace";
 	/** In the way of {@link #NEW}, so creating it there fails. */
 	private static final String SHED = "gametest-browser-shed";
 
@@ -371,6 +374,38 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			context.waitTicks(2);
 			context.takeScreenshot("mcvcs-builds-overlay-deleted");
 
+			// Rename opens with the build's name, Save greyed out until it is a new, valid one; B typed into the field is just a letter.
+			openRename(context, BIG);
+			assertRenameField(context, BIG, false);
+			context.getInput().pressKey(GLFW.GLFW_KEY_B);
+			context.waitTicks(2);
+			if (context.computeOnClient(client -> !(client.screen instanceof RenameBuildScreen))) {
+				throw new AssertionError("Expected B typed into the rename field to leave the window open");
+			}
+			setRenameField(context, "1" + RENAMED);
+			assertRenameField(context, "1" + RENAMED, false);
+			setRenameField(context, RENAMED);
+			assertRenameField(context, RENAMED, true);
+			moveAway(context);
+			context.waitTicks(2);
+			context.takeScreenshot("mcvcs-builds-overlay-rename");
+			// Cancel keeps the old name.
+			clickRenameWidget(context, RenameBuildScreen.CANCEL);
+			context.waitForScreen(BuildBrowserScreen.class);
+			context.waitTicks(5);
+			if (context.computeOnClient(client -> summary(BIG)) == null) {
+				throw new AssertionError("Expected Cancel to keep " + BIG);
+			}
+			// Enter saves, and the overlay comes back listing the build under its new name.
+			openRename(context, BIG);
+			setRenameField(context, RENAMED);
+			context.getInput().pressKey(GLFW.GLFW_KEY_ENTER);
+			context.waitForScreen(BuildBrowserScreen.class);
+			context.waitFor(client -> BuildBrowser.listState() == BuildBrowser.ListState.LOADED && summary(BIG) == null && summary(RENAMED) != null);
+			if (!Files.isRegularFile(BuildStorage.buildFile(RENAMED)) || Files.exists(BuildStorage.directory(BIG))) {
+				throw new AssertionError("Expected " + BIG + "'s folder to be moved to " + RENAMED);
+			}
+
 			// Create asks for a name, refusing a bad one; B typed into the field is just a letter.
 			clickHeader(context, BuildBrowserScreen.CREATE);
 			context.waitForScreen(CreateBuildScreen.class);
@@ -538,6 +573,43 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 		clickButton(context, name, BuildBrowserScreen.MORE);
 		clickButton(context, name, BuildBrowserScreen.DELETE);
 		context.waitForScreen(DeleteBuildScreen.class);
+	}
+
+	/** Opens the menu of {@code name}'s cell and clicks its Rename, which opens the rename window. */
+	private static void openRename(ClientGameTestContext context, String name) {
+		clickButton(context, name, BuildBrowserScreen.MORE);
+		clickButton(context, name, BuildBrowserScreen.RENAME);
+		context.waitForScreen(RenameBuildScreen.class);
+	}
+
+	private static void setRenameField(ClientGameTestContext context, String value) {
+		context.runOnClient(client -> client.screen.children().stream().filter(EditBox.class::isInstance).map(EditBox.class::cast).findFirst().orElseThrow().setValue(value));
+	}
+
+	/** The rename window's field holds {@code name}, and Save can be pressed or not as {@code canSave} says. */
+	private static void assertRenameField(ClientGameTestContext context, String name, boolean canSave) {
+		context.runOnClient(client -> {
+			if (!(client.screen instanceof RenameBuildScreen screen)) {
+				throw new AssertionError("Expected the rename window but found " + client.screen);
+			}
+			String field = screen.children().stream().filter(EditBox.class::isInstance).map(EditBox.class::cast).findFirst().orElseThrow().getValue();
+			if (!field.equals(name) || screen.canPressSave() != canSave) {
+				throw new AssertionError("Expected the rename window to show '" + name + "' with Save " + (canSave ? "pressable" : "greyed out")
+					+ " but it shows '" + field + "' with Save " + (screen.canPressSave() ? "pressable" : "greyed out"));
+			}
+		});
+	}
+
+	/** Clicks the button labelled {@code label} in the rename window. */
+	private static void clickRenameWidget(ClientGameTestContext context, String label) {
+		ScreenRectangle widget = context.computeOnClient(client -> {
+			ScreenRectangle found = client.screen instanceof RenameBuildScreen screen ? screen.widgetOf(label) : null;
+			if (found == null) {
+				throw new AssertionError("Expected " + label + " on " + client.screen);
+			}
+			return found;
+		});
+		clickAt(context, widget.left() + widget.width() / 2.0, widget.top() + widget.height() / 2.0);
 	}
 
 	/** Clicks the button or checkbox labelled {@code label} in the delete window. */

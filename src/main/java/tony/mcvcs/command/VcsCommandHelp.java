@@ -41,6 +41,7 @@ public final class VcsCommandHelp {
 		VcsCommandCheckout.HELP,
 		VcsCommandDelete.HELP,
 		VcsCommandDelete.CONFIRM_HELP,
+		VcsCommandRename.HELP,
 		VcsCommandTp.HELP,
 		VcsCommandVersion.HELP,
 		HELP);

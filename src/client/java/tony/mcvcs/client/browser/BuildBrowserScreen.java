@@ -40,7 +40,8 @@ import tony.mcvcs.network.BuildSummary;
  * {@code /vcs place} for one of its versions, so the copy shows up where the player stands, ready to be lined up; a
  * build with several versions first asks which, see {@link VersionPickerScreen}. A build with no placements has the first two greyed out; for one with several, they first ask which placement
  * is meant, see {@link PlacementPickerScreen}. Three dots in the hovered cell's top right corner open a menu whose
- * {@code Delete} asks whether to delete the build, see {@link DeleteBuildScreen}. A build bigger than
+ * {@code Rename} asks for a new name, see {@link RenameBuildScreen}, and whose {@code Delete} asks whether to delete
+ * the build, see {@link DeleteBuildScreen}. A build bigger than
  * {@link ClientConfig.Settings#autoDownloadLimit} shows a placeholder instead of its preview until the cell is clicked
  * outside its buttons, which downloads the preview. The {@code Create} button in the top right corner starts a new build, see
  * {@link CreateBuildScreen}; while that build waits for its punch, it reads {@code Cancel creation} and cancels it.
@@ -95,8 +96,9 @@ public final class BuildBrowserScreen extends Screen {
 	/** Width a button needs beyond its label. */
 	private static final int BUTTON_PADDING = 16;
 
-	/** Label of the three dots in a hovered cell's top right corner, which open its menu, and of that menu's one item. */
+	/** Label of the three dots in a hovered cell's top right corner, which open its menu, and of that menu's items. */
 	public static final String MORE = "More";
+	public static final String RENAME = "Rename";
 	public static final String DELETE = "Delete";
 	/** Size of the three dots' button, and the space between it and the corner of the cell. */
 	private static final int MORE_WIDTH = 14;
@@ -128,7 +130,8 @@ public final class BuildBrowserScreen extends Screen {
 	private final Button tp = Button.builder(Component.literal(TP), button -> choose(PlacementPickerScreen.Action.TP)).build();
 	private final Button place = Button.builder(Component.literal(PLACE), button -> choosePlace()).build();
 	private final Button more = new DotsButton(button -> menuFor = buttonsFor);
-	/** The menu's item; clicked by {@link #mouseClicked} itself, since it lies over the cell's other buttons. */
+	/** The menu's items, top to bottom; clicked by {@link #mouseClicked} itself, since they lie over the cell's other buttons. */
+	private final Button rename = Button.builder(Component.literal(RENAME), button -> openRename()).build();
 	private final Button delete = Button.builder(Component.literal(DELETE), button -> confirmDelete()).build();
 
 	public BuildBrowserScreen() {
@@ -353,23 +356,43 @@ public final class BuildBrowserScreen extends Screen {
 
 	/** The open menu, hanging from the three dots and lined up with their right edge, over everything else. */
 	private void menu(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-		int itemWidth = font.width(delete.getMessage()) + BUTTON_PADDING;
+		List<Button> items = menuItems();
+		int itemWidth = items.stream().mapToInt(item -> font.width(item.getMessage())).max().orElse(0) + BUTTON_PADDING;
 		int right = more.getRight();
 		int top = more.getBottom() + 1;
 		int left = right - itemWidth - 2 * MENU_PADDING;
-		int bottom = top + BUTTON_HEIGHT + 2 * MENU_PADDING;
-		delete.visible = true;
-		delete.setRectangle(itemWidth, BUTTON_HEIGHT, left + MENU_PADDING, top + MENU_PADDING);
+		int bottom = top + items.size() * BUTTON_HEIGHT + (items.size() - 1) * BUTTON_GAP + 2 * MENU_PADDING;
+		for (int i = 0; i < items.size(); i++) {
+			items.get(i).visible = true;
+			items.get(i).setRectangle(itemWidth, BUTTON_HEIGHT, left + MENU_PADDING, top + MENU_PADDING + i * (BUTTON_HEIGHT + BUTTON_GAP));
+		}
 
 		graphics.nextStratum();
 		graphics.fill(left, top, right, bottom, MENU);
 		graphics.outline(left - 1, top - 1, right - left + 2, bottom - top + 2, BORDER_HOVERED);
-		delete.extractRenderState(graphics, mouseX, mouseY, partialTick);
+		for (Button item : items) {
+			item.extractRenderState(graphics, mouseX, mouseY, partialTick);
+		}
+	}
+
+	private List<Button> menuItems() {
+		return List.of(rename, delete);
 	}
 
 	private void closeMenu() {
 		menuFor = null;
-		delete.visible = false;
+		for (Button item : menuItems()) {
+			item.visible = false;
+		}
+	}
+
+	/** Opens the window that renames the build whose menu is open, see {@link RenameBuildScreen}. */
+	private void openRename() {
+		BuildSummary build = menuFor;
+		closeMenu();
+		if (build != null && minecraft != null) {
+			minecraft.setScreen(new RenameBuildScreen(this, build));
+		}
 	}
 
 	/** Asks whether to delete the build whose menu is open, see {@link DeleteBuildScreen}. */
@@ -484,7 +507,7 @@ public final class BuildBrowserScreen extends Screen {
 	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
 		// An open menu takes the click: its item does its thing, and anywhere else, the dots included, closes it.
 		if (menuFor != null) {
-			if (!delete.mouseClicked(event, doubleClick)) {
+			if (menuItems().stream().noneMatch(item -> item.mouseClicked(event, doubleClick))) {
 				closeMenu();
 			}
 			return true;
@@ -720,7 +743,7 @@ public final class BuildBrowserScreen extends Screen {
 	 * is hovered, or for the menu's item while the menu is closed.
 	 */
 	public @Nullable Button buttonOf(String label) {
-		return Stream.concat(buttons().stream(), Stream.of(more, delete))
+		return Stream.concat(buttons().stream(), Stream.concat(Stream.of(more), menuItems().stream()))
 			.filter(button -> button.visible && button.getMessage().getString().equals(label)).findFirst().orElse(null);
 	}
 

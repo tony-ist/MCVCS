@@ -39,6 +39,8 @@ Builds are shared by all single player worlds of one Minecraft instance: a build
   Stops waiting for the punch; no build is created.
 - `/vcs builds`\
   Lists all builds and their placements in this world, with buttons to select or teleport to each one.
+- `/vcs rename <buildname> <newname>`\
+  Renames a build in every world, keeping its versions, tags, placements and selections.
 - `/vcs delete <buildname> [-c]`\
   Deletes a build with all its versions and its placements in every world, after you confirm with `/vcs confirmDelete`. Its blocks stay in the world. If the build is placed in other worlds, you are warned; its blocks there always stay.
   - `-c`: also clears the blocks of all its placements in this world.
@@ -203,7 +205,9 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
-- Renaming of builds: command and ovelay button
+- diff off in overlay
+- Dots menu in overlay: add diff to it
+- Client config switches to toggle labels and bounding box displays
 
 - Make movement of preview during placement more intuitive, maybe only move in direction you look, not using the plane.
 - /vcs tag latest 1.0.0 should be possible and autocomplete latest. /vcs tag 1.0.0 should tag head by default
@@ -213,7 +217,7 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Big diffs lag client too much (see it on mcinmc/p2)
 - Make diffs more visible. Right now they intersect into clutter. 
 - Ability to rotate during placement preview
-- Client config switches to toggle labels and bounding box displays
+
 
 ### Assemblies
 
@@ -227,4 +231,4 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Render label of the build on the nearest edge to the player. This way labels of the big builds will be seen better.
 - /vcs off command to turn off diff and preview
 - In tests display test name and sequential number and all number of tests running in chat or just screen.
-- Renaming builds and placements
+- Renaming placements

@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
 import java.io.Writer;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -211,6 +212,51 @@ public final class BuildStorage {
 	}
 
 	/**
+	 * Renames {@code build} to {@code name}: its schematics, the name in its {@link #BUILD_FILE}, its folder, and
+	 * every player's selection of it in any world. Placements in every world go with it, since they live in the
+	 * build file. The folder is moved last, so a failure part way leaves the build under its old name.
+	 *
+	 * @throws FileAlreadyExistsException if a folder of that name is in the way
+	 */
+	public static void rename(Build build, String name) throws IOException {
+		String from = build.name();
+		Path source = directory(from);
+		Path target = directory(name);
+		if (!from.equalsIgnoreCase(name) && Files.exists(target)) {
+			throw new FileAlreadyExistsException(target.toString());
+		}
+		for (int version = 1; version <= build.version(); version++) {
+			Path file = schematicFile(from, version);
+			if (Files.exists(file)) {
+				move(file, source.resolve(schematicFile(name, version).getFileName()));
+			}
+		}
+		writeJson(buildFile(from), Build.codec(build.world()), build.withName(name));
+		move(source, target);
+		renameSelectionsOf(from, name);
+	}
+
+	/**
+	 * Moves {@code source} to {@code target}, which must not exist. A move that only changes letter case goes through a
+	 * temporary name: a file system that does not tell the two apart sees the target as the source itself, and
+	 * {@link Files#move} would then do nothing. The temporary name starts with a dot, so it is never read as a build.
+	 */
+	private static void move(Path source, Path target) throws IOException {
+		String sourceName = source.getFileName().toString();
+		String targetName = target.getFileName().toString();
+		if (sourceName.equals(targetName)) {
+			return;
+		}
+		if (sourceName.equalsIgnoreCase(targetName)) {
+			Path temporary = source.resolveSibling("." + targetName + ".renaming");
+			Files.move(source, temporary);
+			Files.move(temporary, target);
+		} else {
+			Files.move(source, target);
+		}
+	}
+
+	/**
 	 * Reads the schematic {@link #save} wrote for version {@code version} of the build called {@code name}.
 	 *
 	 * @throws NoSuchFileException if no schematic was written for that version
@@ -302,6 +348,26 @@ public final class BuildStorage {
 		}
 
 		Files.createDirectories(root());
+		writeJson(selectionsFile(), SELECTIONS_CODEC, selections);
+	}
+
+	/** Makes every player's selection of the build called {@code from}, in every world, a selection of the build called {@code to}. */
+	private static void renameSelectionsOf(String from, String to) throws IOException {
+		Map<String, Map<UUID, Selection>> selections = new HashMap<>();
+		boolean changed = false;
+		for (Map.Entry<String, Map<UUID, Selection>> world : selections().entrySet()) {
+			Map<UUID, Selection> inWorld = new HashMap<>(world.getValue());
+			for (Map.Entry<UUID, Selection> selection : inWorld.entrySet()) {
+				if (selection.getValue().build().equals(from)) {
+					selection.setValue(new Selection(to, selection.getValue().placement()));
+					changed = true;
+				}
+			}
+			selections.put(world.getKey(), inWorld);
+		}
+		if (!changed) {
+			return;
+		}
 		writeJson(selectionsFile(), SELECTIONS_CODEC, selections);
 	}
 

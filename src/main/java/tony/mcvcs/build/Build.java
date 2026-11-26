@@ -200,6 +200,11 @@ public record Build(String name, String world, int version, Map<Integer, BuildBo
 		return new Build(name, world, version, versions, updated, tags);
 	}
 
+	/** The build called {@code name}, with everything else as it is, as {@code /vcs rename} leaves it. */
+	public Build withName(String name) {
+		return new Build(name, world, version, versions, placementsByWorld, tags);
+	}
+
 	/** The extent of {@code version} in build space, which every placement lays at its own origin. */
 	public BuildBox extent(int version) {
 		BuildBox extent = versions.get(version);
