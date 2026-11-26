@@ -2,14 +2,10 @@ package tony.mcvcs.build;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.server.level.ServerLevel;
 
 import com.mojang.datafixers.util.Pair;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
-import com.sk89q.worldedit.fabric.FabricAdapter;
-import com.sk89q.worldedit.regions.CuboidRegion;
-import com.sk89q.worldedit.regions.Region;
 import io.netty.buffer.ByteBuf;
 
 /**
@@ -42,12 +38,6 @@ public record BuildBox(BlockPos min, BlockPos max) {
 		if (min.getX() > max.getX() || min.getY() > max.getY() || min.getZ() > max.getZ()) {
 			throw new IllegalArgumentException("min " + min + " exceeds max " + max);
 		}
-	}
-
-	/** The bounding box of a WorldEdit region. */
-	public static BuildBox of(Region region) {
-		FabricAdapter adapter = FabricAdapter.get();
-		return new BuildBox(adapter.toBlockPos(region.getMinimumPoint()), adapter.toBlockPos(region.getMaximumPoint()));
 	}
 
 	public int sizeX() {
@@ -104,12 +94,6 @@ public record BuildBox(BlockPos min, BlockPos max) {
 	/** This world box written in the build space of a placement whose origin is {@code origin}; the inverse of {@link #at}. */
 	public BuildBox relativeTo(BlockPos origin) {
 		return new BuildBox(min.subtract(origin), max.subtract(origin));
-	}
-
-	/** The box as a WorldEdit region in {@code level}. */
-	public Region region(ServerLevel level) {
-		FabricAdapter adapter = FabricAdapter.get();
-		return new CuboidRegion(adapter.fromNativeWorld(level), adapter.adapt(min), adapter.adapt(max));
 	}
 
 	/** The smallest box containing both this box and {@code other}. */

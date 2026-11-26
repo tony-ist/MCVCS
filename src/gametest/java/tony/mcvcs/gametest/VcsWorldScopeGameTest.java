@@ -1,13 +1,13 @@
 package tony.mcvcs.gametest;
 
 import static tony.mcvcs.gametest.VcsTestSupport.assertBlock;
+import static tony.mcvcs.gametest.VcsTestSupport.create;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
 import static tony.mcvcs.gametest.VcsTestSupport.read;
 import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
-import static tony.mcvcs.gametest.VcsTestSupport.select;
 
 import java.nio.file.Files;
 import java.util.List;
@@ -17,8 +17,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.build.BuildRegistry;
-import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.world.block.BlockTypes;
+import tony.mcvcs.build.Schematic;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
@@ -41,8 +40,7 @@ public class VcsWorldScopeGameTest extends VcsGameTest {
 			BlockPos min = playerPos(first).offset(2, 0, 2);
 			BlockPos max = min.offset(2, 1, 1);
 			fillBox(first, min, max, Blocks.STONE.defaultBlockState(), min, Blocks.STONE.defaultBlockState());
-			select(first, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME + " -we");
+			create(context, first, BUILD_NAME, min, max);
 			read(schematic(BUILD_NAME, 1));
 			context.waitFor(client -> ClientPlacements.selected() != null);
 		}
@@ -78,15 +76,14 @@ public class VcsWorldScopeGameTest extends VcsGameTest {
 			BlockPos min = playerPos(second).offset(2, 0, 2);
 			BlockPos max = min.offset(2, 1, 1);
 			fillBox(second, min, max, Blocks.DIAMOND_BLOCK.defaultBlockState(), min, Blocks.DIAMOND_BLOCK.defaultBlockState());
-			select(second, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME + " -we");
+			create(context, second, BUILD_NAME, min, max);
 			context.waitTicks(5);
 			if (context.computeOnClient(client -> ClientPlacements.selected()) != null) {
 				throw new AssertionError("Creating a build with another world's name must fail");
 			}
 			// A successful create would have overwritten v1 with this world's diamond box.
-			Clipboard v1 = read(schematic(BUILD_NAME, 1));
-			assertBlock(v1, v1.getMinimumPoint(), BlockTypes.STONE);
+			Schematic v1 = read(schematic(BUILD_NAME, 1));
+			assertBlock(v1, v1.box().min(), Blocks.STONE);
 		}
 	}
 }

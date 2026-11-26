@@ -9,8 +9,8 @@ import net.minecraft.world.level.Level;
 import io.netty.buffer.ByteBuf;
 
 /**
- * What the client knows about one placement of a build: enough to draw its bounding box and label it, nothing that
- * needs WorldEdit. The client is sent one of these per placement, not per build, since that is what it draws.
+ * What the client knows about one placement of a build: enough to draw its bounding box and label it. The client is
+ * sent one of these per placement, not per build, since that is what it draws.
  *
  * @param build     the name of the build the placement is of
  * @param placement the placement's name within the build

@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 import tony.mcvcs.MCVCS;
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildStorage;
+import tony.mcvcs.build.SpongeSchematic;
 
 /**
  * Renames the schematics older versions of the mod wrote as {@code <buildname>/v<N>.schem} to
@@ -20,7 +21,7 @@ import tony.mcvcs.build.BuildStorage;
  */
 final class SchematicFileNameMigration implements Migration {
 	private static final Pattern OLD_NAME =
-		Pattern.compile("v([1-9][0-9]*)\\." + Pattern.quote(BuildStorage.FORMAT.getPrimaryFileExtension()));
+		Pattern.compile("v([1-9][0-9]*)\\." + Pattern.quote(SpongeSchematic.EXTENSION));
 
 	@Override
 	public String description() {

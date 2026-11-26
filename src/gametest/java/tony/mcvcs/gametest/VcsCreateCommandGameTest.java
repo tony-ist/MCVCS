@@ -1,5 +1,6 @@
 package tony.mcvcs.gametest;
 
+import static tony.mcvcs.gametest.VcsTestSupport.create;
 import static tony.mcvcs.gametest.VcsTestSupport.assertBlock;
 import static tony.mcvcs.gametest.VcsTestSupport.assertOrigin;
 import static tony.mcvcs.gametest.VcsTestSupport.assertSize;
@@ -9,7 +10,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
 import static tony.mcvcs.gametest.VcsTestSupport.read;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
-import static tony.mcvcs.gametest.VcsTestSupport.select;
 import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 
 import java.io.IOException;
@@ -25,11 +25,9 @@ import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.network.chat.Component;
 
 import tony.mcvcs.build.BuildStorage;
-import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.fabric.FabricAdapter;
-import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldedit.world.block.BlockTypes;
+import tony.mcvcs.build.Schematic;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Vec3i;
 import net.minecraft.world.level.block.Blocks;
 
 @SuppressWarnings("UnstableApiUsage")
@@ -47,8 +45,6 @@ public class VcsCreateCommandGameTest extends VcsGameTest {
 
 	@Override
 	protected void run(ClientGameTestContext context) {
-		FabricAdapter adapter = FabricAdapter.get();
-
 		// /vcs requires op, which in singleplayer means cheats must be on.
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME, OVERLAPPING_NAME, ADJACENT_NAME);
@@ -60,13 +56,12 @@ public class VcsCreateCommandGameTest extends VcsGameTest {
 			BlockPos min = playerPos.offset(2, 0, 2);
 			BlockPos max = min.offset(2, 1, 1);
 			// Top north-west corner of the box, spelled out rather than taken from the command's own constants.
-			BlockVector3 originCorner = BlockVector3.at(adapter.adapt(min).x(), adapter.adapt(max).y(), adapter.adapt(min).z());
+			BlockPos originCorner = new BlockPos(min.getX(), max.getY(), min.getZ());
 			// The origin sits one block above the build, so a paste lands it below the player instead of around them.
-			BlockVector3 expectedOrigin = originCorner.add(0, 1, 0);
-			BlockPos gold = adapter.toBlockPos(originCorner);
+			BlockPos expectedOrigin = originCorner.above();
+			BlockPos gold = originCorner;
 
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), gold, Blocks.GOLD_BLOCK.defaultBlockState());
-			select(singleplayer, min, max);
 
 			// The name is a folder name, so one that points outside the builds folder is refused before anything is written.
 			runCommand(context, "vcs create ..");
@@ -75,59 +70,56 @@ public class VcsCreateCommandGameTest extends VcsGameTest {
 				throw new AssertionError("Create with name '..' must not write " + escaped);
 			}
 			// A name starting with a minus would read as a flag, so it is refused too.
-			runCommand(context, "vcs create -dash -we");
+			runCommand(context, "vcs create -dash");
 			if (Files.exists(BuildStorage.root().resolve("-dash"))) {
 				throw new AssertionError("Create with name '-dash' must not write a build folder");
 			}
 			// A build name has to start with a letter from a to z.
 			for (String name : List.of("1digit", "_under", "+plus")) {
-				runCommand(context, "vcs create " + name + " -we");
+				runCommand(context, "vcs create " + name);
 				if (Files.exists(BuildStorage.root().resolve(name))) {
 					throw new AssertionError("Create with name '" + name + "' must not write a build folder");
 				}
 			}
 
-			runCommand(context, "vcs create " + BUILD_NAME + " -we");
+			create(context, singleplayer, BUILD_NAME, min, max);
 
-			Clipboard clipboard = read(schematic(BUILD_NAME, 1));
-			assertOrigin(clipboard, expectedOrigin);
+			Schematic schematic = read(schematic(BUILD_NAME, 1));
+			assertOrigin(schematic, expectedOrigin);
 
-			// A paste at position `to` puts a clipboard block at `to + (block - origin)`, so check where the build's top
+			// WorldEdit's //paste at position `to` puts a block at `to + (block - origin)`, so check where the build's top
 			// layer ends up when pasted at the player's feet: one block below them, never inside them.
-			BlockVector3 pasteAt = adapter.adapt(playerPos);
-			int pastedTopY = pasteAt.add(originCorner.subtract(clipboard.getOrigin())).y();
-			if (pastedTopY != pasteAt.y() - 1) {
-				throw new AssertionError("Expected the top layer to paste at y " + (pasteAt.y() - 1) + " but it lands at y " + pastedTopY);
+			int pastedTopY = playerPos.offset(originCorner.subtract(schematic.origin())).getY();
+			if (pastedTopY != playerPos.getY() - 1) {
+				throw new AssertionError("Expected the top layer to paste at y " + (playerPos.getY() - 1) + " but it lands at y " + pastedTopY);
 			}
 
-			assertSize(clipboard, BlockVector3.at(3, 2, 2));
-			assertBlock(clipboard, originCorner, BlockTypes.GOLD_BLOCK);
+			assertSize(schematic, new Vec3i(3, 2, 2));
+			assertBlock(schematic, originCorner, Blocks.GOLD_BLOCK);
 
 			// The diagonally opposite corner must be stone.
-			BlockVector3 opposite = adapter.adapt(min).add(adapter.adapt(max)).subtract(originCorner);
-			assertBlock(clipboard, opposite, BlockTypes.STONE);
+			BlockPos opposite = min.offset(max).subtract(originCorner);
+			assertBlock(schematic, opposite, Blocks.STONE);
 
 			// Creating the build again, by its name or by the name in other letters, is refused and leaves v1 as it was;
 			// a diamond put in the box beforehand shows that nothing was rewritten.
-			setBlock(singleplayer, adapter.toBlockPos(opposite), Blocks.DIAMOND_BLOCK.defaultBlockState());
+			setBlock(singleplayer, opposite, Blocks.DIAMOND_BLOCK.defaultBlockState());
 			List<Component> same = run(context, "vcs create " + BUILD_NAME);
 			assertOnlyMessage(same, "Build " + BUILD_NAME + " already exists in this world; select it with /vcs select " + BUILD_NAME);
 			List<Component> otherCase = run(context, "vcs create " + BUILD_NAME.toUpperCase(Locale.ROOT));
 			assertOnlyMessage(otherCase, "Build " + BUILD_NAME + " already exists in this world");
-			assertBlock(read(schematic(BUILD_NAME, 1)), opposite, BlockTypes.STONE);
+			assertBlock(read(schematic(BUILD_NAME, 1)), opposite, Blocks.STONE);
 			assertNoFolderOfItsOwn(BUILD_NAME.toUpperCase(Locale.ROOT), BUILD_NAME);
-			setBlock(singleplayer, adapter.toBlockPos(opposite), Blocks.STONE.defaultBlockState());
+			setBlock(singleplayer, opposite, Blocks.STONE.defaultBlockState());
 
 			// A box that shares even one block with an existing build is refused, so nothing is written for it.
-			select(singleplayer, max, max.offset(2, 2, 2));
-			runCommand(context, "vcs create " + OVERLAPPING_NAME + " -we");
+			create(context, singleplayer, OVERLAPPING_NAME, max, max.offset(2, 2, 2));
 			if (Files.exists(BuildStorage.directory(OVERLAPPING_NAME))) {
 				throw new AssertionError("Create must not write a build whose box overlaps '" + BUILD_NAME + "'");
 			}
 
 			// One that merely touches the existing build's face is fine.
-			select(singleplayer, max.offset(1, 0, 0), max.offset(2, 2, 2));
-			runCommand(context, "vcs create " + ADJACENT_NAME + " -we");
+			create(context, singleplayer, ADJACENT_NAME, max.offset(1, 0, 0), max.offset(2, 2, 2));
 			read(schematic(ADJACENT_NAME, 1));
 
 			context.takeScreenshot("mcvcs-vcs-create");

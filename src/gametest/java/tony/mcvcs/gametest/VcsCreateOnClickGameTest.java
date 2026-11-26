@@ -3,7 +3,6 @@ package tony.mcvcs.gametest;
 import static tony.mcvcs.gametest.VcsTestSupport.assertBlock;
 import static tony.mcvcs.gametest.VcsTestSupport.assertSize;
 import static tony.mcvcs.gametest.VcsTestSupport.blockAt;
-import static tony.mcvcs.gametest.VcsTestSupport.clearSelection;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
 import static tony.mcvcs.gametest.VcsTestSupport.mainBox;
@@ -13,7 +12,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
-import static tony.mcvcs.gametest.VcsTestSupport.select;
 import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 
 import java.nio.file.Files;
@@ -31,17 +29,14 @@ import net.minecraft.network.chat.Component;
 
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
-import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.BuildStorage;
 import tony.mcvcs.build.ClientPlacement;
+import tony.mcvcs.build.Schematic;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.selection.PendingClickHighlight;
-import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.fabric.FabricAdapter;
-import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldedit.world.block.BlockTypes;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Vec3i;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.NoteBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -49,8 +44,8 @@ import net.minecraft.world.level.block.state.BlockState;
 /**
  * {@code /vcs create} waits for the player to click a block: a punch with anything in hand or a right-click with an
  * empty hand. The build is grown from that block over everything connected to it, the block itself is neither broken
- * nor used, and a box that would overlap another build is refused. A WorldEdit selection is ignored unless
- * {@code -we} is given, and another {@code /vcs create} replaces the click that is being waited for.
+ * nor used, and a box that would overlap another build is refused. Another {@code /vcs create} replaces the click
+ * that is being waited for.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsCreateOnClickGameTest extends VcsGameTest {
@@ -69,14 +64,10 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 
 	@Override
 	protected void run(ClientGameTestContext context) {
-		FabricAdapter adapter = FabricAdapter.get();
-
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(PUNCHED_NAME, USED_NAME, OVERLAPPING_NAME, REPLACED_NAME, SELECTED_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
-			// A selection left by an earlier test must not change what create does, and -we must find none of its own.
-			clearSelection(singleplayer);
 
 			// A 2x2x2 stone cube hovering one block above the ground in front of and to the right of the player, with a
 			// gold block touching its top south-east corner only diagonally: the build the click has to grow over.
@@ -87,11 +78,7 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), min, Blocks.STONE.defaultBlockState());
 			setBlock(singleplayer, gold, Blocks.GOLD_BLOCK.defaultBlockState());
 
-			// With -we and nothing selected, nothing is created and no click is waited for either: a punch afterwards
-			// is an ordinary one, which says nothing and leaves the cube alone.
-			List<Component> noSelection = run(context, "vcs create " + PUNCHED_NAME + " -we");
-			assertOnlyMessage(noSelection, "No WorldEdit selection to create build " + PUNCHED_NAME + " from; make one with the wand, or run /vcs create " + PUNCHED_NAME);
-			assertNoBuild(PUNCHED_NAME);
+			// Before any create, a punch is an ordinary one, which says nothing and leaves the cube alone.
 			lookAt(context, min, max);
 			assertNoMessage(click(context, options -> options.keyAttack));
 			assertNoBuild(PUNCHED_NAME);
@@ -114,12 +101,12 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 			assertBox(context, singleplayer, PUNCHED_NAME, punched);
 			assertState(singleplayer, min, Blocks.STONE.defaultBlockState());
 			assertState(singleplayer, gold, Blocks.GOLD_BLOCK.defaultBlockState());
-			Clipboard clipboard = read(schematic(PUNCHED_NAME, 1));
-			assertSize(clipboard, BlockVector3.at(3, 3, 3));
-			assertBlock(clipboard, adapter.adapt(min), BlockTypes.STONE);
-			assertBlock(clipboard, adapter.adapt(max), BlockTypes.STONE);
-			assertBlock(clipboard, adapter.adapt(gold), BlockTypes.GOLD_BLOCK);
-			assertBlock(clipboard, adapter.adapt(max.offset(1, 0, 0)), BlockTypes.AIR);
+			Schematic schematic = read(schematic(PUNCHED_NAME, 1));
+			assertSize(schematic, new Vec3i(3, 3, 3));
+			assertBlock(schematic, min, Blocks.STONE);
+			assertBlock(schematic, max, Blocks.STONE);
+			assertBlock(schematic, gold, Blocks.GOLD_BLOCK);
+			assertBlock(schematic, max.offset(1, 0, 0), Blocks.AIR);
 			screenshotLastFrame(context, "mcvcs-vcs-create-on-click");
 
 			// The click is used up: punching again is an ordinary punch, which says nothing.
@@ -160,16 +147,17 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 			assertState(singleplayer, touching, Blocks.STONE.defaultBlockState());
 			assertNoMessage(click(context, options -> options.keyAttack));
 
-			// A create with -we replaces the click an earlier one without it is waiting for: the earlier build is never
-			// made, however much the player clicks afterwards. The selection is a 2x2x2 cube behind the player's right.
+			// A second create replaces the click the first one is waiting for: the punch makes the second build, and the
+			// first is never made, however much the player clicks afterwards. The build is a 2x2x2 cube behind the
+			// player's right.
 			BlockPos selectedMin = playerPos(singleplayer).offset(2, 1, -3);
 			BlockPos selectedMax = selectedMin.offset(1, 1, 1);
 			fillBox(singleplayer, selectedMin, selectedMax, Blocks.STONE.defaultBlockState(), selectedMin, Blocks.STONE.defaultBlockState());
 			runCommand(context, "vcs create " + REPLACED_NAME);
-			select(singleplayer, selectedMin, selectedMax);
-			List<Component> selected = run(context, "vcs create " + SELECTED_NAME + " -we");
-			assertOnlyMessage(selected, "Created build " + SELECTED_NAME + " as placement " + Build.MAIN + " (2x2x2, 8 blocks) at");
+			runCommand(context, "vcs create " + SELECTED_NAME);
 			lookAt(context, selectedMin, selectedMax);
+			List<Component> selected = click(context, options -> options.keyAttack);
+			assertOnlyMessage(selected, "Created build " + SELECTED_NAME + " as placement " + Build.MAIN + " (2x2x2, 8 blocks) at");
 			assertNoMessage(click(context, options -> options.keyAttack));
 			assertNoBuild(REPLACED_NAME);
 			assertBox(context, singleplayer, SELECTED_NAME, new BuildBox(selectedMin, selectedMax));

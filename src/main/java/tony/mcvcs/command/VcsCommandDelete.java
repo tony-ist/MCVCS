@@ -3,7 +3,6 @@ package tony.mcvcs.command;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,12 +23,6 @@ import tony.mcvcs.network.BuildSync;
 import tony.mcvcs.network.ChatButtons;
 import tony.mcvcs.network.DiffSender;
 import tony.mcvcs.network.PreviewSender;
-import com.sk89q.worldedit.EditSession;
-import com.sk89q.worldedit.WorldEdit;
-import com.sk89q.worldedit.WorldEditException;
-import com.sk89q.worldedit.entity.Player;
-import com.sk89q.worldedit.fabric.FabricAdapter;
-import com.sk89q.worldedit.world.block.BlockTypes;
 
 /**
  * {@code /vcs delete <buildname> [-c]}: asks the player to confirm deleting the build; nothing is touched yet.
@@ -113,10 +106,8 @@ public final class VcsCommandDelete {
 						+ ", which does not exist here; nothing was deleted"));
 					return 0;
 				}
-				if (!clear(player, level, placement)) {
-					source.sendFailure(Component.literal("Failed to empty the box of ").append(VcsMessages.placement(placement)).append("; nothing was deleted"));
-					return 0;
-				}
+				// The way a checkout empties a box: without block updates.
+				BuildPlacer.clear(level, placement.box());
 			}
 		}
 
@@ -152,20 +143,4 @@ public final class VcsCommandDelete {
 		return 1;
 	}
 
-	/**
-	 * Empties a placement's box, the way a checkout empties one: without block updates and outside the player's
-	 * WorldEdit history, so {@code //undo} never brings the blocks back.
-	 */
-	private static boolean clear(ServerPlayer player, ServerLevel level, BuildPlacement placement) {
-		FabricAdapter adapter = FabricAdapter.get();
-		Player actor = adapter.fromNativePlayer(player);
-		try (EditSession editSession = WorldEdit.getInstance().newEditSessionBuilder().world(adapter.fromNativeWorld(level)).actor(actor).maxBlocks(-1).build()) {
-			editSession.setSideEffectApplier(BuildPlacer.sideEffects());
-			editSession.setBlocks(placement.box().region(level), Objects.requireNonNull(BlockTypes.AIR).getDefaultState());
-			return true;
-		} catch (WorldEditException e) {
-			MCVCS.LOGGER.error("Failed to empty the box of '{}' for {}", placement.label(), player.getGameProfile().name(), e);
-			return false;
-		}
-	}
 }

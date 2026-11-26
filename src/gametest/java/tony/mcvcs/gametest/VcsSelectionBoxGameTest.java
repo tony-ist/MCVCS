@@ -1,5 +1,6 @@
 package tony.mcvcs.gametest;
 
+import static tony.mcvcs.gametest.VcsTestSupport.create;
 import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
@@ -8,7 +9,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.read;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
-import static tony.mcvcs.gametest.VcsTestSupport.select;
 import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
@@ -45,8 +45,7 @@ public class VcsSelectionBoxGameTest extends VcsGameTest {
 			BuildBox box = new BuildBox(min, max);
 
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), min, Blocks.STONE.defaultBlockState());
-			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME + " -we");
+			create(context, singleplayer, BUILD_NAME, min, max);
 			read(schematic(BUILD_NAME, 1));
 			assertSelected(waitForSelection(context, 1), BUILD_NAME, 1, box);
 

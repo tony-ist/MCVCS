@@ -21,12 +21,12 @@ import tony.mcvcs.MCVCS;
  * still needs an argument into their chat box.
  * <p>
  * A {@link ClickEvent.RunCommand} would do for running, but the client asks for confirmation before running any
- * command that needs permissions, which {@code /vcs} and {@code //paste} do, so every press would open a dialog. A
+ * command that needs permissions, which {@code /vcs} does, so every press would open a dialog. A
  * {@link ClickEvent.Custom} is sent to the server as is, without the client looking at it, and works with a vanilla
  * client. The server side is ours: {@link tony.mcvcs.mixin.ServerCommonPacketListenerImplMixin} hands the click to
  * {@link #handle}, which runs the command it carries through the dispatcher as the player, so it is subject to the
  * same permission check and gives the same feedback as typing it. Only commands rooted in {@link #ALLOWED_ROOTS}
- * are run, so a client cannot make a click run anything but ours, {@code //paste} and {@code //undo}.
+ * are run, so a client cannot make a click run anything but ours.
  * <p>
  * A command with a placeholder, such as {@code /vcs create <buildname>}, cannot be run as is; clicking it uses a
  * vanilla {@link ClickEvent.SuggestCommand} to put everything before the placeholder into the chat box, and the
@@ -35,11 +35,8 @@ import tony.mcvcs.MCVCS;
 public final class ChatButtons {
 	/** Click action that runs a command; the payload is the command, without its leading slash, as a string tag. */
 	public static final Identifier RUN = MCVCS.id("run");
-	/**
-	 * First words of the commands a click may run: ours, and WorldEdit's {@code //paste} and {@code //undo}, which are
-	 * registered as {@code /paste} and {@code /undo}.
-	 */
-	public static final Set<String> ALLOWED_ROOTS = Set.of("vcs", "/paste", "/undo");
+	/** First words of the commands a click may run: only ours. */
+	public static final Set<String> ALLOWED_ROOTS = Set.of("vcs");
 
 	private ChatButtons() {
 	}

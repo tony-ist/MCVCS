@@ -9,13 +9,6 @@ repositories {
 	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
 	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
 	// for more information about repositories.
-
-	// First so a locally published WorldEdit fork (see local.properties handling below) wins over EngineHub.
-	mavenLocal()
-	maven {
-		name = "EngineHub"
-		url = "https://maven.enginehub.org/repo/"
-	}
 }
 
 loom {
@@ -56,21 +49,6 @@ tasks.named("runClientGameTest") {
 	}
 }
 
-// Local-only overrides, e.g. to build against a WorldEdit fork published to mavenLocal. Not checked in; CI uses the
-// upstream version from gradle.properties. Create local.properties with:
-//   worldedit_version=7.4.6-ShayHi-Edition-1.5
-// The fabric module's POM depends on the core modules at the same version, so all of these must be published from the
-// fork:
-//   gradlew :worldedit-fabric:publishToMavenLocal :worldedit-core:publishToMavenLocal
-//           :worldedit-core-mc:publishToMavenLocal :worldedit-libs:core:publishToMavenLocal
-//           :worldedit-libs:core-mc:publishToMavenLocal :worldedit-libs:core:ap:publishToMavenLocal
-def localProperties = new Properties()
-def localPropertiesFile = rootProject.file("local.properties")
-if (localPropertiesFile.exists()) {
-	localPropertiesFile.withInputStream { localProperties.load(it) }
-}
-def worldeditVersion = localProperties.getProperty("worldedit_version", project.worldedit_version)
-
 dependencies {
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
@@ -78,9 +56,6 @@ dependencies {
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-
-	// WorldEdit (server side)
-	implementation "com.sk89q.worldedit:worldedit-fabric-mc${project.minecraft_version}:${worldeditVersion}"
 }
 
 processResources {

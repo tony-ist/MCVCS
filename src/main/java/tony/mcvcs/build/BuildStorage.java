@@ -30,11 +30,6 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.UUIDUtil;
 
-import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.extent.clipboard.io.BuiltInClipboardFormat;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardWriter;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -45,14 +40,14 @@ import org.jspecify.annotations.Nullable;
  *   &lt;buildname&gt;/
  *     build.json             the {@link Build}: its world, every version's extent and every placement of it
  *     &lt;buildname&gt;-v1.schem, &lt;buildname&gt;-v2.schem ... one schematic per version * </pre>
- * Every build has a folder of its own and none of it mixes with WorldEdit's {@code //schem} files. The folder
+ * Every build has a folder of its own, and each schematic is a Sponge schematic, see {@link SpongeSchematic}. The folder
  * is shared by every world in the game directory, so each build records the world it belongs to and lookups
  * filter on it; a name can only be taken by one world at a time. Nothing is cached: each call reads or writes
  * the files, so the folder is the single source of truth and can be edited or copied between game directories
  * while the server is down.
  * <p>
- * A schematic still carries the world position it was copied from, which is what {@code /vcs load} pastes by, but
- * where a version belongs at a placement comes from {@code build.json} alone, see {@link Build}.
+ * A schematic still carries the world position it was copied from, but where a version belongs at a placement comes
+ * from {@code build.json} alone, see {@link Build}.
  * <p>
  * Names reach the file system as directory names, so only {@link Build#isValidName valid names} may be stored.
  */
@@ -63,8 +58,6 @@ public final class BuildStorage {
 	public static final String BUILD_FILE = "build.json";
 	/** File under {@link #ROOT} holding every player's selection in every world. */
 	public static final String SELECTIONS_FILE = "selections.json";
-	/** Schematic file format. */
-	public static final ClipboardFormat FORMAT = BuiltInClipboardFormat.SPONGE_V3_SCHEMATIC;
 
 	/** The build and placement a player has selected in one world. */
 	public record Selection(String build, String placement) {
@@ -102,7 +95,7 @@ public final class BuildStorage {
 
 	/** The schematic of version {@code version} of the build called {@code name}. */
 	public static Path schematicFile(String name, int version) {
-		return directory(name).resolve(name + "-v" + version + "." + FORMAT.getPrimaryFileExtension());
+		return directory(name).resolve(name + "-v" + version + "." + SpongeSchematic.EXTENSION);
 	}
 
 	/** The file recording every player's selection in every world. */
@@ -179,18 +172,17 @@ public final class BuildStorage {
 	}
 
 	/**
-	 * Writes {@code clipboard} as the schematic of version {@code version} of {@code build} and records the build
-	 * itself as the latest state of the build with its name, creating the build's folder if needed.
+	 * Writes {@code schematic} as version {@code version} of {@code build} and records the build itself as the latest
+	 * state of the build with its name, creating the build's folder if needed.
 	 *
 	 * @return the schematic written
 	 */
-	public static Path save(Build build, int version, Clipboard clipboard) throws IOException {
+	public static Path save(Build build, int version, Schematic schematic) throws IOException {
 		Path file = schematicFile(build.name(), version);
 		Files.createDirectories(file.getParent());
 
-		try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(file));
-			 ClipboardWriter writer = FORMAT.getWriter(out)) {
-			writer.write(clipboard);
+		try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(file))) {
+			SpongeSchematic.write(schematic, out);
 		}
 		writeJson(buildFile(build.name()), Build.CODEC, build);
 		return file;
@@ -231,15 +223,25 @@ public final class BuildStorage {
 	 *
 	 * @throws NoSuchFileException if no schematic was written for that version
 	 */
-	public static Clipboard readSchematic(String name, int version) throws IOException {
-		Path file = schematicFile(name, version);
+	public static Schematic readSchematic(String name, int version) throws IOException {
+		return readSchematic(schematicFile(name, version));
+	}
+
+	/**
+	 * Reads the schematic in {@code file}.
+	 *
+	 * @throws NoSuchFileException if there is no such file
+	 */
+	public static Schematic readSchematic(Path file) throws IOException {
 		if (!Files.isRegularFile(file)) {
 			throw new NoSuchFileException(file.toString());
 		}
 
-		try (InputStream in = new BufferedInputStream(Files.newInputStream(file));
-			 ClipboardReader reader = FORMAT.getReader(in)) {
-			return reader.read();
+		try (InputStream in = new BufferedInputStream(Files.newInputStream(file))) {
+			return SpongeSchematic.read(in);
+		} catch (RuntimeException e) {
+			// The data fixer and the NBT classes throw unchecked exceptions on malformed data.
+			throw new IOException("Malformed schematic " + file + ": " + e.getMessage(), e);
 		}
 	}
 

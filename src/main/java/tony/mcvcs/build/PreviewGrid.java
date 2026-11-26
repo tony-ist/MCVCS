@@ -1,16 +1,10 @@
 package tony.mcvcs.build;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockState;
 
-import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.fabric.FabricAdapter;
-import com.sk89q.worldedit.math.BlockVector3;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMaps;
 
 /**
@@ -43,23 +37,21 @@ public final class PreviewGrid {
 	}
 
 	/**
-	 * The blocks of {@code clipboard}, a version of extent {@code extent}, sampled onto its {@link #grid} at
+	 * The blocks of {@code schematic}, a version of extent {@code extent}, sampled onto its {@link #grid} at
 	 * {@code scale}. Each block of the grid takes a block of its cube that would be drawn, preferring one that fills
 	 * its whole space, so a wall stays a wall however thin and redstone dust running over a floor does not hide it.
 	 * A cube with nothing to draw in it is air. Block entity data is left out; a preview does not show it.
 	 *
-	 * @throws IllegalArgumentException if the clipboard is not the size of {@code extent}
+	 * @throws IllegalArgumentException if the schematic is not the size of {@code extent}
 	 */
-	public static BoxSnapshot sample(Clipboard clipboard, BuildBox extent, int scale) {
-		BuildBox region = BuildBox.of(clipboard.getRegion());
+	public static BoxSnapshot sample(Schematic schematic, BuildBox extent, int scale) {
+		BoxSnapshot saved = schematic.blocks();
+		BuildBox region = saved.box();
 		if (region.sizeX() != extent.sizeX() || region.sizeY() != extent.sizeY() || region.sizeZ() != extent.sizeZ()) {
 			throw new IllegalArgumentException("Schematic is " + region.sizeX() + "x" + region.sizeY() + "x" + region.sizeZ()
 				+ " but the version is " + extent.sizeX() + "x" + extent.sizeY() + "x" + extent.sizeZ());
 		}
 
-		FabricAdapter adapter = FabricAdapter.get();
-		// Schematics repeat a handful of block states millions of times; converting each once is enough.
-		Map<com.sk89q.worldedit.world.block.BlockState, BlockState> converted = new HashMap<>();
 		BuildBox grid = grid(extent, scale);
 		BlockState[] blocks = new BlockState[Math.toIntExact(grid.volume())];
 		BlockPos min = region.min();
@@ -84,9 +76,7 @@ public final class PreviewGrid {
 								if (z >= extent.sizeZ()) {
 									break;
 								}
-								BlockState state = converted.computeIfAbsent(
-									clipboard.getBlock(BlockVector3.at(min.getX() + x, min.getY() + y, min.getZ() + z)),
-									adapter::toNativeBlockState);
+								BlockState state = saved.state(region.index(min.getX() + x, min.getY() + y, min.getZ() + z));
 								// A version small enough to go whole keeps every block as it is.
 								if (scale == 1 || state.isSolidRender()) {
 									chosen = state;

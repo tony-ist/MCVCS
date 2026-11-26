@@ -1,5 +1,6 @@
 package tony.mcvcs.gametest;
 
+import static tony.mcvcs.gametest.VcsTestSupport.create;
 import static tony.mcvcs.gametest.VcsTestSupport.buildFile;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
@@ -9,7 +10,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
-import static tony.mcvcs.gametest.VcsTestSupport.select;
 import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 
 import java.nio.file.Files;
@@ -63,8 +63,7 @@ public class VcsDeleteCommandGameTest extends VcsGameTest {
 			BlockPos min = playerPos(singleplayer).offset(2, 0, 2);
 			BlockPos max = min.offset(2, 1, 1);
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), min, Blocks.STONE.defaultBlockState());
-			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME + " -we");
+			create(context, singleplayer, BUILD_NAME, min, max);
 			read(schematic(BUILD_NAME, 1));
 			setBlock(singleplayer, max, Blocks.GOLD_BLOCK.defaultBlockState());
 			runCommand(context, "vcs commit");
@@ -112,7 +111,7 @@ public class VcsDeleteCommandGameTest extends VcsGameTest {
 			assertOnlyMessage(reconfirmed, "Nothing to confirm");
 
 			// The name is free again and the old versions do not come back with it.
-			runCommand(context, "vcs create " + BUILD_NAME + " -we");
+			create(context, singleplayer, BUILD_NAME, min, max);
 			read(schematic(BUILD_NAME, 1));
 			waitForSelection(context, BUILD_NAME, 1);
 			if (Files.exists(schematic(BUILD_NAME, 2))) {

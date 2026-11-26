@@ -1,5 +1,6 @@
 package tony.mcvcs.gametest;
 
+import static tony.mcvcs.gametest.VcsTestSupport.create;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
@@ -9,7 +10,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
-import static tony.mcvcs.gametest.VcsTestSupport.select;
 import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 import static tony.mcvcs.gametest.VcsTestSupport.suggestions;
 
@@ -66,8 +66,7 @@ public class VcsDiffCommandGameTest extends VcsGameTest {
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), gold, Blocks.GOLD_BLOCK.defaultBlockState());
 			setBlock(singleplayer, hole, Blocks.AIR.defaultBlockState());
 			setBlock(singleplayer, barrel, Blocks.BARREL.defaultBlockState());
-			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME + " -we");
+			create(context, singleplayer, BUILD_NAME, min, max);
 			read(schematic(BUILD_NAME, 1));
 
 			// Tab completion offers every version of the selected build alongside "off".

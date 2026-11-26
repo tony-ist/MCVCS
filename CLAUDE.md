@@ -5,5 +5,5 @@
 - While developing a feature, run only the game test for that feature (it saves a lot of time not running all others). Before finishing your work, run all the related tests using `gradlew.bat runClientGameTest` with filter to make sure nothing else broke. Avoid running all tests to save time.
     Example:
     ```
-    .\gradlew.bat runClientGameTest "-Pgametest=VcsTagCommandGameTest,VcsCheckoutCommandGameTest,VcsDiffCommandGameTest,VcsPreviewCommandGameTest,VcsLoadCommandGameTest,VcsPlaceCommandGameTest"
+    .\gradlew.bat runClientGameTest "-Pgametest=VcsTagCommandGameTest,VcsCheckoutCommandGameTest,VcsDiffCommandGameTest,VcsPreviewCommandGameTest,VcsPlaceCommandGameTest"
     ```

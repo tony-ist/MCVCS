@@ -1,5 +1,6 @@
 package tony.mcvcs.gametest;
 
+import static tony.mcvcs.gametest.VcsTestSupport.create;
 import static tony.mcvcs.gametest.VcsTestSupport.blockAt;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
@@ -9,7 +10,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
-import static tony.mcvcs.gametest.VcsTestSupport.select;
 import static tony.mcvcs.gametest.VcsTestSupport.teleport;
 
 import java.util.Arrays;
@@ -70,8 +70,7 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 			BlockPos min = start.offset(2, 1, 2);
 			BlockPos max = min.offset(2, 1, 1);
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), max, Blocks.GOLD_BLOCK.defaultBlockState());
-			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME + " -we");
+			create(context, singleplayer, BUILD_NAME, min, max);
 			read(schematic(BUILD_NAME, 1));
 
 			// The copy is shown one block below the player's feet, extending east and south, and nothing else happens:

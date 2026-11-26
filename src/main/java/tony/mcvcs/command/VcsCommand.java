@@ -25,7 +25,7 @@ import tony.mcvcs.build.Placement;
  * {@code /vcs} command tree. Only the syntax lives here: each subcommand is parsed and handed to the class that does
  * the work.
  * <ul>
- * <li>{@code /vcs create <buildname> [placementname] [-we]}: {@link VcsCommandCreate}</li>
+ * <li>{@code /vcs create <buildname> [placementname]}: {@link VcsCommandCreate}</li>
  * <li>{@code /vcs place <buildname> [version | tag | latest] [placementname] [-f]}, {@code /vcs confirmPlace [-f]} and
  * {@code /vcs cancelPlace}: {@link VcsCommandPlace}</li>
  * <li>{@code /vcs unplace [-k]} and {@code /vcs confirmUnplace}: {@link VcsCommandUnplace}</li>
@@ -35,14 +35,11 @@ import tony.mcvcs.build.Placement;
  * <li>{@code /vcs commit [tagname]}: {@link VcsCommandCommit}</li>
  * <li>{@code /vcs tag <version | tag> <tagname>} and {@code /vcs untag <tagname>}: {@link VcsCommandTag}</li>
  * <li>{@code /vcs preview <version | tag | off>}: {@link VcsCommandPreview}</li>
- * <li>{@code /vcs load [version | tag]}: {@link VcsCommandLoad}</li>
  * <li>{@code /vcs diff [version | tag | off]}: {@link VcsCommandDiff}</li>
  * <li>{@code /vcs fit}: {@link VcsCommandFit}</li>
- * <li>{@code /vcs setSelection}: {@link VcsCommandSetSelection}</li>
  * <li>{@code /vcs checkout <version | tag | latest> [-f]}: {@link VcsCommandCheckout}</li>
  * <li>{@code /vcs delete <buildname> [-c]} and {@code /vcs confirmDelete}: {@link VcsCommandDelete}</li>
  * <li>{@code /vcs tp [buildname [placementname]]}: {@link VcsCommandTp}</li>
- * <li>{@code /vcs weselect}: {@link VcsCommandWeselect}</li>
  * <li>{@code /vcs version}: {@link VcsCommandVersion}</li>
  * <li>{@code /vcs help [command]} and {@code /vcs -h}: {@link VcsCommandHelp}</li>
  * </ul>
@@ -54,7 +51,7 @@ public final class VcsCommand {
 	/** Vanilla permission required to run the command (gamemasters = op level 2 / cheats). */
 	public static final PermissionCheck PERMISSION = Commands.LEVEL_GAMEMASTERS;
 	/**
-	 * The version a command falls back to when given none: the build's latest one for {@code load}, {@code place} and
+	 * The version a command falls back to when given none: the build's latest one for {@code place} and
 	 * {@code checkout}, the one the selected placement holds for {@code diff}, see {@link Placement#head}.
 	 */
 	static final VersionRef LATEST = VersionRef.DEFAULT;
@@ -80,13 +77,9 @@ public final class VcsCommand {
 						.executes(context -> VcsCommandHelp.run(context.getSource(), StringArgumentType.getString(context, "command")))))
 				.then(sub(VcsCommandCreate.HELP)
 					.then(Commands.argument("buildname", StringArgumentType.word())
-						.executes(context -> create(context, Build.MAIN, false))
-						.then(Commands.literal(VcsCommandCreate.SELECTION)
-							.executes(context -> create(context, Build.MAIN, true)))
+						.executes(context -> create(context, Build.MAIN))
 						.then(Commands.argument("placementname", StringArgumentType.word())
-							.executes(context -> create(context, StringArgumentType.getString(context, "placementname"), false))
-							.then(Commands.literal(VcsCommandCreate.SELECTION)
-								.executes(context -> create(context, StringArgumentType.getString(context, "placementname"), true))))))
+							.executes(context -> create(context, StringArgumentType.getString(context, "placementname"))))))
 				.then(sub(VcsCommandPlace.HELP)
 					.then(Commands.argument("buildname", StringArgumentType.word())
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))
@@ -138,10 +131,6 @@ public final class VcsCommand {
 						.executes(context -> VcsCommandPreview.off(context.getSource())))
 					.then(VersionRef.argument(VcsCommand::selectedBuild)
 						.executes(context -> VcsCommandPreview.run(context.getSource(), VersionRef.of(context)))))
-				.then(sub(VcsCommandLoad.HELP)
-					.executes(context -> VcsCommandLoad.run(context.getSource(), LATEST))
-					.then(VersionRef.argument(VcsCommand::selectedBuild)
-						.executes(context -> VcsCommandLoad.run(context.getSource(), VersionRef.of(context)))))
 				.then(sub(VcsCommandDiff.HELP)
 					.executes(context -> VcsCommandDiff.run(context.getSource(), LATEST))
 					.then(Commands.literal("off")
@@ -150,8 +139,6 @@ public final class VcsCommand {
 						.executes(context -> VcsCommandDiff.run(context.getSource(), VersionRef.of(context)))))
 				.then(sub(VcsCommandFit.HELP)
 					.executes(context -> VcsCommandFit.run(context.getSource())))
-				.then(sub(VcsCommandSetSelection.HELP)
-					.executes(context -> VcsCommandSetSelection.run(context.getSource())))
 				.then(sub(VcsCommandCheckout.HELP)
 					.then(Commands.literal("latest")
 						.executes(context -> VcsCommandCheckout.run(context.getSource(), LATEST, false))
@@ -177,8 +164,6 @@ public final class VcsCommand {
 						.then(Commands.argument("placementname", StringArgumentType.word())
 							.suggests((context, builder) -> SharedSuggestionProvider.suggest(placements(context.getSource(), StringArgumentType.getString(context, "buildname")), builder))
 							.executes(context -> VcsCommandTp.run(context.getSource(), StringArgumentType.getString(context, "buildname"), StringArgumentType.getString(context, "placementname"))))))
-				.then(sub(VcsCommandWeselect.HELP)
-					.executes(context -> VcsCommandWeselect.run(context.getSource())))
 				.then(sub(VcsCommandVersion.HELP)
 					.executes(context -> VcsCommandVersion.run(context.getSource())))));
 	}
@@ -197,8 +182,8 @@ public final class VcsCommand {
 				}));
 	}
 
-	private static int create(CommandContext<CommandSourceStack> context, String placementName, boolean useSelection) throws CommandSyntaxException {
-		return VcsCommandCreate.run(context.getSource(), StringArgumentType.getString(context, "buildname"), placementName, useSelection);
+	private static int create(CommandContext<CommandSourceStack> context, String placementName) throws CommandSyntaxException {
+		return VcsCommandCreate.run(context.getSource(), StringArgumentType.getString(context, "buildname"), placementName);
 	}
 
 	/** Where {@code /vcs place} takes the version from, since the same tail hangs under {@code latest} and a version. */

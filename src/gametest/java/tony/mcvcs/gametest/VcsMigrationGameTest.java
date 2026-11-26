@@ -1,5 +1,6 @@
 package tony.mcvcs.gametest;
 
+import static tony.mcvcs.gametest.VcsTestSupport.create;
 import static tony.mcvcs.gametest.VcsTestSupport.assertBlock;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
@@ -7,7 +8,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.read;
 import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
-import static tony.mcvcs.gametest.VcsTestSupport.select;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,8 +18,6 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 import net.fabricmc.fabric.api.client.gametest.v1.world.TestWorldSave;
 
 import tony.mcvcs.migration.Migrations;
-import com.sk89q.worldedit.fabric.FabricAdapter;
-import com.sk89q.worldedit.world.block.BlockTypes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
@@ -34,7 +32,6 @@ public class VcsMigrationGameTest extends VcsGameTest {
 
 	@Override
 	protected void run(ClientGameTestContext context) {
-		FabricAdapter adapter = FabricAdapter.get();
 		TestWorldSave save;
 		BlockPos gold;
 
@@ -48,8 +45,7 @@ public class VcsMigrationGameTest extends VcsGameTest {
 			BlockPos max = min.offset(2, 1, 1);
 			gold = new BlockPos(min.getX(), max.getY(), min.getZ());
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), gold, Blocks.GOLD_BLOCK.defaultBlockState());
-			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME + " -we");
+			create(context, singleplayer, BUILD_NAME, min, max);
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), gold, Blocks.STONE.defaultBlockState());
 			runCommand(context, "vcs commit");
 			read(schematic(BUILD_NAME, 2));
@@ -67,8 +63,8 @@ public class VcsMigrationGameTest extends VcsGameTest {
 					throw new AssertionError("Expected " + oldName(version) + " to be renamed on server start");
 				}
 			}
-			assertBlock(read(schematic(BUILD_NAME, 1)), adapter.adapt(gold), BlockTypes.GOLD_BLOCK);
-			assertBlock(read(schematic(BUILD_NAME, 2)), adapter.adapt(gold), BlockTypes.STONE);
+			assertBlock(read(schematic(BUILD_NAME, 1)), gold, Blocks.GOLD_BLOCK);
+			assertBlock(read(schematic(BUILD_NAME, 2)), gold, Blocks.STONE);
 
 			// The renamed files are the ones commands read.
 			runCommand(context, "vcs checkout 1");
@@ -92,8 +88,8 @@ public class VcsMigrationGameTest extends VcsGameTest {
 					throw new AssertionError("Expected the failure to name " + oldName(1) + " but got: " + expected.getMessage());
 				}
 			}
-			assertBlock(read(schematic(BUILD_NAME, 1)), adapter.adapt(gold), BlockTypes.GOLD_BLOCK);
-			assertBlock(read(oldName(1)), adapter.adapt(gold), BlockTypes.STONE);
+			assertBlock(read(schematic(BUILD_NAME, 1)), gold, Blocks.GOLD_BLOCK);
+			assertBlock(read(oldName(1)), gold, Blocks.STONE);
 			try {
 				Files.delete(oldName(1));
 			} catch (IOException e) {

@@ -1,5 +1,6 @@
 package tony.mcvcs.gametest;
 
+import static tony.mcvcs.gametest.VcsTestSupport.create;
 import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
@@ -9,7 +10,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
 import static tony.mcvcs.gametest.VcsTestSupport.sectionHasGeometry;
-import static tony.mcvcs.gametest.VcsTestSupport.select;
 import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 import static tony.mcvcs.gametest.VcsTestSupport.suggestions;
 
@@ -56,8 +56,7 @@ public class VcsPreviewCommandGameTest extends VcsGameTest {
 
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), gold, Blocks.GOLD_BLOCK.defaultBlockState());
 			setBlock(singleplayer, hole, Blocks.AIR.defaultBlockState());
-			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME + " -we");
+			create(context, singleplayer, BUILD_NAME, min, max);
 			read(schematic(BUILD_NAME, 1));
 
 			// v2: the whole box rebuilt out of diamond, hole included, so a preview of v1 differs from the world both
@@ -123,8 +122,7 @@ public class VcsPreviewCommandGameTest extends VcsGameTest {
 		BlockPos max = min.offset(1, 1, 1);
 
 		fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), min, Blocks.STONE.defaultBlockState());
-		select(singleplayer, min, max);
-		runCommand(context, "vcs create " + FLOATING_NAME + " -we");
+		create(context, singleplayer, FLOATING_NAME, min, max);
 		fillBox(singleplayer, min, max, Blocks.AIR.defaultBlockState(), min, Blocks.AIR.defaultBlockState());
 		runCommand(context, "vcs commit");
 		assertWorldBlock(singleplayer, min, Blocks.AIR);

@@ -1,5 +1,6 @@
 package tony.mcvcs.gametest;
 
+import static tony.mcvcs.gametest.VcsTestSupport.create;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
 import static tony.mcvcs.gametest.VcsTestSupport.main;
@@ -11,7 +12,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
-import static tony.mcvcs.gametest.VcsTestSupport.select;
 import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 import static tony.mcvcs.gametest.VcsTestSupport.suggestions;
 
@@ -32,14 +32,6 @@ import tony.mcvcs.client.diff.ClientDiff;
 import tony.mcvcs.client.diff.DiffManager;
 import tony.mcvcs.client.preview.ClientPreview;
 import tony.mcvcs.client.preview.PreviewManager;
-import com.sk89q.worldedit.EditSession;
-import com.sk89q.worldedit.LocalSession;
-import com.sk89q.worldedit.WorldEdit;
-import com.sk89q.worldedit.WorldEditException;
-import com.sk89q.worldedit.entity.Player;
-import com.sk89q.worldedit.fabric.FabricAdapter;
-import com.sk89q.worldedit.world.block.BlockType;
-import com.sk89q.worldedit.world.block.BlockTypes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.Container;
@@ -101,13 +93,12 @@ public class VcsCheckoutCommandGameTest extends VcsGameTest {
 			putItem(singleplayer, barrel, 0, new ItemStack(Items.DIAMOND));
 			context.waitTicks(FALL_TICKS);
 			assertWorldBlock(singleplayer, sand, Blocks.SAND);
-			select(singleplayer, min, max);
 
 			// Nothing to check out before a build has been created.
 			List<Component> none = run(context, "vcs checkout 1");
 			assertOnlyMessage(none, "Nothing selected in this world");
 
-			runCommand(context, "vcs create " + BUILD_NAME + " -we");
+			create(context, singleplayer, BUILD_NAME, min, max);
 			read(schematic(BUILD_NAME, 1));
 			assertSuggestions(singleplayer, "vcs checkout ", List.of("-h", "latest", "1"));
 
@@ -161,12 +152,6 @@ public class VcsCheckoutCommandGameTest extends VcsGameTest {
 			assertWorldBlock(singleplayer, gold, Blocks.GOLD_BLOCK);
 			assertWorldBlock(singleplayer, hole, Blocks.STONE);
 
-			// A WorldEdit edit of the player's own, made before the checkout: a stone block hovering above the box. It is
-			// the only thing in their WorldEdit history, and the checkout must not join it there.
-			BlockPos above = min.offset(0, 4, 0);
-			editWithWorldEdit(singleplayer, above, BlockTypes.STONE);
-			assertWorldBlock(singleplayer, above, Blocks.STONE);
-
 			// -f goes through anyway, says how many blocks it overwrote, and the world is v2 with the hole empty again.
 			// The latest version can be named as such rather than by number.
 			assertSuggestions(singleplayer, "vcs checkout latest ", List.of("-f"));
@@ -180,18 +165,6 @@ public class VcsCheckoutCommandGameTest extends VcsGameTest {
 			assertBarrel(singleplayer, barrel, ItemStack.EMPTY);
 			assertMatches(context, BUILD_NAME, 2);
 			assertBuild(singleplayer, BUILD_NAME, 2, 2, box);
-
-			// The checkout is not in WorldEdit's history: //undo reverts the player's own edit from before it, the stone
-			// above the box, and leaves the box as checked out; after that there is nothing left to undo, so the
-			// overwritten block does not come back either.
-			assertOnlyMessage(run(context, "/undo"), "Undid 1 available edits.");
-			assertWorldBlock(singleplayer, above, Blocks.AIR);
-			assertWorldBlock(singleplayer, gold, Blocks.AIR);
-			assertWorldBlock(singleplayer, hole, Blocks.AIR);
-			assertMatches(context, BUILD_NAME, 2);
-			assertOnlyMessage(run(context, "/undo"), "Nothing left to undo.");
-			assertWorldBlock(singleplayer, hole, Blocks.AIR);
-			assertMatches(context, BUILD_NAME, 2);
 
 			// Without uncommitted changes -f changes nothing about the message.
 			List<Component> forcedClean = run(context, "vcs checkout 1 -f");
@@ -272,8 +245,7 @@ public class VcsCheckoutCommandGameTest extends VcsGameTest {
 		assertWorldBlock(singleplayer, end, Blocks.AIR);
 
 		// v1 is the line with the empty slot; v2 has a stone block in the slot.
-		select(singleplayer, start, end);
-		runCommand(context, "vcs create " + REDSTONE_NAME + " -we");
+		create(context, singleplayer, REDSTONE_NAME, start, end);
 		read(schematic(REDSTONE_NAME, 1));
 		setBlock(singleplayer, end, Blocks.STONE.defaultBlockState());
 		runCommand(context, "vcs commit");
@@ -342,27 +314,6 @@ public class VcsCheckoutCommandGameTest extends VcsGameTest {
 	/** {@code /vcs diff <version>} finds nothing, so the box holds exactly that version. */
 	private static void assertMatches(ClientGameTestContext context, String name, int version) {
 		assertOnlyMessage(run(context, "vcs diff " + version), "Placement " + name + "/" + Build.MAIN + " matches v" + version);
-	}
-
-	/**
-	 * Sets {@code pos} to {@code block} through WorldEdit, remembered by the player's session the way {@code //set}
-	 * would be, so it is what {@code //undo} reverts next.
-	 */
-	private static void editWithWorldEdit(TestSingleplayerContext singleplayer, BlockPos pos, BlockType block) {
-		singleplayer.getServer().runOnServer(server -> {
-			FabricAdapter adapter = FabricAdapter.get();
-			Player actor = adapter.fromNativePlayer(server.getPlayerList().getPlayers().get(0));
-			LocalSession session = WorldEdit.getInstance().getSessionManager().get(actor);
-			EditSession editSession = session.createEditSession(actor);
-			try {
-				editSession.setBlock(adapter.adapt(pos), block.getDefaultState());
-			} catch (WorldEditException e) {
-				throw new AssertionError("Failed to set " + block + " at " + pos + " with WorldEdit", e);
-			} finally {
-				editSession.close();
-			}
-			session.remember(editSession);
-		});
 	}
 
 	/** Sets the block the way a checkout must: with the client told but no block update, so sand placed in the air stays there. */

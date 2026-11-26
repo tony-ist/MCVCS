@@ -79,7 +79,7 @@ public final class VcsCommandDiff {
 		BuildDiff diff;
 		try {
 			// The version is the old side and the world the new one, so "added" reads as "built since that version".
-			diff = BuildDiff.between(BoxSnapshot.ofClipboard(box, BuildStorage.readSchematic(build.name(), against), covered), BoxSnapshot.ofLevel(box, level));
+			diff = BuildDiff.between(BoxSnapshot.ofSchematic(box, BuildStorage.readSchematic(build.name(), against), covered), BoxSnapshot.ofLevel(box, level));
 		} catch (NoSuchFileException e) {
 			source.sendFailure(Component.literal("No schematic for build ").append(VcsMessages.name(build.name())).append(" v" + against + " at " + e.getFile()));
 			return 0;

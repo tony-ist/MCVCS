@@ -31,8 +31,8 @@ import tony.mcvcs.network.PendingClickPayload;
  * click does nothing else: the block is neither broken nor used, and Fabric has the server tell the client so, in case
  * it already broke or toggled the block on its side.
  * <p>
- * WorldEdit's own tools go first, see {@link #PHASE}: a click WorldEdit takes, such as the wand setting a position or
- * a brush painting, is not a click here, and the player stays armed for the next one. A player has one armed click at
+ * Other mods' tools go first, see {@link #PHASE}: a click one of them takes, such as a WorldEdit wand setting a
+ * position, is not a click here, and the player stays armed for the next one. A player has one armed click at
  * a time, so a second command replaces whatever an earlier one left waiting.
  * <p>
  * While armed, the player's action bar says what the click will do, sent again every {@link #HINT_INTERVAL} ticks so
@@ -43,7 +43,7 @@ import tony.mcvcs.network.PendingClickPayload;
  * Only the server thread touches this; a player's entry goes when they click or leave.
  */
 public final class PendingClick {
-	/** Event phase the click handlers run in, after the default one WorldEdit's tools listen in. */
+	/** Event phase the click handlers run in, after the default one other mods' tools listen in. */
 	public static final Identifier PHASE = MCVCS.id("pending_click");
 	/**
 	 * How often, in ticks, an armed player's hint is sent again. The client fades an action bar message out after three

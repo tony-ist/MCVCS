@@ -1,5 +1,6 @@
 package tony.mcvcs.gametest;
 
+import static tony.mcvcs.gametest.VcsTestSupport.create;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
@@ -8,7 +9,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
-import static tony.mcvcs.gametest.VcsTestSupport.select;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -66,11 +66,9 @@ public class VcsBuildsCommandGameTest extends VcsGameTest {
 			fillBox(singleplayer, firstMin, firstMax, Blocks.STONE.defaultBlockState(), firstMin, Blocks.STONE.defaultBlockState());
 			fillBox(singleplayer, secondMin, secondMax, Blocks.STONE.defaultBlockState(), secondMin, Blocks.STONE.defaultBlockState());
 
-			select(singleplayer, firstMin, firstMax);
-			runCommand(context, "vcs create " + FIRST + " -we");
+			create(context, singleplayer, FIRST, firstMin, firstMax);
 			read(schematic(FIRST, 1));
-			select(singleplayer, secondMin, secondMax);
-			runCommand(context, "vcs create " + SECOND + " -we");
+			create(context, singleplayer, SECOND, secondMin, secondMax);
 			read(schematic(SECOND, 1));
 			// Creating selects, so the second build is the selected one now.
 			waitForSelection(context, SECOND);

@@ -10,14 +10,9 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
-import com.sk89q.worldedit.coremc.internal.NBTConverter;
-import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.fabric.FabricAdapter;
-import com.sk89q.worldedit.math.BlockVector3;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMaps;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import org.enginehub.linbus.tree.LinCompoundTag;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -61,45 +56,47 @@ public record BoxSnapshot(BuildBox box, BlockState[] blocks, Int2ObjectMap<Compo
 	}
 
 	/**
-	 * The blocks of {@code clipboard}, a version's schematic, laid inside {@code box} over the world box
-	 * {@code covered}, with air everywhere else in the box. A version smaller than the box it is looked at through,
-	 * such as one saved before {@code /vcs fit} grew the box, sits where the placement puts it and the rest of
-	 * the box counts as air.
+	 * The blocks of {@code schematic}, a version, laid inside {@code box} over the world box {@code covered}, with
+	 * air everywhere else in the box. A version smaller than the box it is looked at through, such as one saved before
+	 * {@code /vcs fit} grew the box, sits where the placement puts it and the rest of the box counts as air.
 	 * <p>
 	 * A schematic carries the world coordinates it was copied from, but they are the ones of the placement it was
 	 * committed from and mean nothing at another one, so the position comes from {@code covered} instead, see
-	 * {@link BuildPlacement#boxOf}; only the shape of the clipboard's own region is used.
+	 * {@link BuildPlacement#boxOf}; only the shape of the schematic's box is used.
 	 *
 	 * @param covered where in {@code box} the version's blocks go, which must be inside it and the size of the
-	 *                clipboard's region
+	 *                schematic's box
 	 * @throws IllegalArgumentException if {@code covered} is not inside the box or not the clipboard's size
 	 */
-	public static BoxSnapshot ofClipboard(BuildBox box, Clipboard clipboard, BuildBox covered) {
+	public static BoxSnapshot ofSchematic(BuildBox box, Schematic schematic, BuildBox covered) {
 		if (!box.contains(covered)) {
 			throw new IllegalArgumentException("Version covers " + covered + ", which is not inside the box " + box);
 		}
-		BuildBox region = BuildBox.of(clipboard.getRegion());
+		BoxSnapshot saved = schematic.blocks();
+		BuildBox region = saved.box();
 		if (region.sizeX() != covered.sizeX() || region.sizeY() != covered.sizeY() || region.sizeZ() != covered.sizeZ()) {
 			throw new IllegalArgumentException("Schematic is " + region.sizeX() + "x" + region.sizeY() + "x" + region.sizeZ()
 				+ " but is placed over " + covered.sizeX() + "x" + covered.sizeY() + "x" + covered.sizeZ());
 		}
+		// The schematic covers its box exactly, so it can be taken as it is.
+		if (box.equals(region)) {
+			return saved;
+		}
 
-		FabricAdapter adapter = FabricAdapter.get();
 		BlockState[] blocks = new BlockState[Math.toIntExact(box.volume())];
 		Arrays.fill(blocks, Blocks.AIR.defaultBlockState());
 		Int2ObjectMap<CompoundTag> blockEntities = new Int2ObjectOpenHashMap<>();
-		// From the world back to where the same block sits in the clipboard's own coordinates.
+		// From the world back to where the same block sits in the schematic's own coordinates.
 		int shiftX = region.min().getX() - covered.min().getX();
 		int shiftY = region.min().getY() - covered.min().getY();
 		int shiftZ = region.min().getZ() - covered.min().getZ();
 		for (BlockPos pos : BlockPos.betweenClosed(covered.min(), covered.max())) {
 			int index = box.index(pos.getX(), pos.getY(), pos.getZ());
-			BlockVector3 clipboardPos = BlockVector3.at(pos.getX() + shiftX, pos.getY() + shiftY, pos.getZ() + shiftZ);
-			blocks[index] = adapter.toNativeBlockState(clipboard.getBlock(clipboardPos));
-			// The reader puts the block entity's id and position back into its data; normalising strips them again.
-			LinCompoundTag data = clipboard.getFullBlock(clipboardPos).getNbt();
+			int savedIndex = region.index(pos.getX() + shiftX, pos.getY() + shiftY, pos.getZ() + shiftZ);
+			blocks[index] = saved.state(savedIndex);
+			CompoundTag data = saved.data(savedIndex);
 			if (data != null) {
-				put(blockEntities, index, NBTConverter.toNative(data));
+				blockEntities.put(index, data);
 			}
 		}
 		return new BoxSnapshot(box, blocks, blockEntities);

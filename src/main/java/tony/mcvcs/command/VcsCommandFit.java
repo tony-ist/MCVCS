@@ -18,11 +18,6 @@ import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.BuildStorage;
-import com.sk89q.worldedit.LocalSession;
-import com.sk89q.worldedit.WorldEdit;
-import com.sk89q.worldedit.WorldEditException;
-import com.sk89q.worldedit.entity.Player;
-import com.sk89q.worldedit.fabric.FabricAdapter;
 
 /**
  * {@code /vcs fit}: fits the selected placement's box to the build inside it and saves the fitted box as the build's
@@ -33,7 +28,7 @@ import com.sk89q.worldedit.fabric.FabricAdapter;
  * A box belongs to a version, not to a placement, so the fit is a new version with another extent: the placement
  * that was fitted holds it straight away, and every other placement keeps the box of whatever version it holds until
  * it checks this one out. Earlier versions stay the size they were; one smaller than the fitted box is laid inside it
- * where it was built, see {@link BoxSnapshot#ofClipboard}, and one that no longer fits it can only be checked out.
+ * where it was built, see {@link BoxSnapshot#ofSchematic}, and one that no longer fits it can only be checked out.
  */
 public final class VcsCommandFit {
 	static final VcsHelp HELP = new VcsHelp("fit", "/vcs fit",
@@ -93,18 +88,15 @@ public final class VcsCommandFit {
 		int version = build.version();
 		build = build.withPlacement(placement.name(), placement.placement().withHead(version));
 
-		Player actor = FabricAdapter.get().fromNativePlayer(player);
-		LocalSession session = WorldEdit.getInstance().getSessionManager().get(actor);
-
 		try {
-			Path file = BuildSaver.save(actor, session, build, version, fitted, level);
+			Path file = BuildSaver.save(player, build, version, fitted, level);
 			BuildRegistry.select(player, build, placement.name());
 
 			String verb = fitted.contains(box) ? "Expanded" : box.contains(fitted) ? "Shrank" : "Fitted";
 			source.sendSuccess(() -> Component.literal(verb + " ").append(VcsMessages.placement(placement)).append(" from " + VcsMessages.size(box) + " (" + box.volume() + " blocks) to "
 				+ VcsMessages.size(fitted) + " (" + fitted.volume() + " blocks) and committed it as v" + version + " at " + BuildStorage.root().relativize(file)), false);
 			return 1;
-		} catch (WorldEditException | IOException e) {
+		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to fit '{}' to v{} for {}", placement.label(), version, player.getGameProfile().name(), e);
 			source.sendFailure(Component.literal("Failed to save schematic: " + e.getMessage()));
 			return 0;

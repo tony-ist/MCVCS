@@ -12,7 +12,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import tony.mcvcs.build.BoxSnapshot;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildPlacement;
-import com.sk89q.worldedit.extent.clipboard.Clipboard;
+import tony.mcvcs.build.Schematic;
 
 /**
  * Server side of the preview protocol: turns a schematic into {@link PreviewBeginPayload} and
@@ -50,14 +50,14 @@ public final class PreviewSender {
 	}
 
 	/**
-	 * Streams {@code clipboard}, version {@code version} of {@code placement}'s build, to {@code player} so the client
+	 * Streams {@code schematic}, version {@code version} of {@code placement}'s build, to {@code player} so the client
 	 * shows it inside the placement's box, or over the version's own box as well if it reaches past that, see
 	 * {@link BuildPlacement#viewBoxOf}. The version is laid where the placement holds it, with air around it where it
-	 * does not reach, see {@link BoxSnapshot#ofClipboard}.
+	 * does not reach, see {@link BoxSnapshot#ofSchematic}.
 	 */
-	public static void send(ServerPlayer player, BuildPlacement placement, int version, Clipboard clipboard) {
+	public static void send(ServerPlayer player, BuildPlacement placement, int version, Schematic schematic) {
 		BuildBox box = placement.viewBoxOf(version);
-		BoxSnapshot snapshot = BoxSnapshot.ofClipboard(box, clipboard, placement.boxOf(version));
+		BoxSnapshot snapshot = BoxSnapshot.ofSchematic(box, schematic, placement.boxOf(version));
 		ServerPlayNetworking.send(player, new PreviewBeginPayload(placement.label(), version, placement.dimension(), box));
 		stream(player, snapshot);
 	}
@@ -67,15 +67,15 @@ public final class PreviewSender {
 	}
 
 	/**
-	 * Streams {@code clipboard}, the version {@code /vcs place} is about to put down, to {@code player} so the client
+	 * Streams {@code schematic}, the version {@code /vcs place} is about to put down, to {@code player} so the client
 	 * draws it at {@code box} until the player moves it or confirms. Nothing in the world is touched; the box is the
 	 * version's own size, so its blocks fill it exactly.
 	 *
 	 * @param label how the placement would be named, e.g. {@code tower/p2}
 	 * @param force whether the command was given {@code -f}, which the client needs to colour the box
 	 */
-	public static void sendPlace(ServerPlayer player, String label, int version, ResourceKey<Level> dimension, BuildBox box, Clipboard clipboard, boolean force) {
-		BoxSnapshot snapshot = BoxSnapshot.ofClipboard(box, clipboard, box);
+	public static void sendPlace(ServerPlayer player, String label, int version, ResourceKey<Level> dimension, BuildBox box, Schematic schematic, boolean force) {
+		BoxSnapshot snapshot = BoxSnapshot.ofSchematic(box, schematic, box);
 		ServerPlayNetworking.send(player, new PlacePreviewBeginPayload(label, version, dimension, box, force));
 		stream(player, snapshot);
 	}

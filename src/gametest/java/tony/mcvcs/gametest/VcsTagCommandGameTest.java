@@ -1,12 +1,12 @@
 package tony.mcvcs.gametest;
 
 import static tony.mcvcs.gametest.VcsTestSupport.buildFile;
+import static tony.mcvcs.gametest.VcsTestSupport.create;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
 import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
-import static tony.mcvcs.gametest.VcsTestSupport.select;
 import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 import static tony.mcvcs.gametest.VcsTestSupport.suggestions;
 
@@ -52,12 +52,11 @@ public class VcsTagCommandGameTest extends VcsGameTest {
 			BlockPos min = playerPos(singleplayer).offset(2, 1, 2);
 			BlockPos max = min.offset(2, 1, 1);
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), min, Blocks.GOLD_BLOCK.defaultBlockState());
-			select(singleplayer, min, max);
 
 			// Nothing to tag before a placement is selected.
 			assertMessages(run(context, "vcs tag 1 1.0.0"), List.of("No placement selected"), false);
 
-			runCommand(context, "vcs create " + BUILD_NAME + " -we");
+			create(context, singleplayer, BUILD_NAME, min, max);
 			assertTags(singleplayer, Map.of());
 
 			// Tag v1; the version is suggested.
@@ -101,7 +100,7 @@ public class VcsTagCommandGameTest extends VcsGameTest {
 
 			// Every command taking a version completes tags alongside the numbers...
 			List<String> all = List.of("1", "2", "3", "1.0.0", "2.0.0-rc.1", "first_Release+x");
-			for (String command : List.of("vcs checkout ", "vcs diff ", "vcs preview ", "vcs load ", "vcs tag ", "vcs place " + BUILD_NAME + " ")) {
+			for (String command : List.of("vcs checkout ", "vcs diff ", "vcs preview ", "vcs tag ", "vcs place " + BUILD_NAME + " ")) {
 				List<String> offered = suggestions(singleplayer, command);
 				if (!offered.containsAll(all)) {
 					throw new AssertionError("Expected '/" + command + "' to suggest " + all + " but got " + offered);
@@ -117,7 +116,6 @@ public class VcsTagCommandGameTest extends VcsGameTest {
 			assertMessages(run(context, "vcs checkout 1.0.0"), List.of("Checked out " + BUILD_NAME + "/" + Build.MAIN + " v1 (1.0.0, first_Release+x) ("), true);
 			assertMessages(run(context, "vcs diff 2.0.0-rc.1"), List.of("1 block in " + BUILD_NAME + "/" + Build.MAIN + " differs from v2"), true);
 			run(context, "vcs diff off");
-			assertMessages(run(context, "vcs load first_Release+x"), List.of("Loaded build " + BUILD_NAME + " v1 (1.0.0, first_Release+x) ("), true);
 			assertMessages(run(context, "vcs tag 2.0.0-rc.1 stable"), List.of("Tagged build " + BUILD_NAME + " v2 (2.0.0-rc.1, stable)"), true);
 			assertMessages(run(context, "vcs checkout nope"), List.of("Build " + BUILD_NAME + " has no version tagged nope"), true);
 			assertMessages(run(context, "vcs diff nope"), List.of("Build " + BUILD_NAME + " has no version tagged nope"), true);

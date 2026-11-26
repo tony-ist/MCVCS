@@ -1,5 +1,6 @@
 package tony.mcvcs.gametest;
 
+import static tony.mcvcs.gametest.VcsTestSupport.create;
 import static tony.mcvcs.gametest.VcsTestSupport.blockAt;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
@@ -7,7 +8,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.read;
 import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
-import static tony.mcvcs.gametest.VcsTestSupport.select;
 import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 
 import java.nio.file.Files;
@@ -72,16 +72,14 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			fillBox(singleplayer, towerMin, towerMax, Blocks.STONE_BRICKS.defaultBlockState(), towerMin, Blocks.STONE_BRICKS.defaultBlockState());
 			fillBox(singleplayer, towerMin.above(), towerMax.below(2), Blocks.GLASS.defaultBlockState(), towerMin.above(), Blocks.GLASS.defaultBlockState());
 			fillBox(singleplayer, towerMin.above(3), towerMax, Blocks.OAK_LEAVES.defaultBlockState(), towerMin.above(3), Blocks.GRASS_BLOCK.defaultBlockState());
-			select(singleplayer, towerMin, towerMax);
-			runCommand(context, "vcs create " + SMALL + " -we");
+			create(context, singleplayer, SMALL, towerMin, towerMax);
 			read(schematic(SMALL, 1));
 
 			// A 4x3x4 hall of planks: 48 blocks, too big to download without a click at this limit.
 			BlockPos hallMin = playerPos(singleplayer).offset(-8, 3, 4);
 			BlockPos hallMax = hallMin.offset(3, 2, 3);
 			fillBox(singleplayer, hallMin, hallMax, Blocks.OAK_PLANKS.defaultBlockState(), hallMin, Blocks.GOLD_BLOCK.defaultBlockState());
-			select(singleplayer, hallMin, hallMax);
-			runCommand(context, "vcs create " + BIG + " -we");
+			create(context, singleplayer, BIG, hallMin, hallMax);
 			read(schematic(BIG, 1));
 
 			// A 140x3x3 bridge of stone bricks with a gold stripe along its top: longer than a preview is ever sent whole,
@@ -90,8 +88,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			BlockPos bridgeMax = bridgeMin.offset(139, 2, 2);
 			fillBox(singleplayer, bridgeMin, bridgeMax, Blocks.STONE_BRICKS.defaultBlockState(), bridgeMin, Blocks.STONE_BRICKS.defaultBlockState());
 			fillBox(singleplayer, bridgeMin.offset(0, 2, 1), bridgeMax.offset(0, 0, -1), Blocks.GOLD_BLOCK.defaultBlockState(), bridgeMin.offset(0, 2, 1), Blocks.GOLD_BLOCK.defaultBlockState());
-			select(singleplayer, bridgeMin, bridgeMax);
-			runCommand(context, "vcs create " + LONG + " -we");
+			create(context, singleplayer, LONG, bridgeMin, bridgeMax);
 			read(schematic(LONG, 1));
 
 			// A second version of the tower, tagged, so its cell shows the newest version with its tag.

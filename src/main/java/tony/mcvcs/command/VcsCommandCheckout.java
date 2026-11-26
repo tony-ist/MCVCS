@@ -21,17 +21,16 @@ import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.BuildStorage;
+import tony.mcvcs.build.Schematic;
 import tony.mcvcs.diff.BuildDiff;
 import tony.mcvcs.network.BuildSync;
 import tony.mcvcs.network.ChatButtons;
 import tony.mcvcs.network.DiffSender;
 import tony.mcvcs.network.PreviewSender;
-import com.sk89q.worldedit.WorldEditException;
-import com.sk89q.worldedit.extent.clipboard.Clipboard;
 
 /**
  * {@code /vcs checkout <version | tag | latest> [-f]}: puts a version of the build into the selected placement, exactly
- * where that placement holds it, without a single block update, as if {@code //perf off} were on.
+ * where that placement holds it, without a single block update, see {@link BuildPlacer}.
  * <p>
  * Versions may differ in size, so the placement's box changes with the version it holds: it is the version's extent
  * laid at the placement's origin, which never moves. Both the old box and the new one are emptied before the version
@@ -40,8 +39,7 @@ import com.sk89q.worldedit.extent.clipboard.Clipboard;
  * reaching into it refuses the checkout outright, as placements may never overlap.
  * <p>
  * It also refuses while the box differs from the version it holds, since those changes would be lost: they have to
- * be committed first, unless {@code -f} is given, which overwrites them for good. The checkout is not put in the
- * player's WorldEdit history, so {@code //undo} never reverts it. The checked-out version becomes the one the
+ * be committed first, unless {@code -f} is given, which overwrites them for good. The checked-out version becomes the one the
  * placement holds, so checking out another version after it is allowed, and a commit from there saves the box as the
  * build's next version as usual. Any preview or diff highlighting the player had up is stopped, since both showed the
  * box as it was before.
@@ -91,7 +89,7 @@ public final class VcsCommandCheckout {
 			return 0;
 		}
 
-		Clipboard clipboard;
+		Schematic schematic;
 		// How many blocks are overwritten by the checkout: uncommitted work inside the old box, and anything standing
 		// where the new box reaches past it. Forcing overwrites both, and the message says so.
 		int uncommitted;
@@ -99,7 +97,7 @@ public final class VcsCommandCheckout {
 		try {
 			// Whatever was built since the box last held a version is about to be wiped, so it has to be in a version first.
 			BuildDiff changes = BuildDiff.between(
-				BoxSnapshot.ofClipboard(from, BuildStorage.readSchematic(build.name(), placement.head()), from),
+				BoxSnapshot.ofSchematic(from, BuildStorage.readSchematic(build.name(), placement.head()), from),
 				BoxSnapshot.ofLevel(from, level));
 			uncommitted = changes.size();
 			inTheWay = nonAirOutside(to, from, level);
@@ -115,7 +113,7 @@ public final class VcsCommandCheckout {
 						+ (inTheWay == 1 ? " block" : " blocks") + " standing in the way; clear them or add " + VcsCommand.FORCE + " to overwrite them"));
 				return 0;
 			}
-			clipboard = BuildStorage.readSchematic(build.name(), checkedOut);
+			schematic = BuildStorage.readSchematic(build.name(), checkedOut);
 		} catch (NoSuchFileException e) {
 			source.sendFailure(Component.literal("No schematic for build ").append(VcsMessages.name(build.name())).append(" at " + e.getFile()));
 			return 0;
@@ -132,8 +130,8 @@ public final class VcsCommandCheckout {
 			clear.add(from);
 		}
 		try {
-			BuildPlacer.place(player, level, clear, clipboard, to);
-		} catch (WorldEditException e) {
+			BuildPlacer.place(level, clear, schematic, to);
+		} catch (IllegalArgumentException e) {
 			MCVCS.LOGGER.error("Failed to check out '{}' v{} for {}", placement.label(), checkedOut, player.getGameProfile().name(), e);
 			source.sendFailure(Component.literal("Failed to place schematic: " + e.getMessage()));
 			return 0;
@@ -164,7 +162,7 @@ public final class VcsCommandCheckout {
 			MutableComponent message = Component.literal("Checked out ").append(VcsMessages.placement(placement))
 				.append(" " + build.versionLabel(checkedOut) + " (" + VcsMessages.size(to) + ", " + to.volume() + " blocks) without block updates");
 			if (uncommitted > 0 || inTheWay > 0) {
-				// Only a forced checkout gets here; those blocks are gone, and not into WorldEdit's history either.
+				// Only a forced checkout gets here; those blocks are gone for good.
 				message.append(", overwriting " + (uncommitted + inTheWay) + " " + (uncommitted + inTheWay == 1 ? "block" : "blocks"));
 			}
 			if (checkedOut == build.version()) {

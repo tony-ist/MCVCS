@@ -1,5 +1,6 @@
 package tony.mcvcs.gametest;
 
+import static tony.mcvcs.gametest.VcsTestSupport.create;
 import static tony.mcvcs.gametest.VcsTestSupport.assertBlock;
 import static tony.mcvcs.gametest.VcsTestSupport.assertSize;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
@@ -11,7 +12,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
-import static tony.mcvcs.gametest.VcsTestSupport.select;
 import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 
 import java.nio.file.Files;
@@ -33,10 +33,8 @@ import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.diff.DiffManager;
 import tony.mcvcs.client.preview.ClientPreview;
 import tony.mcvcs.client.preview.PreviewManager;
-import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.fabric.FabricAdapter;
-import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldedit.world.block.BlockTypes;
+import tony.mcvcs.build.Schematic;
+import net.minecraft.core.Vec3i;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
@@ -60,8 +58,6 @@ public class VcsFitCommandGameTest extends VcsGameTest {
 
 	@Override
 	protected void run(ClientGameTestContext context) {
-		FabricAdapter adapter = FabricAdapter.get();
-
 		// Before the world exists: the player is told their selection on join, so it must be gone by then.
 		resetBuilds(BUILD_NAME, NEIGHBOUR_NAME);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
@@ -73,8 +69,7 @@ public class VcsFitCommandGameTest extends VcsGameTest {
 			BlockPos max = min.offset(1, 1, 1);
 			BuildBox box = new BuildBox(min, max);
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), min, Blocks.STONE.defaultBlockState());
-			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME + " -we");
+			create(context, singleplayer, BUILD_NAME, min, max);
 			read(schematic(BUILD_NAME, 1));
 
 			// Nothing touches the box and the cube fills it, so there is nothing to fit and no version is written.
@@ -98,14 +93,14 @@ public class VcsFitCommandGameTest extends VcsGameTest {
 			assertBox(context, singleplayer, BUILD_NAME, 2, expanded);
 
 			// v2 is the grown box as the world has it: the stone cube, the three gold blocks and air around them.
-			Clipboard clipboard = read(schematic(BUILD_NAME, 2));
-			assertSize(clipboard, BlockVector3.at(5, 4, 4));
-			assertBlock(clipboard, adapter.adapt(min), BlockTypes.STONE);
-			assertBlock(clipboard, adapter.adapt(max), BlockTypes.STONE);
-			assertBlock(clipboard, adapter.adapt(corner), BlockTypes.GOLD_BLOCK);
-			assertBlock(clipboard, adapter.adapt(beyond), BlockTypes.GOLD_BLOCK);
-			assertBlock(clipboard, adapter.adapt(west), BlockTypes.GOLD_BLOCK);
-			assertBlock(clipboard, adapter.adapt(max.offset(1, 0, 0)), BlockTypes.AIR);
+			Schematic clipboard = read(schematic(BUILD_NAME, 2));
+			assertSize(clipboard, new Vec3i(5, 4, 4));
+			assertBlock(clipboard, min, Blocks.STONE);
+			assertBlock(clipboard, max, Blocks.STONE);
+			assertBlock(clipboard, corner, Blocks.GOLD_BLOCK);
+			assertBlock(clipboard, beyond, Blocks.GOLD_BLOCK);
+			assertBlock(clipboard, west, Blocks.GOLD_BLOCK);
+			assertBlock(clipboard, max.offset(1, 0, 0), Blocks.AIR);
 
 			// The box and its latest schematic agree, so a diff against v2 has nothing to show.
 			runCommand(context, "vcs diff");
@@ -129,8 +124,7 @@ public class VcsFitCommandGameTest extends VcsGameTest {
 			BlockPos neighbourMax = neighbourMin.offset(1, 1, 1);
 			BlockPos gap = new BlockPos(beyond.getX() + 1, min.getY(), min.getZ());
 			fillBox(singleplayer, neighbourMin, neighbourMax, Blocks.STONE.defaultBlockState(), neighbourMin, Blocks.STONE.defaultBlockState());
-			select(singleplayer, neighbourMin, neighbourMax);
-			runCommand(context, "vcs create " + NEIGHBOUR_NAME + " -we");
+			create(context, singleplayer, NEIGHBOUR_NAME, neighbourMin, neighbourMax);
 			read(schematic(NEIGHBOUR_NAME, 1));
 			setBlock(singleplayer, gap, Blocks.GOLD_BLOCK.defaultBlockState());
 			runCommand(context, "vcs select " + BUILD_NAME);
@@ -148,7 +142,7 @@ public class VcsFitCommandGameTest extends VcsGameTest {
 			List<Component> shrunk = run(context, "vcs fit");
 			assertOnlyMessage(shrunk, "Shrank " + BUILD_NAME + "/" + Build.MAIN + " from 5x4x4 (80 blocks) to 2x2x2 (8 blocks) and committed it as v3");
 			assertBox(context, singleplayer, BUILD_NAME, 3, box);
-			assertSize(read(schematic(BUILD_NAME, 3)), BlockVector3.at(2, 2, 2));
+			assertSize(read(schematic(BUILD_NAME, 3)), new Vec3i(2, 2, 2));
 
 			// v2 is bigger than the shrunk box, so it is looked at through both boxes together. A block put where v2
 			// had air, outside the box, stands in for something built next to the placement since.

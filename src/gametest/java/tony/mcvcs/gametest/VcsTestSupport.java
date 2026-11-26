@@ -1,7 +1,6 @@
 package tony.mcvcs.gametest;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
@@ -30,22 +29,17 @@ import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildStorage;
-import com.sk89q.worldedit.IncompleteRegionException;
-import com.sk89q.worldedit.LocalSession;
-import com.sk89q.worldedit.WorldEdit;
-import com.sk89q.worldedit.entity.Player;
-import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
-import com.sk89q.worldedit.fabric.FabricAdapter;
-import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldedit.regions.selector.CuboidRegionSelector;
-import com.sk89q.worldedit.world.World;
-import com.sk89q.worldedit.world.block.BlockType;
+import tony.mcvcs.build.ClientPlacement;
+import tony.mcvcs.build.Schematic;
+import tony.mcvcs.client.build.ClientPlacements;
+import tony.mcvcs.command.VcsCommandCreate;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Vec3i;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
 /** Shared setup and assertions for the {@code /vcs} game tests. */
@@ -102,13 +96,13 @@ final class VcsTestSupport {
 		}
 	}
 
-	static Clipboard read(Path file) {
+	static Schematic read(Path file) {
 		if (!Files.isRegularFile(file)) {
 			throw new AssertionError("Expected schematic at " + file);
 		}
 
-		try (InputStream in = Files.newInputStream(file); ClipboardReader reader = BuildStorage.FORMAT.getReader(in)) {
-			return reader.read();
+		try {
+			return BuildStorage.readSchematic(file);
 		} catch (IOException e) {
 			throw new AssertionError("Failed to read schematic " + file, e);
 		}
@@ -150,41 +144,27 @@ final class VcsTestSupport {
 		});
 	}
 
-	/** Selects the box for the player, as {@code //pos1} and {@code //pos2} would. */
-	static void select(TestSingleplayerContext singleplayer, BlockPos min, BlockPos max) {
-		singleplayer.getServer().runOnServer(server -> {
-			FabricAdapter adapter = FabricAdapter.get();
-			ServerPlayer player = server.getPlayerList().getPlayers().get(0);
-			World world = adapter.fromNativeWorld(server.overworld());
-			LocalSession session = WorldEdit.getInstance().getSessionManager().get(adapter.fromNativePlayer(player));
-			session.setRegionSelector(world, new CuboidRegionSelector(world, adapter.adapt(min), adapter.adapt(max)));
-		});
+	/**
+	 * Creates the build called {@code name} with a {@code main} placement covering exactly the box from {@code min} to
+	 * {@code max} in the overworld, as {@code /vcs create} would after a punch whose blocks grew to that box. The
+	 * player gets the same feedback in chat.
+	 */
+	static void create(ClientGameTestContext context, TestSingleplayerContext singleplayer, String name, BlockPos min, BlockPos max) {
+		create(context, singleplayer, name, Build.MAIN, min, max);
 	}
 
-	/** The player's WorldEdit selection as a box, or {@code null} when they have none. */
-	static BuildBox weSelection(TestSingleplayerContext singleplayer) {
-		return singleplayer.getServer().computeOnServer(server -> {
-			FabricAdapter adapter = FabricAdapter.get();
-			ServerPlayer player = server.getPlayerList().getPlayers().get(0);
-			Player actor = adapter.fromNativePlayer(player);
-			LocalSession session = WorldEdit.getInstance().getSessionManager().get(actor);
-			try {
-				return BuildBox.of(session.getSelection(actor.getWorld()));
-			} catch (IncompleteRegionException e) {
-				return null;
-			}
-		});
-	}
-
-	/** Leaves the player without a WorldEdit selection, as {@code //sel} would. */
-	static void clearSelection(TestSingleplayerContext singleplayer) {
-		singleplayer.getServer().runOnServer(server -> {
-			FabricAdapter adapter = FabricAdapter.get();
-			ServerPlayer player = server.getPlayerList().getPlayers().get(0);
-			World world = adapter.fromNativeWorld(server.overworld());
-			LocalSession session = WorldEdit.getInstance().getSessionManager().get(adapter.fromNativePlayer(player));
-			session.getRegionSelector(world).clear();
-		});
+	/** {@link #create(ClientGameTestContext, TestSingleplayerContext, String, BlockPos, BlockPos)} with a placement name of its own. */
+	static void create(ClientGameTestContext context, TestSingleplayerContext singleplayer, String name, String placement, BlockPos min, BlockPos max) {
+		int created = singleplayer.getServer().computeOnServer(server -> VcsCommandCreate.createFromBox(
+			server.getPlayerList().getPlayers().get(0), server.overworld(), name, placement, new BuildBox(min, max)));
+		if (created == 1) {
+			// The selection goes out just before the reply in chat, so once the client has one the other is on its way.
+			context.waitFor(client -> {
+				ClientPlacement selected = ClientPlacements.selected();
+				return selected != null && selected.build().equals(name) && selected.placement().equals(placement);
+			});
+		}
+		context.waitTicks(5);
 	}
 
 	/** What the server has at {@code pos} in the overworld. */
@@ -286,22 +266,28 @@ final class VcsTestSupport {
 		}
 	}
 
-	static void assertOrigin(Clipboard clipboard, BlockVector3 expected) {
-		if (!clipboard.getOrigin().equals(expected)) {
-			throw new AssertionError("Expected origin " + expected + " but got " + clipboard.getOrigin());
+	static void assertOrigin(Schematic schematic, BlockPos expected) {
+		if (!schematic.origin().equals(expected)) {
+			throw new AssertionError("Expected origin " + expected + " but got " + schematic.origin());
 		}
 	}
 
-	static void assertSize(Clipboard clipboard, BlockVector3 expected) {
-		if (!clipboard.getDimensions().equals(expected)) {
-			throw new AssertionError("Expected size " + expected + " but got " + clipboard.getDimensions());
+	static void assertSize(Schematic schematic, Vec3i expected) {
+		BuildBox box = schematic.box();
+		Vec3i size = new Vec3i(box.sizeX(), box.sizeY(), box.sizeZ());
+		if (!size.equals(expected)) {
+			throw new AssertionError("Expected size " + expected + " but got " + size);
 		}
 	}
 
-	/** Clipboard coordinates are world coordinates, so {@code pos} is the block's position in the world. */
-	static void assertBlock(Clipboard clipboard, BlockVector3 pos, BlockType expected) {
-		if (clipboard.getBlock(pos).getBlockType() != expected) {
-			throw new AssertionError("Expected " + expected + " at " + pos + " but got " + clipboard.getBlock(pos));
+	/** Schematic coordinates are world coordinates, so {@code pos} is the block's position in the world. */
+	static void assertBlock(Schematic schematic, BlockPos pos, Block expected) {
+		if (!schematic.box().contains(pos)) {
+			throw new AssertionError("Expected " + expected + " at " + pos + " but the schematic only covers " + schematic.box());
+		}
+		BlockState actual = schematic.blocks().stateAt(pos);
+		if (!actual.is(expected)) {
+			throw new AssertionError("Expected " + expected + " at " + pos + " but got " + actual);
 		}
 	}
 }

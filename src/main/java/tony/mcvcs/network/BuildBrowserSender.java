@@ -12,7 +12,6 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
-import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import tony.mcvcs.MCVCS;
 import tony.mcvcs.build.BoxSnapshot;
 import tony.mcvcs.build.Build;
@@ -20,6 +19,7 @@ import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.BuildStorage;
 import tony.mcvcs.build.PreviewGrid;
+import tony.mcvcs.build.Schematic;
 import tony.mcvcs.command.VcsCommand;
 
 /**
@@ -97,8 +97,8 @@ public final class BuildBrowserSender {
 		int scale = PreviewGrid.scaleFor(extent);
 		READER.execute(() -> {
 			try {
-				Clipboard clipboard = BuildStorage.readSchematic(name, version);
-				BoxSnapshot snapshot = PreviewGrid.sample(clipboard, extent, scale);
+				Schematic schematic = BuildStorage.readSchematic(name, version);
+				BoxSnapshot snapshot = PreviewGrid.sample(schematic, extent, scale);
 				ServerPlayNetworking.send(player, new ThumbnailBeginPayload(name, version, extent, scale));
 				PreviewSender.slices(snapshot, (offset, palette, indices, last) ->
 					ServerPlayNetworking.send(player, new ThumbnailBlocksPayload(name, version, offset, palette, indices, last)));

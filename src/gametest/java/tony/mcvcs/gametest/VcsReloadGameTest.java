@@ -1,5 +1,6 @@
 package tony.mcvcs.gametest;
 
+import static tony.mcvcs.gametest.VcsTestSupport.create;
 import static tony.mcvcs.gametest.VcsTestSupport.assertBlock;
 import static tony.mcvcs.gametest.VcsTestSupport.assertSize;
 import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
@@ -11,7 +12,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.read;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
-import static tony.mcvcs.gametest.VcsTestSupport.select;
 import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 
 import java.io.IOException;
@@ -33,10 +33,8 @@ import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.ClientPlacement;
-import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.fabric.FabricAdapter;
-import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldedit.world.block.BlockTypes;
+import tony.mcvcs.build.Schematic;
+import net.minecraft.core.Vec3i;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
@@ -55,7 +53,6 @@ public class VcsReloadGameTest extends VcsGameTest {
 
 	@Override
 	protected void run(ClientGameTestContext context) {
-		FabricAdapter adapter = FabricAdapter.get();
 		TestWorldSave save;
 		String world;
 		BlockPos min;
@@ -79,13 +76,11 @@ public class VcsReloadGameTest extends VcsGameTest {
 			BlockPos otherMax = otherMin.offset(2, 1, 1);
 
 			fillBox(singleplayer, otherMin, otherMax, Blocks.STONE.defaultBlockState(), otherMin, Blocks.STONE.defaultBlockState());
-			select(singleplayer, otherMin, otherMax);
-			runCommand(context, "vcs create " + OTHER + " -we");
+			create(context, singleplayer, OTHER, otherMin, otherMax);
 			read(schematic(OTHER, 1));
 
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), gold, Blocks.GOLD_BLOCK.defaultBlockState());
-			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME + " -we");
+			create(context, singleplayer, BUILD_NAME, min, max);
 			read(schematic(BUILD_NAME, 1));
 			setBlock(singleplayer, min, Blocks.DIAMOND_BLOCK.defaultBlockState());
 			runCommand(context, "vcs commit");
@@ -125,9 +120,9 @@ public class VcsReloadGameTest extends VcsGameTest {
 			// Commit picks up where it left off, with the box from create time: the gold block is still in the corner.
 			setBlock(reopened, max, Blocks.DIAMOND_BLOCK.defaultBlockState());
 			runCommand(context, "vcs commit");
-			Clipboard v3 = read(schematic(BUILD_NAME, 3));
-			assertSize(v3, BlockVector3.at(3, 2, 2));
-			assertBlock(v3, adapter.adapt(gold), BlockTypes.GOLD_BLOCK);
+			Schematic v3 = read(schematic(BUILD_NAME, 3));
+			assertSize(v3, new Vec3i(3, 2, 2));
+			assertBlock(v3, gold, Blocks.GOLD_BLOCK);
 			assertSelected(waitForSelection(context, BUILD_NAME, 3), BUILD_NAME, 3, new BuildBox(min, max));
 		}
 	}

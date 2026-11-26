@@ -13,7 +13,6 @@ The client-side mod improves experience a lot. It shows bounding boxes with labe
 ## Requirements
 
 - Minecraft 26.1.2 with Fabric Loader and Fabric API
-- WorldEdit (used for selections and for reading and writing schematics)
 - Operator level 2 (cheats) to run the commands
 
 ## Quick start
@@ -31,9 +30,8 @@ A **build** is your creation with all its saved versions. A **placement** is a c
 
 ### Builds
 
-- `/vcs create <buildname> [placementname] [-we]`\
+- `/vcs create <buildname> [placementname]`\
   Creates a new build and its main placement from a group of blocks you punch. When you punch a block, the selection grows until there is only air around it, and this bounding box becomes your build v1. Keep your build hovering in the air so it doesn't grow into the ground.
-  - `-we`: creates the build from your WorldEdit selection instead of a punch.
 - `/vcs builds`\
   Lists all builds and their placements, with buttons to select or teleport to each one.
 - `/vcs delete <buildname> [-c]`\
@@ -50,8 +48,6 @@ A **build** is your creation with all its saved versions. A **placement** is a c
   Clears your selection.
 - `/vcs tp [buildname [placementname]]`\
   Teleports you to a placement, or to your selected one if you don't name any.
-- `/vcs weselect`\
-  Sets your WorldEdit selection to the selected placement's box, so you can use WorldEdit commands on it.
 
 ### Versions
 
@@ -72,8 +68,6 @@ A **build** is your creation with all its saved versions. A **placement** is a c
   Names a version, e.g. `/vcs tag 2 2.0.0`, so you can use `2.0.0` instead of the version number in any command.
 - `/vcs untag <tagname>`\
   Removes a tag. The version itself stays.
-- `/vcs load [version|tag]`\
-  Copies that version, or the latest one, to your WorldEdit clipboard so you can `//paste` it.
 
 ### Placements
 
@@ -95,8 +89,6 @@ A **build** is your creation with all its saved versions. A **placement** is a c
 
 - `/vcs fit`\
   Resizes the selected placement's box to fit the build inside it and saves it as a new version. Use it after you build past the box's edges or clear part of it.
-- `/vcs setSelection`\
-  Sets the selected placement's box to your WorldEdit selection and saves it as a new version.
 
 ### Help
 
@@ -139,7 +131,7 @@ The file is read again every time you join a world or server, so an edit takes h
 
 ## How it works
 
-- Schematics are written in Sponge v3 format to the mod's own `mcvcs/` folder in the game directory (next to `config/`, `saves/` and so on), separate from WorldEdit's `//schem` files. Each build has a folder named after it holding one file per version: `mcvcs/<buildname>/<buildname>-v1.schem`, `mcvcs/<buildname>/<buildname>-v2.schem`.
+- Schematics are written in Sponge v3 format, which WorldEdit and other tools can load, to the mod's own `mcvcs/` folder in the game directory (next to `config/`, `saves/` and so on). Only blocks and block entities are saved, not entities or biomes. Each build has a folder named after it holding one file per version: `mcvcs/<buildname>/<buildname>-v1.schem`, `mcvcs/<buildname>/<buildname>-v2.schem`.
 - `build.json` contains information about bounding box for each version, and origin point for placements.
 - Bottom north-west corner of the version 1 of the build is its bounding box's `[0, 0, 0]` coordinate, that is stored in `build.json`.
 - Origin of the placement is coordinates of a point in the world which corresponds to `[0, 0, 0]` point of the build's version. For example, `main` placement with version 2 from example below will have origin `[100, 64, -30]` in the world. This origin will correspond to `[0, 0, 0]` point of version 2's bounding box.

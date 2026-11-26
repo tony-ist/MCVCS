@@ -28,20 +28,19 @@ import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.BuildStorage;
 import tony.mcvcs.build.Placement;
+import tony.mcvcs.build.Schematic;
 import tony.mcvcs.network.BuildSync;
 import tony.mcvcs.network.ChatButtons;
 import tony.mcvcs.network.PlacePreviewMovePayload;
 import tony.mcvcs.network.PreviewSender;
-import com.sk89q.worldedit.WorldEditException;
-import com.sk89q.worldedit.extent.clipboard.Clipboard;
 
 /**
  * {@code /vcs place <buildname> [version | tag | latest] [placementname] [-f]}: shows another copy of a build where the
  * player stands, as a preview only; {@code /vcs confirmPlace [-f]} then puts it into the world as a placement of its
  * own, and {@code /vcs cancelPlace} drops it.
  * <p>
- * The copy starts where {@code /vcs load} and {@code //paste} would put it: its top north-west corner one block below
- * the player's feet, so the build hangs below them, extending east and south. From there the player slides it about
+ * The copy starts with its top north-west corner one block below the player's feet, so the build hangs below them,
+ * extending east and south. From there the player slides it about
  * with the numpad keys and the mouse wheel, which the client's {@code PlacePreviewKeys} handles, and the client tells the server where it
  * stands with a {@link PlacePreviewMovePayload}. Nothing in the world is touched until the placement is confirmed,
  * and where it is confirmed fixes the placement's {@link Placement#origin} for good; checking out another version
@@ -127,19 +126,19 @@ public final class VcsCommandPlace {
 
 		ServerLevel level = player.level();
 		BuildBox box = atFeet(build.extent(placed), player.blockPosition());
-		Clipboard clipboard = read(source, buildName, placed, player);
-		if (clipboard == null) {
+		Schematic schematic = read(source, buildName, placed, player);
+		if (schematic == null) {
 			return 0;
 		}
 
 		// Without the mod on the client there is nothing to align the copy with, so it goes down where they stand.
 		if (!PreviewSender.canSendPlace(player)) {
-			return place(source, player, level, build, name, placed, box, force, clipboard);
+			return place(source, player, level, build, name, placed, box, force, schematic);
 		}
 
 		// A second /vcs place replaces whatever the first one was still showing, preview and all.
 		PENDING.put(player.getUUID(), new Pending(buildName, placed, name, force, level.dimension(), box));
-		PreviewSender.sendPlace(player, buildName + Build.LABEL_SEPARATOR + name, placed, level.dimension(), box, clipboard, force);
+		PreviewSender.sendPlace(player, buildName + Build.LABEL_SEPARATOR + name, placed, level.dimension(), box, schematic, force);
 		MCVCS.LOGGER.info("{} is placing build '{}' v{} as placement '{}', previewed at {} in {}",
 			player.getGameProfile().name(), buildName, placed, name, box.min().toShortString(), level.dimension().identifier());
 
@@ -185,11 +184,11 @@ public final class VcsCommandPlace {
 			return 0;
 		}
 
-		Clipboard clipboard = read(source, pending.build(), pending.version(), player);
-		if (clipboard == null) {
+		Schematic schematic = read(source, pending.build(), pending.version(), player);
+		if (schematic == null) {
 			return 0;
 		}
-		int result = place(source, player, level, build, pending.placement(), pending.version(), pending.box(), force || pending.force(), clipboard);
+		int result = place(source, player, level, build, pending.placement(), pending.version(), pending.box(), force || pending.force(), schematic);
 		// A refused placement keeps the copy up, so it can be moved somewhere clear and confirmed again.
 		if (result == 1) {
 			drop(player);
@@ -233,7 +232,7 @@ public final class VcsCommandPlace {
 	}
 
 	/** Reads a version's schematic, reporting to {@code source} and returning null if it cannot be had. */
-	private static Clipboard read(CommandSourceStack source, String buildName, int version, ServerPlayer player) {
+	private static Schematic read(CommandSourceStack source, String buildName, int version, ServerPlayer player) {
 		try {
 			return BuildStorage.readSchematic(buildName, version);
 		} catch (NoSuchFileException e) {
@@ -247,10 +246,10 @@ public final class VcsCommandPlace {
 	}
 
 	/**
-	 * Puts {@code clipboard}, version {@code placed} of {@code build}, into {@code box} as a new placement called
+	 * Puts {@code schematic}, version {@code placed} of {@code build}, into {@code box} as a new placement called
 	 * {@code name}, and selects it. The last thing both the preview-less path and {@code /vcs confirmPlace} do.
 	 */
-	private static int place(CommandSourceStack source, ServerPlayer player, ServerLevel level, Build build, String name, int placed, BuildBox box, boolean force, Clipboard clipboard) {
+	private static int place(CommandSourceStack source, ServerPlayer player, ServerLevel level, Build build, String name, int placed, BuildBox box, boolean force, Schematic schematic) {
 		String buildName = build.name();
 		BuildBox extent = build.extent(placed);
 		BuildPlacement placement = new BuildPlacement(build, name, new Placement(level.dimension(), box.min().subtract(extent.min()), placed));
@@ -272,8 +271,8 @@ public final class VcsCommandPlace {
 		}
 
 		try {
-			BuildPlacer.place(player, level, List.of(box), clipboard, box);
-		} catch (WorldEditException e) {
+			BuildPlacer.place(level, List.of(box), schematic, box);
+		} catch (IllegalArgumentException e) {
 			MCVCS.LOGGER.error("Failed to place build '{}' v{} for {}", buildName, placed, player.getGameProfile().name(), e);
 			source.sendFailure(Component.literal("Failed to place schematic: " + e.getMessage()));
 			return 0;
@@ -297,7 +296,7 @@ public final class VcsCommandPlace {
 			MutableComponent message = Component.literal("Placed ").append(VcsMessages.name(buildName + Build.LABEL_SEPARATOR + name))
 				.append(" " + build.versionLabel(placed) + " (" + VcsMessages.size(box) + ", " + box.volume() + " blocks) at " + box.min().toShortString());
 			if (inTheWay > 0) {
-				// Only a forced placement gets here; those blocks are gone, and not into WorldEdit's history either.
+				// Only a forced placement gets here; those blocks are gone for good.
 				message.append(", overwriting " + inTheWay + (inTheWay == 1 ? " block" : " blocks") + " that stood there");
 			}
 			return message;
@@ -306,9 +305,8 @@ public final class VcsCommandPlace {
 	}
 
 	/**
-	 * Where a version of extent {@code extent} lands for a player standing at {@code feet}: the same place
-	 * {@code /vcs load} followed by {@code //paste} would put it, with its top north-west corner one block below
-	 * their feet, so the build hangs below them and extends east and south.
+	 * Where a version of extent {@code extent} lands for a player standing at {@code feet}: with its top north-west
+	 * corner one block below their feet, so the build hangs below them and extends east and south.
 	 */
 	static BuildBox atFeet(BuildBox extent, BlockPos feet) {
 		BlockPos min = new BlockPos(feet.getX(), feet.getY() - extent.sizeY(), feet.getZ());

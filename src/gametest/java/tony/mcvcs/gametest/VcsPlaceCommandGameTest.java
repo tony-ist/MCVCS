@@ -1,5 +1,6 @@
 package tony.mcvcs.gametest;
 
+import static tony.mcvcs.gametest.VcsTestSupport.create;
 import static tony.mcvcs.gametest.VcsTestSupport.blockAt;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
@@ -9,7 +10,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
-import static tony.mcvcs.gametest.VcsTestSupport.select;
 import static tony.mcvcs.gametest.VcsTestSupport.setBlock;
 import static tony.mcvcs.gametest.VcsTestSupport.teleport;
 
@@ -71,8 +71,7 @@ public class VcsPlaceCommandGameTest extends VcsGameTest {
 			BlockPos max = min.offset(1, 1, 1);
 			BuildBox box = new BuildBox(min, max);
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), max, Blocks.GOLD_BLOCK.defaultBlockState());
-			select(singleplayer, min, max);
-			runCommand(context, "vcs create " + BUILD_NAME + " -we");
+			create(context, singleplayer, BUILD_NAME, min, max);
 			read(schematic(BUILD_NAME, 1));
 
 			// A build that does not exist is refused before anything is pasted.
@@ -83,8 +82,8 @@ public class VcsPlaceCommandGameTest extends VcsGameTest {
 			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME + " latest 2nd"),
 				"Placement name 2nd must start with a letter from a to z and may only contain letters, digits, _ + - and dots between them");
 
-			// Placing where the player stands shows the copy one block below their feet, extending east and south, the
-			// same spot /vcs load and //paste would use. The player is moved well clear of the first placement first.
+			// Placing where the player stands shows the copy one block below their feet, extending east and south. The
+			// player is moved well clear of the first placement first.
 			BlockPos feet = hover(singleplayer, context, start.offset(0, 10, 20));
 			BuildBox second = below(feet);
 			List<Component> showing = run(context, "vcs place " + BUILD_NAME + " latest " + SECOND);

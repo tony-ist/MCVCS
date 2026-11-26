@@ -1,5 +1,6 @@
 package tony.mcvcs.gametest;
 
+import static tony.mcvcs.gametest.VcsTestSupport.create;
 import static tony.mcvcs.gametest.VcsTestSupport.fillBox;
 import static tony.mcvcs.gametest.VcsTestSupport.lookAt;
 import static tony.mcvcs.gametest.VcsTestSupport.playerPos;
@@ -8,7 +9,6 @@ import static tony.mcvcs.gametest.VcsTestSupport.resetBuilds;
 import static tony.mcvcs.gametest.VcsTestSupport.runCommand;
 import static tony.mcvcs.gametest.VcsTestSupport.schematic;
 import static tony.mcvcs.gametest.VcsTestSupport.screenshotLastFrame;
-import static tony.mcvcs.gametest.VcsTestSupport.select;
 
 import java.util.List;
 
@@ -57,14 +57,12 @@ public class VcsBuildLabelGameTest extends VcsGameTest {
 
 			// The far build first, so the near one is created last and selected while the far one is not.
 			fillBox(singleplayer, farMin, farMax, Blocks.STONE.defaultBlockState(), farMin, Blocks.STONE.defaultBlockState());
-			select(singleplayer, farMin, farMax);
-			runCommand(context, "vcs create " + FAR + " -we");
+			create(context, singleplayer, FAR, farMin, farMax);
 			read(schematic(FAR, 1));
 			assertBuilds(waitForBuilds(context, 1), List.of(FAR), List.of(farBox));
 
 			fillBox(singleplayer, nearMin, nearMax, Blocks.STONE.defaultBlockState(), nearMin, Blocks.STONE.defaultBlockState());
-			select(singleplayer, nearMin, nearMax);
-			runCommand(context, "vcs create " + NEAR + " -we");
+			create(context, singleplayer, NEAR, nearMin, nearMax);
 			read(schematic(NEAR, 1));
 			assertBuilds(waitForBuilds(context, 2), List.of(FAR, NEAR), List.of(farBox, nearBox));
 			assertLabelled(context, nearBox, farBox);

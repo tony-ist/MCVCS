@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -28,12 +27,6 @@ import tony.mcvcs.network.BuildSync;
 import tony.mcvcs.network.ChatButtons;
 import tony.mcvcs.network.DiffSender;
 import tony.mcvcs.network.PreviewSender;
-import com.sk89q.worldedit.EditSession;
-import com.sk89q.worldedit.WorldEdit;
-import com.sk89q.worldedit.WorldEditException;
-import com.sk89q.worldedit.entity.Player;
-import com.sk89q.worldedit.fabric.FabricAdapter;
-import com.sk89q.worldedit.world.block.BlockTypes;
 
 /**
  * {@code /vcs unplace [-k]}: takes the selected placement out of its build and empties its box, leaving the ground
@@ -141,10 +134,8 @@ public final class VcsCommandUnplace {
 				source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is in " + placement.dimension().identifier() + ", which does not exist here"));
 				return 0;
 			}
-			if (!clear(player, level, box)) {
-				source.sendFailure(Component.literal("Failed to empty the box of ").append(VcsMessages.placement(placement)).append("; nothing was removed"));
-				return 0;
-			}
+			// The way a checkout empties a box: without block updates.
+			BuildPlacer.clear(level, box);
 		}
 
 		try {
@@ -189,7 +180,7 @@ public final class VcsCommandUnplace {
 		BuildBox box = placement.box();
 		try {
 			BuildDiff changes = BuildDiff.between(
-				BoxSnapshot.ofClipboard(box, BuildStorage.readSchematic(placement.build().name(), placement.head()), box),
+				BoxSnapshot.ofSchematic(box, BuildStorage.readSchematic(placement.build().name(), placement.head()), box),
 				BoxSnapshot.ofLevel(box, level));
 			return changes.size();
 		} catch (NoSuchFileException e) {
@@ -199,23 +190,6 @@ public final class VcsCommandUnplace {
 		} catch (IOException | IllegalArgumentException e) {
 			MCVCS.LOGGER.error("Failed to compare '{}' with v{} for {}", placement.label(), placement.head(), player.getGameProfile().name(), e);
 			return Math.toIntExact(box.volume());
-		}
-	}
-
-	/**
-	 * Empties {@code box}, the way a checkout empties one: without block updates and outside the player's WorldEdit
-	 * history, so {@code //undo} never brings the blocks back.
-	 */
-	private static boolean clear(ServerPlayer player, ServerLevel level, BuildBox box) {
-		FabricAdapter adapter = FabricAdapter.get();
-		Player actor = adapter.fromNativePlayer(player);
-		try (EditSession editSession = WorldEdit.getInstance().newEditSessionBuilder().world(adapter.fromNativeWorld(level)).actor(actor).maxBlocks(-1).build()) {
-			editSession.setSideEffectApplier(BuildPlacer.sideEffects());
-			editSession.setBlocks(box.region(level), Objects.requireNonNull(BlockTypes.AIR).getDefaultState());
-			return true;
-		} catch (WorldEditException e) {
-			MCVCS.LOGGER.error("Failed to empty {} for {}", box, player.getGameProfile().name(), e);
-			return false;
 		}
 	}
 }

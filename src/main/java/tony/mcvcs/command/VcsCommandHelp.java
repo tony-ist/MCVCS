@@ -32,15 +32,12 @@ public final class VcsCommandHelp {
 		VcsCommandBuilds.HELP,
 		VcsCommandDeselect.HELP,
 		VcsCommandPreview.HELP,
-		VcsCommandLoad.HELP,
 		VcsCommandDiff.HELP,
 		VcsCommandFit.HELP,
-		VcsCommandSetSelection.HELP,
 		VcsCommandCheckout.HELP,
 		VcsCommandDelete.HELP,
 		VcsCommandDelete.CONFIRM_HELP,
 		VcsCommandTp.HELP,
-		VcsCommandWeselect.HELP,
 		VcsCommandVersion.HELP,
 		HELP);
 

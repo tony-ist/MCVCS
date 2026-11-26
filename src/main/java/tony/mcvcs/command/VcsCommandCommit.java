@@ -23,16 +23,10 @@ import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.BuildStorage;
 import tony.mcvcs.diff.BuildDiff;
 import tony.mcvcs.network.ChatButtons;
-import com.sk89q.worldedit.LocalSession;
-import com.sk89q.worldedit.WorldEdit;
-import com.sk89q.worldedit.WorldEditException;
-import com.sk89q.worldedit.entity.Player;
-import com.sk89q.worldedit.fabric.FabricAdapter;
 
 /**
  * {@code /vcs commit [tagname]}: saves what is inside the selected placement's box as the build's next version, tagged
- * with {@code tagname} if one is given, see {@link VcsCommandTag}. The box is the
- * one the placement holds, not the player's WorldEdit selection. If anything other than air is touching the box, the
+ * with {@code tagname} if one is given, see {@link VcsCommandTag}. If anything other than air is touching the box, the
  * version is saved all the same but a yellow warning points the player at {@code /vcs fit}. A box that holds
  * exactly the version the placement is at has nothing to commit, and no version is saved.
  * <p>
@@ -43,7 +37,7 @@ import com.sk89q.worldedit.fabric.FabricAdapter;
 public final class VcsCommandCommit {
 	static final VcsHelp HELP = new VcsHelp("commit", "/vcs commit [tagname]",
 		"save the selected placement as the build's next version",
-		"Saves what is inside the selected placement's box as the build's next version. WorldEdit selection does not matter, only the placement's box is concerned. Every other placement of the build can then check that version out. Refuses if nothing in the box has changed since the version the placement holds. With a tag name, e.g. `/vcs commit 2.0.0`, the new version is tagged.");
+		"Saves what is inside the selected placement's box as the build's next version. Every other placement of the build can then check that version out. Refuses if nothing in the box has changed since the version the placement holds. With a tag name, e.g. `/vcs commit 2.0.0`, the new version is tagged.");
 
 	private VcsCommandCommit() {
 	}
@@ -98,13 +92,11 @@ public final class VcsCommandCommit {
 		}
 		Build committed = build;
 
-		Player actor = FabricAdapter.get().fromNativePlayer(player);
-		LocalSession session = WorldEdit.getInstance().getSessionManager().get(actor);
 		// Blocks touching the box are probably part of the build and are about to be left out of the version.
 		boolean enclosed = BoxExpansion.isEnclosed(box, level);
 
 		try {
-			Path file = BuildSaver.save(actor, session, build, version, box, level);
+			Path file = BuildSaver.save(player, build, version, box, level);
 			BuildRegistry.select(player, build, placement.name());
 
 			source.sendSuccess(() -> Component.literal("Committed ").append(VcsMessages.placement(placement)).append(" as build ")
@@ -113,7 +105,7 @@ public final class VcsCommandCommit {
 				source.sendSuccess(VcsCommandCommit::notEnclosedWarning, false);
 			}
 			return 1;
-		} catch (WorldEditException | IOException e) {
+		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to commit '{}' as v{} for {}", placement.label(), version, player.getGameProfile().name(), e);
 			source.sendFailure(Component.literal("Failed to save schematic: " + e.getMessage()));
 			return 0;
@@ -129,7 +121,7 @@ public final class VcsCommandCommit {
 		BuildBox box = placement.box();
 		try {
 			return BuildDiff.between(
-				BoxSnapshot.ofClipboard(box, BuildStorage.readSchematic(placement.build().name(), placement.head()), box),
+				BoxSnapshot.ofSchematic(box, BuildStorage.readSchematic(placement.build().name(), placement.head()), box),
 				BoxSnapshot.ofLevel(box, level)).size() == 0;
 		} catch (IOException | IllegalArgumentException e) {
 			MCVCS.LOGGER.warn("Failed to compare '{}' with v{} for {}, so it is committed without checking for changes",

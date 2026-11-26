@@ -15,9 +15,9 @@ import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.BuildStorage;
+import tony.mcvcs.build.Schematic;
 import tony.mcvcs.network.ChatButtons;
 import tony.mcvcs.network.PreviewSender;
-import com.sk89q.worldedit.extent.clipboard.Clipboard;
 
 /**
  * {@code /vcs preview <version | tag>}: sends that version's schematic to the player's client, which draws it in place of
@@ -62,8 +62,8 @@ public final class VcsCommandPreview {
 		BuildBox box = placement.viewBoxOf(version);
 
 		try {
-			Clipboard clipboard = BuildStorage.readSchematic(build.name(), version);
-			PreviewSender.send(player, placement, version, clipboard);
+			Schematic schematic = BuildStorage.readSchematic(build.name(), version);
+			PreviewSender.send(player, placement, version, schematic);
 
 			source.sendSuccess(() -> Component.literal("Previewing ").append(VcsMessages.placement(placement)).append(" at " + build.versionLabel(version)
 				+ " (" + box.volume() + " blocks); run ").append(ChatButtons.command("/vcs preview off")).append(" to stop"), false);
