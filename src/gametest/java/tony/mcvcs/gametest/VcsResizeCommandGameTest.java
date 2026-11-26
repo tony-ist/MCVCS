@@ -22,6 +22,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.Blocks;
@@ -34,7 +35,9 @@ import tony.mcvcs.client.resize.ClientResize;
 
 /**
  * {@code /vcs resize} lets the player drag the face of the selected box they look at with left alt and the mouse
- * wheel: a notch up pushes it away, a notch down pulls it closer, and the box never gets thinner than a block. A box
+ * wheel: a notch up pushes it away, a notch down pulls it closer, and the box never gets thinner than a block. The face
+ * is picked as alt goes down and kept while it is held; looking at no face, it goes by the axis the player looks along
+ * most. A box
  * that overlaps another placement turns red, says so, and is refused by Numpad 5 and {@code /vcs confirmResize}
  * alike; once clear, Numpad 5 commits it as the next version. {@code /vcs cancelResize} drops it.
  */
@@ -107,6 +110,35 @@ public class VcsResizeCommandGameTest extends VcsGameTest {
 			context.waitTicks(2);
 			screenshotLastFrame(context, "mcvcs-vcs-resize");
 
+			// Pressing the scroll key while looking at the south face keeps that face for as long as it is held, drawn
+			// with its axis, so turning to the sky still drags it.
+			context.getInput().holdKey(PlacePreviewKeys.SCROLL);
+			try {
+				context.waitTicks(2);
+				assertTarget(context, new ClientResize.Target(Direction.SOUTH, Direction.NORTH));
+				screenshotLastFrame(context, "mcvcs-vcs-resize-axis");
+				context.runOnClient(client -> client.player.setXRot(-90.0f));
+				context.waitTicks(2);
+				context.getInput().scroll(-1.0);
+				assertResizing(context, new BuildBox(min, max.offset(0, 1, 2)));
+				context.getInput().scroll(1.0);
+				assertResizing(context, box);
+			} finally {
+				context.getInput().releaseKey(PlacePreviewKeys.SCROLL);
+			}
+			context.waitTicks(2);
+			assertTarget(context, null);
+
+			// Pressed looking at no face, it goes by the axis the player looks along most. Turned east and a little
+			// up, away from the box, that is the west face, the one towards them, and a notch up pushes it east.
+			context.runOnClient(client -> {
+				client.player.setYRot(-90.0f);
+				client.player.setXRot(-20.0f);
+			});
+			context.waitTicks(2);
+			box = scrollAsIs(context, 1.0, new BuildBox(min.offset(1, 0, 0), max.offset(0, 1, 1)));
+			box = scrollAsIs(context, -1.0, new BuildBox(min, max.offset(0, 1, 1)));
+
 			// From the north, two notches pull the north face into the neighbour: the box turns red and says so.
 			teleport(singleplayer, new BlockPos(min.getX(), min.getY(), min.getZ() - 8));
 			context.waitTicks(2);
@@ -155,6 +187,11 @@ public class VcsResizeCommandGameTest extends VcsGameTest {
 	/** Looks at the box, turns the wheel {@code amount} notches with the scroll key held, and waits for {@code expected}. */
 	private static BuildBox scroll(ClientGameTestContext context, BuildBox box, double amount, BuildBox expected) {
 		lookAt(context, box.min(), box.max());
+		return scrollAsIs(context, amount, expected);
+	}
+
+	/** {@link #scroll} without turning to the box first. */
+	private static BuildBox scrollAsIs(ClientGameTestContext context, double amount, BuildBox expected) {
 		context.getInput().holdKey(PlacePreviewKeys.SCROLL);
 		try {
 			context.getInput().scroll(amount);
@@ -163,6 +200,14 @@ public class VcsResizeCommandGameTest extends VcsGameTest {
 		}
 		assertResizing(context, expected);
 		return expected;
+	}
+
+	/** The face the wheel drags is {@code expected}, null meaning none is picked. */
+	private static void assertTarget(ClientGameTestContext context, ClientResize.Target expected) {
+		ClientResize.Target actual = context.computeOnClient(ClientResize::target);
+		if (!java.util.Objects.equals(actual, expected)) {
+			throw new AssertionError("Expected the wheel to drag " + expected + " but it drags " + actual);
+		}
 	}
 
 	private static void assertResizing(ClientGameTestContext context, BuildBox box) {

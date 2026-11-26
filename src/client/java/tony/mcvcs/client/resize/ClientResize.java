@@ -1,5 +1,6 @@
 package tony.mcvcs.client.resize;
 
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.ChatFormatting;
@@ -18,6 +19,7 @@ import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.ClientPlacement;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.place.PlacePreviewKeys;
+import tony.mcvcs.client.preview.PreviewManager;
 import tony.mcvcs.network.ResizeBeginPayload;
 import tony.mcvcs.network.ResizeClearPayload;
 import tony.mcvcs.network.ResizeMovePayload;
@@ -27,9 +29,10 @@ import org.jspecify.annotations.Nullable;
  * The box a {@code /vcs resize} is showing, and the mouse wheel that drags its faces. The wheel and Numpad 5 are the
  * keys of {@link PlacePreviewKeys}, which hand them over here while no {@code /vcs place} copy is shown.
  * <p>
- * With {@link PlacePreviewKeys#SCROLL} held, a notch up pushes the face the player looks at away from them and a notch
- * down pulls it closer, one block each. From outside the box that face is the one in sight, or the nearest one when
- * none is; from inside it is the one ahead of them, so pushing it away grows the box. A box is never thinner than one
+ * Pressing {@link PlacePreviewKeys#SCROLL} picks the face the wheel drags and keeps it until the key is let go, the
+ * same way the {@code /vcs place} copy's axis is picked: the face looked at, a notch up pushing it away from the
+ * player and a notch down pulling it closer, one block each. Looking at no face, it goes by the axis the player looks
+ * along most, a notch up moving the face the way they look, see {@link #target}. A box is never thinner than one
  * block. Every change is sent to the server, which checks the box when it is confirmed.
  * <p>
  * The box overlapping another placement, or going past {@link BoxExpansion#MAX_VOLUME}, is worked out here as well,
@@ -50,6 +53,8 @@ public final class ClientResize {
 	}
 
 	private static volatile @Nullable Resize state;
+	/** What the wheel drags, picked when {@link PlacePreviewKeys#SCROLL} was pressed, see {@link #target}. */
+	private static @Nullable Target locked;
 
 	private ClientResize() {
 	}
@@ -61,6 +66,12 @@ public final class ClientResize {
 		});
 		ClientPlayNetworking.registerGlobalReceiver(ResizeClearPayload.TYPE, (payload, context) -> state = null);
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> state = null);
+		// The target is picked as the key goes down, and forgotten as it comes up.
+		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			if (target(client) == null) {
+				locked = null;
+			}
+		});
 	}
 
 	/** The resize going on, or null when there is none. */
@@ -85,7 +96,10 @@ public final class ClientResize {
 			return false;
 		}
 
-		Target target = target(client, resize.box());
+		Target target = target(client);
+		if (target == null) {
+			return true;
+		}
 		Direction direction = amount > 0.0 ? target.away() : target.away().getOpposite();
 		BlockPos min = resize.box().min();
 		BlockPos max = resize.box().max();
@@ -163,51 +177,36 @@ public final class ClientResize {
 	public record Target(Direction face, Direction away) {
 	}
 
-	/** What the wheel would drag for the player as they look now, or null when no resize is going on here. */
+	/**
+	 * What the wheel drags, picked when {@link PlacePreviewKeys#SCROLL} was pressed and kept until it is let go; null
+	 * while the key is not held over a resize going on here, or while a {@code /vcs place} copy takes the wheel.
+	 */
 	public static @Nullable Target target(Minecraft client) {
 		Resize resize = here(client);
-		return resize == null ? null : target(client, resize.box());
+		if (resize == null || client.screen != null || !PlacePreviewKeys.SCROLL.isDown() || PreviewManager.place() != null) {
+			return null;
+		}
+		if (locked == null) {
+			locked = pick(client, resize.box());
+		}
+		return locked;
 	}
 
-	private static Target target(Minecraft client, BuildBox box) {
+	/**
+	 * The face the player looks at, pushed away from them by a notch up. Looking at none, it goes by the axis they
+	 * look along most, a notch up moving a face the way they look: from outside the box the face towards them, from
+	 * inside it the face ahead, so the box shrinks from the near side or grows ahead.
+	 */
+	private static Target pick(Minecraft client, BuildBox box) {
 		AABB aabb = PlacePreviewKeys.aabb(box);
 		Vec3 eye = client.player.getEyePosition();
 		Vec3 look = client.player.getViewVector(1.0f);
-		if (aabb.contains(eye)) {
-			Direction ahead = exitFace(aabb, eye, look);
-			return new Target(ahead, ahead);
-		}
 		Direction face = PlacePreviewKeys.faceLookedAt(aabb, eye, look, FACES);
-		if (face == null) {
-			face = PlacePreviewKeys.nearestFace(aabb, eye, look, FACES);
+		if (face != null) {
+			// The face in sight looks back at the player, so away from them is the other way.
+			return new Target(face, face.getOpposite());
 		}
-		// The face in sight looks back at the player, so away from them is the other way.
-		return new Target(face, face.getOpposite());
-	}
-
-	/** The face a ray from {@code eye}, inside {@code aabb}, leaves the box through. */
-	private static Direction exitFace(AABB aabb, Vec3 eye, Vec3 look) {
-		Direction exit = Direction.UP;
-		double nearest = Double.POSITIVE_INFINITY;
-		for (Direction face : FACES) {
-			double along = face.getStepX() * look.x + face.getStepY() * look.y + face.getStepZ() * look.z;
-			if (along <= 0.0) {
-				continue;
-			}
-			double distance = switch (face) {
-				case NORTH -> eye.z - aabb.minZ;
-				case SOUTH -> aabb.maxZ - eye.z;
-				case WEST -> eye.x - aabb.minX;
-				case EAST -> aabb.maxX - eye.x;
-				case DOWN -> eye.y - aabb.minY;
-				case UP -> aabb.maxY - eye.y;
-			};
-			double t = distance / along;
-			if (t < nearest) {
-				exit = face;
-				nearest = t;
-			}
-		}
-		return exit;
+		Direction ahead = Direction.getApproximateNearest(look);
+		return new Target(aabb.contains(eye) ? ahead : ahead.getOpposite(), ahead);
 	}
 }

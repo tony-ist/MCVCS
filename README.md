@@ -114,7 +114,7 @@ With the mod on your client, pressing `V` **selects** the placement under your c
 
 Pressing `B` opens the **builds overlay**, and pressing it again closes it.
 
-Holding left alt and scrolling mouse wheel **moves** the `/vcs place` preview around, or **drags** a face of the `/vcs resize` box. For the preview, pressing alt picks the axis it moves along, shown with arrows: through the face you look at, or, looking at none, the axis you look along most.
+Holding left alt and scrolling mouse wheel **moves** the `/vcs place` preview around, or **drags** a face of the `/vcs resize` box. Pressing alt picks the axis the wheel works along, shown with arrows: through the face you look at, or, looking at none, the axis you look along most.
 
 Every key can be **rebound** like any other under Options, Controls, Key Binds, in the MCVCS category.
 
@@ -203,7 +203,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
-- Add commit button to overlay
 - Renaming of builds: command and ovelay button
 
 - Make movement of preview during placement more intuitive, maybe only move in direction you look, not using the plane.
