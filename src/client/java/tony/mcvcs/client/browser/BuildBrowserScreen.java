@@ -25,6 +25,7 @@ import org.jspecify.annotations.Nullable;
 import tony.mcvcs.build.ClientPlacement;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.config.ClientConfig;
+import tony.mcvcs.client.preview.PreviewManager;
 import tony.mcvcs.client.selection.PendingClickHighlight;
 import tony.mcvcs.network.BuildSummary;
 
@@ -35,13 +36,14 @@ import tony.mcvcs.network.BuildSummary;
  * <p>
  * Hovering a cell swaps its preview for three buttons, each closing the overlay and running a command as if typed:
  * {@code Select} runs {@code /vcs select} for the build, {@code TP} runs {@code /vcs tp} to it, and {@code Place} runs
- * {@code /vcs place} for the version the cell shows, so the copy shows up where the player stands, ready to be lined
- * up. A build with no placements has the first two greyed out; for one with several, they first ask which placement
+ * {@code /vcs place} for one of its versions, so the copy shows up where the player stands, ready to be lined up; a
+ * build with several versions first asks which, see {@link VersionPickerScreen}. A build with no placements has the first two greyed out; for one with several, they first ask which placement
  * is meant, see {@link PlacementPickerScreen}. Three dots in the hovered cell's top right corner open a menu whose
  * {@code Delete} asks whether to delete the build, see {@link DeleteBuildScreen}. A build bigger than
  * {@link ClientConfig.Settings#autoDownloadLimit} shows a placeholder instead of its preview until the cell is clicked
  * outside its buttons, which downloads the preview. The {@code Create} button next to refresh starts a new build, see
  * {@link CreateBuildScreen}; while that build waits for its punch, it reads {@code Cancel creation} and cancels it.
+ * While a {@code /vcs place} copy is being lined up, a {@code Cancel place} button left of it runs {@code /vcs cancelPlace}.
  * <p>
  * The list is asked for when the overlay opens and when its refresh button is pressed, and not otherwise, see
  * {@link BuildBrowser}. How big the cells are and how fast they turn come from {@link ClientConfig}. The game keeps
@@ -73,6 +75,8 @@ public final class BuildBrowserScreen extends Screen {
 	 */
 	public static final String CREATE = "Create";
 	public static final String CANCEL_CREATION = "Cancel creation";
+	/** Label of the header button, left of {@link #CREATE}, shown only while a {@code /vcs place} copy is being lined up. */
+	public static final String CANCEL_PLACE = "Cancel place";
 	public static final String REFRESH = "Refresh";
 	/** Labels of the buttons a hovered cell shows. */
 	public static final String SELECT = "Select";
@@ -101,13 +105,15 @@ public final class BuildBrowserScreen extends Screen {
 	private double scroll;
 	/** The header's create button, which turns into a cancel button while a {@code /vcs create} waits for its punch. */
 	private @Nullable Button create;
+	/** The header's cancel place button, visible only while a {@code /vcs place} copy is being lined up. */
+	private @Nullable Button cancelPlace;
 	/** The build whose cell the buttons are on, or null while no cell is hovered and they are hidden. */
 	private @Nullable BuildSummary buttonsFor;
 	/** The build whose menu is open, or null while it is closed; its cell keeps its buttons wherever the mouse goes. */
 	private @Nullable BuildSummary menuFor;
 	private final Button select = Button.builder(Component.literal(SELECT), button -> choose(PlacementPickerScreen.Action.SELECT)).build();
 	private final Button tp = Button.builder(Component.literal(TP), button -> choose(PlacementPickerScreen.Action.TP)).build();
-	private final Button place = Button.builder(Component.literal(PLACE), button -> run(build -> "vcs place " + build.name() + " " + build.version())).build();
+	private final Button place = Button.builder(Component.literal(PLACE), button -> choosePlace()).build();
 	private final Button more = new DotsButton(button -> menuFor = buttonsFor);
 	/** The menu's item; clicked by {@link #mouseClicked} itself, since it lies over the cell's other buttons. */
 	private final Button delete = Button.builder(Component.literal(DELETE), button -> confirmDelete()).build();
@@ -131,10 +137,17 @@ public final class BuildBrowserScreen extends Screen {
 	protected void init() {
 		// As wide as its longer label, so it does not jump about when it changes.
 		int createWidth = Math.max(60, font.width(CANCEL_CREATION) + BUTTON_PADDING);
+		int createLeft = width - GAP - 60 - 4 - createWidth;
 		create = addRenderableWidget(Button.builder(Component.literal(CREATE), button -> createOrCancel())
-			.bounds(width - GAP - 60 - 4 - createWidth, 6, createWidth, 20)
+			.bounds(createLeft, 6, createWidth, 20)
 			.build());
 		updateCreate();
+		int cancelPlaceWidth = font.width(CANCEL_PLACE) + BUTTON_PADDING;
+		cancelPlace = addRenderableWidget(Button.builder(Component.literal(CANCEL_PLACE), button -> sendCommand("vcs cancelPlace"))
+			.bounds(createLeft - 4 - cancelPlaceWidth, 6, cancelPlaceWidth, 20)
+			.tooltip(Tooltip.create(Component.literal("Drop the copy being placed")))
+			.build());
+		updateCancelPlace();
 		addRenderableWidget(Button.builder(Component.literal(REFRESH), button -> BuildBrowser.refresh())
 			.bounds(width - GAP - 60, 6, 60, 20)
 			.build());
@@ -166,6 +179,23 @@ public final class BuildBrowserScreen extends Screen {
 		}
 	}
 
+	/** Shows the cancel place button only while a {@code /vcs place} copy is being lined up. */
+	private void updateCancelPlace() {
+		if (cancelPlace != null) {
+			cancelPlace.visible = PreviewManager.place() != null;
+		}
+	}
+
+	/**
+	 * Runs {@code command} as if typed, keeping the overlay open; sent as a command, so the server checks the
+	 * permission and answers in chat the way it does for the command.
+	 */
+	private void sendCommand(String command) {
+		if (minecraft != null && minecraft.player != null) {
+			minecraft.player.connection.sendCommand(command);
+		}
+	}
+
 	/** Labels the create button for whether a {@code /vcs create} is waiting for its punch. */
 	private void updateCreate() {
 		if (create == null) {
@@ -189,8 +219,13 @@ public final class BuildBrowserScreen extends Screen {
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
 		updateCreate();
+		updateCancelPlace();
 		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
-		graphics.centeredText(font, title, width / 2, 12, WHITE);
+		// Centred, unless the header's buttons reach that far; then as far right as they leave room for.
+		int buttonsLeft = cancelPlace != null && cancelPlace.visible ? cancelPlace.getX() : create != null ? create.getX() : width;
+		int titleWidth = font.width(title);
+		int titleX = Math.max(GAP, Math.min((width - titleWidth) / 2, buttonsLeft - GAP - titleWidth));
+		graphics.text(font, title, titleX, 12, WHITE);
 
 		switch (BuildBrowser.listState()) {
 			case NONE, LOADING -> loading(graphics, width / 2, height / 2, "Loading builds");
@@ -367,7 +402,7 @@ public final class BuildBrowserScreen extends Screen {
 	}
 
 	/** How far the previews have turned by now: the same for every cell, so they turn together. */
-	private static float yaw() {
+	static float yaw() {
 		double speed = ClientConfig.settings().rotationSpeed();
 		return (float) ((START_YAW + Util.getMillis() / 1000.0 * speed) % 360.0);
 	}
@@ -419,6 +454,22 @@ public final class BuildBrowserScreen extends Screen {
 			minecraft.setScreen(new PlacementPickerScreen(this, build.name(), action, placements));
 		} else {
 			run(target -> action.command() + " " + target.name());
+		}
+	}
+
+	/**
+	 * Starts {@code /vcs place} for the build the buttons are on: straight away for its only version, otherwise once
+	 * {@link VersionPickerScreen} is told which.
+	 */
+	private void choosePlace() {
+		BuildSummary build = buttonsFor;
+		if (build == null || minecraft == null) {
+			return;
+		}
+		if (build.versions().size() > 1) {
+			minecraft.setScreen(new VersionPickerScreen(this, build));
+		} else {
+			run(target -> VersionPickerScreen.placeCommand(target, target.latest()));
 		}
 	}
 
@@ -478,7 +529,9 @@ public final class BuildBrowserScreen extends Screen {
 			tp.setTooltip(!placed ? notPlaced : Tooltip.create(Component.literal(build.placements() == 1
 				? "Teleport on top of its placement"
 				: "Choose which of its " + build.placements() + " placements to teleport onto")));
-			place.setTooltip(Tooltip.create(Component.literal("Place a copy of v" + build.version() + " where you stand")));
+			place.setTooltip(Tooltip.create(Component.literal(build.versions().size() == 1
+				? "Place a copy of v" + build.version() + " where you stand"
+				: "Choose which of its " + build.versions().size() + " versions to place where you stand")));
 		}
 		for (Button button : buttons()) {
 			button.visible = true;

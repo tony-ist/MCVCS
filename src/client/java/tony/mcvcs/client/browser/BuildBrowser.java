@@ -138,29 +138,44 @@ public final class BuildBrowser {
 		refreshOnSync = true;
 	}
 
-	/** The preview of the version {@code build} names, or null if it has not been asked for. */
+	/** The preview of {@code build}'s newest version, or null if it has not been asked for. */
 	public static @Nullable Thumbnail thumbnail(BuildSummary build) {
-		return THUMBNAILS.get(key(build));
+		return thumbnail(build, build.latest());
 	}
 
-	/** Whether {@code build} is small enough for its preview to be downloaded without being clicked. */
+	/** The preview of {@code version} of {@code build}, or null if it has not been asked for. */
+	public static @Nullable Thumbnail thumbnail(BuildSummary build, BuildSummary.Version version) {
+		return THUMBNAILS.get(key(build, version));
+	}
+
+	/** Whether {@code build}'s newest version is small enough for its preview to be downloaded without being clicked. */
 	public static boolean downloadsByItself(BuildSummary build) {
-		return build.extent().volume() <= ClientConfig.settings().autoDownloadLimit();
+		return downloadsByItself(build.latest());
 	}
 
-	/** Asks the server for the preview of the version {@code build} names, unless it has been asked for already. */
+	/** Whether {@code version} is small enough for its preview to be downloaded without being clicked. */
+	public static boolean downloadsByItself(BuildSummary.Version version) {
+		return version.extent().volume() <= ClientConfig.settings().autoDownloadLimit();
+	}
+
+	/** Asks the server for the preview of {@code build}'s newest version, unless it has been asked for already. */
 	public static void download(BuildSummary build) {
-		Thumbnail.Key key = key(build);
+		download(build, build.latest());
+	}
+
+	/** Asks the server for the preview of {@code version} of {@code build}, unless it has been asked for already. */
+	public static void download(BuildSummary build, BuildSummary.Version version) {
+		Thumbnail.Key key = key(build, version);
 		Thumbnail existing = THUMBNAILS.get(key);
 		if (existing != null && existing.state() != Thumbnail.State.FAILED) {
 			return;
 		}
 		THUMBNAILS.put(key, new Thumbnail(key));
-		ClientPlayNetworking.send(new ThumbnailRequestPayload(build.name(), build.version()));
+		ClientPlayNetworking.send(new ThumbnailRequestPayload(build.name(), version.version()));
 	}
 
-	private static Thumbnail.Key key(BuildSummary build) {
-		return new Thumbnail.Key(build.name(), build.version(), build.extent());
+	private static Thumbnail.Key key(BuildSummary build, BuildSummary.Version version) {
+		return new Thumbnail.Key(build.name(), version.version(), version.extent());
 	}
 
 	private static void list(BuildListPayload payload) {

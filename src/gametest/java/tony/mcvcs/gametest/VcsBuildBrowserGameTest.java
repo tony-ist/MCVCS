@@ -38,6 +38,7 @@ import tony.mcvcs.client.browser.CreateBuildScreen;
 import tony.mcvcs.client.browser.DeleteBuildScreen;
 import tony.mcvcs.client.browser.PlacementPickerScreen;
 import tony.mcvcs.client.browser.Thumbnail;
+import tony.mcvcs.client.browser.VersionPickerScreen;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.client.preview.PlacePreview;
@@ -49,7 +50,8 @@ import tony.mcvcs.network.BuildSummary;
  * The builds overlay: {@code B} opens it with every build of the world in a grid, each showing its newest committed
  * version, name and tags; a build too big to download by itself waits for a click; a very long one arrives as a
  * coarser grid of itself; the refresh button picks up a new commit; the buttons a hovered cell shows select the build,
- * start {@code /vcs place} of it and teleport onto it, the first two asking which placement for a build with several and
+ * start {@code /vcs place} of it and teleport onto it, Place asking which version for a build with several and the
+ * other two asking which placement for a build with several and
  * greyed out for a build placed nowhere; the three dots' menu deletes a build once asked, emptying its placements only
  * if ticked to; Create asks for a name and starts {@code /vcs create}, with {@code -b} if ticked to; and a player who may not run {@code /vcs} is told so.
  */
@@ -116,6 +118,9 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			}
 			context.waitTicks(5);
 			context.takeScreenshot("mcvcs-builds-overlay");
+			if (context.computeOnClient(client -> visibleHeaderButton(client, BuildBrowserScreen.CANCEL_PLACE)) != null) {
+				throw new AssertionError("Expected no Cancel place button while nothing is being placed");
+			}
 
 			// Clicking the hall's placeholder downloads its preview instead of placing it.
 			click(context, BIG);
@@ -174,14 +179,55 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 				return selected != null && selected.build().equals(BIG);
 			});
 
-			// Place closes the overlay and starts placing the tower's newest version where the player stands.
+			// The hall has only one version, so Place closes the overlay and starts placing it straight away.
 			open(context);
-			waitForReady(context, SMALL, 3);
-			clickButton(context, SMALL, BuildBrowserScreen.PLACE);
+			clickButton(context, BIG, BuildBrowserScreen.PLACE);
 			context.waitFor(client -> client.screen == null);
 			context.waitFor(client -> {
 				PlacePreview place = PreviewManager.place();
-				return place != null && place.blocks().name().equals(SMALL + "/p2") && place.blocks().version() == 3;
+				return place != null && place.blocks().name().equals(BIG + "/p2") && place.blocks().version() == 1;
+			});
+			// While it is being placed, the overlay shows Cancel place left of Create, which drops the copy and hides itself.
+			open(context);
+			context.waitFor(client -> visibleHeaderButton(client, BuildBrowserScreen.CANCEL_PLACE) != null);
+			assertLeftOf(context, BuildBrowserScreen.CANCEL_PLACE, BuildBrowserScreen.CREATE);
+			moveAway(context);
+			context.waitTicks(2);
+			context.takeScreenshot("mcvcs-builds-overlay-cancel-place");
+			clickHeader(context, BuildBrowserScreen.CANCEL_PLACE);
+			context.waitFor(client -> PreviewManager.place() == null);
+			context.waitFor(client -> visibleHeaderButton(client, BuildBrowserScreen.CANCEL_PLACE) == null);
+			context.waitForScreen(BuildBrowserScreen.class);
+			context.getInput().pressKey(BuildBrowserKey.KEY);
+			context.waitFor(client -> client.screen == null);
+
+			// The tower has three, so Place asks which, newest first, each with its preview and tags.
+			open(context);
+			waitForReady(context, SMALL, 3);
+			clickButton(context, SMALL, BuildBrowserScreen.PLACE);
+			context.waitForScreen(VersionPickerScreen.class);
+			context.waitFor(client -> {
+				BuildSummary tower = summary(SMALL);
+				return tower.versions().stream().allMatch(version -> {
+					Thumbnail thumbnail = BuildBrowser.thumbnail(tower, version);
+					return thumbnail != null && thumbnail.state() == Thumbnail.State.READY;
+				});
+			});
+			moveAway(context);
+			context.waitTicks(2);
+			context.takeScreenshot("mcvcs-builds-overlay-versions");
+			// Escape goes back to the overlay.
+			context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+			context.waitForScreen(BuildBrowserScreen.class);
+
+			// Clicking a version closes both and starts placing it where the player stands.
+			clickButton(context, SMALL, BuildBrowserScreen.PLACE);
+			context.waitForScreen(VersionPickerScreen.class);
+			clickVersion(context, 2);
+			context.waitFor(client -> client.screen == null);
+			context.waitFor(client -> {
+				PlacePreview place = PreviewManager.place();
+				return place != null && place.blocks().name().equals(SMALL + "/p2") && place.blocks().version() == 2;
 			});
 			// The copy hangs below the player's feet, so they look down at it.
 			context.runOnClient(client -> client.player.setXRot(90.0f));
@@ -504,6 +550,18 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 		clickAt(context, row.left() + row.width() / 2.0, row.top() + row.height() / 2.0);
 	}
 
+	/** Clicks the cell of version {@code version} in the version picker. */
+	private static void clickVersion(ClientGameTestContext context, int version) {
+		ScreenRectangle cell = context.computeOnClient(client -> {
+			ScreenRectangle found = client.screen instanceof VersionPickerScreen screen ? screen.cellOf(version) : null;
+			if (found == null) {
+				throw new AssertionError("Expected a cell for v" + version + " on " + client.screen);
+			}
+			return found;
+		});
+		clickAt(context, cell.left() + cell.width() / 2.0, cell.top() + cell.height() / 2.0);
+	}
+
 	private static ScreenRectangle cellOf(ClientGameTestContext context, String name) {
 		return context.computeOnClient(client -> {
 			ScreenRectangle found = client.screen instanceof BuildBrowserScreen screen ? screen.cellOf(name) : null;
@@ -531,6 +589,21 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 		return client.screen instanceof BuildBrowserScreen screen ? screen.children().stream()
 			.filter(child -> child instanceof Button found && found.getMessage().getString().equals(label))
 			.map(Button.class::cast).findFirst().orElse(null) : null;
+	}
+
+	/** The overlay's header button labelled {@code label} if it is shown, or null. */
+	private static Button visibleHeaderButton(Minecraft client, String label) {
+		Button button = headerButton(client, label);
+		return button != null && button.visible ? button : null;
+	}
+
+	/** The header button labelled {@code left} sits to the left of the one labelled {@code right}. */
+	private static void assertLeftOf(ClientGameTestContext context, String left, String right) {
+		context.runOnClient(client -> {
+			if (headerButton(client, left).getRight() > headerButton(client, right).getX()) {
+				throw new AssertionError("Expected " + left + " to the left of " + right);
+			}
+		});
 	}
 
 	/** Opens the overlay and its create window. */
