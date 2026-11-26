@@ -34,6 +34,7 @@ import tony.mcvcs.build.PreviewGrid;
 import tony.mcvcs.client.browser.BuildBrowser;
 import tony.mcvcs.client.browser.BuildBrowserKey;
 import tony.mcvcs.client.browser.BuildBrowserScreen;
+import tony.mcvcs.client.browser.CheckoutScreen;
 import tony.mcvcs.client.browser.CreateBuildScreen;
 import tony.mcvcs.client.browser.DeleteBuildScreen;
 import tony.mcvcs.client.browser.PlacementPickerScreen;
@@ -41,6 +42,7 @@ import tony.mcvcs.client.browser.Thumbnail;
 import tony.mcvcs.client.browser.VersionPickerScreen;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.config.ClientConfig;
+import tony.mcvcs.client.diff.DiffManager;
 import tony.mcvcs.client.preview.PlacePreview;
 import tony.mcvcs.client.selection.PendingClickHighlight;
 import tony.mcvcs.client.preview.PreviewManager;
@@ -49,7 +51,8 @@ import tony.mcvcs.network.BuildSummary;
 /**
  * The builds overlay: {@code B} opens it with every build of the world in a grid, each showing its newest committed
  * version, name and tags; a build too big to download by itself waits for a click; a very long one arrives as a
- * coarser grid of itself; the refresh button picks up a new commit; the buttons a hovered cell shows select the build,
+ * coarser grid of itself; reopening it picks up a new commit; Checkout checks out a version into the selected
+ * placement, see {@link #checkCheckout}; the buttons a hovered cell shows select the build,
  * start {@code /vcs place} of it and teleport onto it, Place asking which version for a build with several and the
  * other two asking which placement for a build with several and
  * greyed out for a build placed nowhere; the three dots' menu deletes a build once asked, emptying its placements only
@@ -148,13 +151,19 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			context.takeScreenshot("mcvcs-builds-overlay-turning-2");
 			ClientConfig.override(new ClientConfig.Settings(0.0, ClientConfig.DEFAULT_CELL_SIZE, 40));
 
-			// A commit while the overlay is open shows up only once refresh is pressed.
+			// A commit while the overlay is open shows up only once it is opened again; it has no refresh button.
+			if (context.computeOnClient(client -> headerButton(client, "Refresh")) != null) {
+				throw new AssertionError("Expected no Refresh button in the overlay");
+			}
+			assertLeftOf(context, BuildBrowserScreen.CHECKOUT, BuildBrowserScreen.CREATE);
 			setBlock(singleplayer, towerMax.below(), Blocks.DIAMOND_BLOCK.defaultBlockState());
 			runCommand(context, "vcs commit");
 			read(schematic(SMALL, 3));
 			context.waitTicks(5);
 			assertVersion(context, SMALL, 2);
-			clickRefresh(context);
+			context.getInput().pressKey(BuildBrowserKey.KEY);
+			context.waitFor(client -> client.screen == null);
+			open(context);
 			context.waitFor(client -> version(SMALL) == 3);
 			waitForReady(context, SMALL, 3);
 			moveAway(context);
@@ -271,6 +280,8 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			BlockPos onTower = new BlockPos(towerMin.getX() + 1, towerMax.getY() + 1, towerMin.getZ() + 1);
 			context.waitFor(client -> client.player.blockPosition().equals(onTower));
 
+			checkCheckout(context, singleplayer, towerMin, towerMax);
+
 			// TP closes the overlay and puts the player on top of the bridge, at its centre.
 			open(context);
 			clickButton(context, LONG, BuildBrowserScreen.TP);
@@ -286,6 +297,9 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 				BuildSummary hall = summary(BIG);
 				return BuildBrowser.listState() == BuildBrowser.ListState.LOADED && hall != null && hall.placements() == 0;
 			});
+			// Nothing is selected any more, so Checkout is greyed out.
+			context.waitFor(client -> ClientPlacements.selected() == null);
+			context.waitFor(client -> !headerButton(client, BuildBrowserScreen.CHECKOUT).active);
 			hover(context, BIG);
 			context.runOnClient(client -> {
 				BuildBrowserScreen screen = (BuildBrowserScreen) client.screen;
@@ -644,10 +658,120 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 		}
 	}
 
-	/** Clicks the refresh button in the top right corner. */
-	private static void clickRefresh(ClientGameTestContext context) {
-		int width = context.computeOnClient(client -> client.getWindow().getGuiScaledWidth());
-		clickAt(context, width - 8 - 30, 16);
+	/**
+	 * With the tower's main placement selected, holding v3, and one of its blocks changed: Checkout names the build and
+	 * the placement, shows every version with v3 marked current, says one block is modified and greys out its button
+	 * until the unticked override box is ticked; Show modified blocks runs {@code /vcs diff}; ticked, checking out v1
+	 * puts it into the placement. With nothing modified, Show modified blocks is gone and v3 goes back without ticking.
+	 */
+	private static void checkCheckout(ClientGameTestContext context, TestSingleplayerContext singleplayer, BlockPos towerMin, BlockPos towerMax) {
+		String label = SMALL + "/" + Build.MAIN;
+		context.waitFor(client -> {
+			ClientPlacement selected = ClientPlacements.selected();
+			return selected != null && selected.label().equals(label) && selected.head() == 3;
+		});
+		setBlock(singleplayer, towerMin, Blocks.EMERALD_BLOCK.defaultBlockState());
+
+		openCheckout(context);
+		context.waitFor(client -> ((CheckoutScreen) client.screen).modified() == 1);
+		context.waitFor(client -> {
+			BuildSummary tower = summary(SMALL);
+			return tower.versions().stream().allMatch(version -> {
+				Thumbnail thumbnail = BuildBrowser.thumbnail(tower, version);
+				return thumbnail != null && thumbnail.state() == Thumbnail.State.READY;
+			});
+		});
+		context.runOnClient(client -> {
+			CheckoutScreen screen = (CheckoutScreen) client.screen;
+			String title = screen.getTitle().getString();
+			if (!title.contains(SMALL) || !title.contains(Build.MAIN)) {
+				throw new AssertionError("Expected the checkout window to name " + SMALL + " and " + Build.MAIN + " but it says " + title);
+			}
+			if (((Checkbox) screen.widgetOf(CheckoutScreen.OVERRIDE)).selected()) {
+				throw new AssertionError("Expected the override box to start unticked");
+			}
+			if (screen.widgetOf(CheckoutScreen.SHOW_MODIFIED) == null) {
+				throw new AssertionError("Expected Show modified blocks while a block is modified");
+			}
+			if (screen.widgetOf(CheckoutScreen.CHECKOUT).active) {
+				throw new AssertionError("Expected Check out to be greyed out before a version is picked");
+			}
+		});
+		moveAway(context);
+		context.waitTicks(2);
+		context.takeScreenshot("mcvcs-builds-overlay-checkout");
+
+		// Picked, v1 still cannot be checked out over the modified block until the box is ticked.
+		clickCheckoutVersion(context, 1);
+		context.runOnClient(client -> {
+			var button = ((CheckoutScreen) client.screen).widgetOf(CheckoutScreen.CHECKOUT);
+			if (!button.getMessage().getString().equals(CheckoutScreen.CHECKOUT + " v1") || button.active) {
+				throw new AssertionError("Expected a greyed-out 'Check out v1' but got '" + button.getMessage().getString() + "', active " + button.active);
+			}
+		});
+		moveAway(context);
+		context.waitTicks(2);
+		context.takeScreenshot("mcvcs-builds-overlay-checkout-picked");
+
+		// Show modified blocks closes everything and highlights the change.
+		clickCheckoutWidget(context, CheckoutScreen.SHOW_MODIFIED);
+		context.waitFor(client -> client.screen == null);
+		context.waitFor(client -> DiffManager.active() != null);
+
+		// Ticked, v1 goes into the placement over the modified block.
+		openCheckout(context);
+		clickCheckoutVersion(context, 1);
+		clickCheckoutWidget(context, CheckoutScreen.OVERRIDE);
+		context.waitFor(client -> ((CheckoutScreen) client.screen).widgetOf(CheckoutScreen.CHECKOUT).active);
+		clickCheckoutWidget(context, CheckoutScreen.CHECKOUT);
+		context.waitFor(client -> client.screen == null);
+		context.waitFor(client -> ClientPlacements.selected() != null && ClientPlacements.selected().head() == 1);
+		if (!blockAt(singleplayer, towerMin).is(Blocks.STONE_BRICKS) || blockAt(singleplayer, towerMax).is(Blocks.GOLD_BLOCK)) {
+			throw new AssertionError("Expected v1 in " + label + " but found " + blockAt(singleplayer, towerMin) + " and " + blockAt(singleplayer, towerMax));
+		}
+
+		// Nothing modified now: no Show modified blocks, and v3 goes back without ticking the box.
+		openCheckout(context);
+		context.waitFor(client -> ((CheckoutScreen) client.screen).modified() == 0);
+		if (context.computeOnClient(client -> ((CheckoutScreen) client.screen).widgetOf(CheckoutScreen.SHOW_MODIFIED)) != null) {
+			throw new AssertionError("Expected no Show modified blocks with nothing modified");
+		}
+		clickCheckoutVersion(context, 3);
+		clickCheckoutWidget(context, CheckoutScreen.CHECKOUT);
+		context.waitFor(client -> client.screen == null);
+		context.waitFor(client -> ClientPlacements.selected() != null && ClientPlacements.selected().head() == 3);
+	}
+
+	/** Opens the overlay and its checkout window. */
+	private static void openCheckout(ClientGameTestContext context) {
+		open(context);
+		context.waitFor(client -> headerButton(client, BuildBrowserScreen.CHECKOUT).active);
+		clickHeader(context, BuildBrowserScreen.CHECKOUT);
+		context.waitForScreen(CheckoutScreen.class);
+	}
+
+	/** Clicks the cell of version {@code version} in the checkout window. */
+	private static void clickCheckoutVersion(ClientGameTestContext context, int version) {
+		ScreenRectangle cell = context.computeOnClient(client -> {
+			ScreenRectangle found = client.screen instanceof CheckoutScreen screen ? screen.cellOf(version) : null;
+			if (found == null) {
+				throw new AssertionError("Expected a cell for v" + version + " on " + client.screen);
+			}
+			return found;
+		});
+		clickAt(context, cell.left() + cell.width() / 2.0, cell.top() + cell.height() / 2.0);
+	}
+
+	/** Clicks the button or checkbox labelled {@code label} in the checkout window. */
+	private static void clickCheckoutWidget(ClientGameTestContext context, String label) {
+		ScreenRectangle widget = context.computeOnClient(client -> {
+			ScreenRectangle found = client.screen instanceof CheckoutScreen screen ? screen.rectangleOf(label) : null;
+			if (found == null) {
+				throw new AssertionError("Expected " + label + " on " + client.screen);
+			}
+			return found;
+		});
+		clickAt(context, widget.left() + widget.width() / 2.0, widget.top() + widget.height() / 2.0);
 	}
 
 	/** Clicks at {@code (x, y)} in GUI coordinates. */

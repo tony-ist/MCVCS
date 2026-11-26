@@ -10,13 +10,16 @@ import java.util.concurrent.Executors;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
 import tony.mcvcs.MCVCS;
 import tony.mcvcs.build.BoxSnapshot;
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
+import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
+import tony.mcvcs.diff.BuildDiff;
 import tony.mcvcs.build.BuildStorage;
 import tony.mcvcs.build.PreviewGrid;
 import tony.mcvcs.build.Schematic;
@@ -54,6 +57,35 @@ public final class BuildBrowserSender {
 
 		ServerPlayNetworking.registerGlobalReceiver(BuildListRequestPayload.TYPE, (payload, context) -> sendList(context.player()));
 		ServerPlayNetworking.registerGlobalReceiver(ThumbnailRequestPayload.TYPE, (payload, context) -> sendThumbnail(context.player(), payload.build(), payload.version()));
+		PayloadTypeRegistry.serverboundPlay().register(PlacementStatusRequestPayload.TYPE, PlacementStatusRequestPayload.STREAM_CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(PlacementStatusPayload.TYPE, PlacementStatusPayload.STREAM_CODEC);
+		ServerPlayNetworking.registerGlobalReceiver(PlacementStatusRequestPayload.TYPE, (payload, context) -> sendStatus(context.player()));
+	}
+
+	/**
+	 * Tells {@code player} how many blocks of their selected placement differ from the version it holds, the same count
+	 * {@code /vcs checkout} refuses over. Worked out on the server thread, since it reads the world.
+	 */
+	private static void sendStatus(ServerPlayer player) {
+		Optional<BuildPlacement> selected = allowed(player) ? BuildRegistry.selected(player) : Optional.empty();
+		if (selected.isEmpty()) {
+			ServerPlayNetworking.send(player, new PlacementStatusPayload("", PlacementStatusPayload.UNKNOWN));
+			return;
+		}
+		BuildPlacement placement = selected.get();
+		ServerLevel level = player.level().getServer().getLevel(placement.dimension());
+		int modified = PlacementStatusPayload.UNKNOWN;
+		if (level != null) {
+			try {
+				BuildBox box = placement.box();
+				modified = BuildDiff.between(
+					BoxSnapshot.ofSchematic(box, BuildStorage.readSchematic(placement.build().name(), placement.head()), box),
+					BoxSnapshot.ofLevel(box, level)).size();
+			} catch (IOException | RuntimeException e) {
+				MCVCS.LOGGER.error("Failed to count the modified blocks of '{}' for {}", placement.label(), player.getGameProfile().name(), e);
+			}
+		}
+		ServerPlayNetworking.send(player, new PlacementStatusPayload(placement.label(), modified));
 	}
 
 	/** Whether {@code player} may browse builds: the same permission {@code /vcs} needs. */

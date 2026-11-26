@@ -203,7 +203,7 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
-- Checkout from overlay with versions preview
+- Add commit button to overlay
 - Renaming of builds: command and ovelay button
 
 - Make movement of preview during placement more intuitive, maybe only move in direction you look, not using the plane.

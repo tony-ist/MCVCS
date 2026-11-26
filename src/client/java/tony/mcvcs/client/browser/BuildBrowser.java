@@ -22,6 +22,8 @@ import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.network.BuildListPayload;
 import tony.mcvcs.network.BuildListRequestPayload;
 import tony.mcvcs.network.BuildSummary;
+import tony.mcvcs.network.PlacementStatusPayload;
+import tony.mcvcs.network.PlacementStatusRequestPayload;
 import tony.mcvcs.network.ThumbnailBeginPayload;
 import tony.mcvcs.network.ThumbnailBlocksPayload;
 import tony.mcvcs.network.ThumbnailFailedPayload;
@@ -31,8 +33,8 @@ import tony.mcvcs.network.ThumbnailRequestPayload;
  * The client side of the builds overlay: the list of builds the server last sent, and the preview of every version
  * asked for since joining.
  * <p>
- * The list is only asked for when the overlay opens, when its refresh button is pressed, and after the overlay has
- * deleted a build; nothing is pushed while it is open. Previews are asked for as the list arrives, for every build no bigger than
+ * The list is only asked for when the overlay opens and after the overlay has deleted a build; nothing is pushed while
+ * it is open. Previews are asked for as the list arrives, for every build no bigger than
  * {@link ClientConfig.Settings#autoDownloadLimit}, and for a bigger one when its cell is clicked. A version never
  * changes once committed, so a preview is asked for once and kept until the client leaves the server; a refreshed
  * list that names a newer version gets a new preview for it, and one that failed is asked for again.
@@ -68,6 +70,7 @@ public final class BuildBrowser {
 	private static int generation;
 	/** Whether the list is to be asked for again when the placements next arrive, see {@link #refreshAfterCommand}. */
 	private static boolean refreshOnSync;
+	private static @Nullable PlacementStatusPayload status;
 
 	private BuildBrowser() {
 	}
@@ -81,6 +84,7 @@ public final class BuildBrowser {
 			}
 		});
 		ClientPlayNetworking.registerGlobalReceiver(ThumbnailBlocksPayload.TYPE, (payload, context) -> blocks(payload));
+		ClientPlayNetworking.registerGlobalReceiver(PlacementStatusPayload.TYPE, (payload, context) -> status = payload);
 		ClientPlacements.onUpdate(() -> {
 			if (refreshOnSync) {
 				refreshOnSync = false;
@@ -136,6 +140,17 @@ public final class BuildBrowser {
 	 */
 	public static void refreshAfterCommand() {
 		refreshOnSync = true;
+	}
+
+	/** Asks the server how many blocks of the selected placement are modified; {@link #status()} is null until it answers. */
+	public static void requestStatus() {
+		status = null;
+		ClientPlayNetworking.send(PlacementStatusRequestPayload.INSTANCE);
+	}
+
+	/** The server's last answer to {@link #requestStatus()}, or null while it is awaited. */
+	public static @Nullable PlacementStatusPayload status() {
+		return status;
 	}
 
 	/** The preview of {@code build}'s newest version, or null if it has not been asked for. */
@@ -263,5 +278,6 @@ public final class BuildBrowser {
 		builds = List.of();
 		listState = ListState.NONE;
 		refreshOnSync = false;
+		status = null;
 	}
 }

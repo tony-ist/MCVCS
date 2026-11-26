@@ -3,6 +3,7 @@ package tony.mcvcs.client.browser;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -41,16 +42,17 @@ import tony.mcvcs.network.BuildSummary;
  * is meant, see {@link PlacementPickerScreen}. Three dots in the hovered cell's top right corner open a menu whose
  * {@code Delete} asks whether to delete the build, see {@link DeleteBuildScreen}. A build bigger than
  * {@link ClientConfig.Settings#autoDownloadLimit} shows a placeholder instead of its preview until the cell is clicked
- * outside its buttons, which downloads the preview. The {@code Create} button next to refresh starts a new build, see
+ * outside its buttons, which downloads the preview. The {@code Create} button in the top right corner starts a new build, see
  * {@link CreateBuildScreen}; while that build waits for its punch, it reads {@code Cancel creation} and cancels it.
- * While a {@code /vcs place} copy is being lined up, a {@code Cancel place} button left of it runs {@code /vcs cancelPlace}.
+ * {@code Checkout} left of it checks out a version into the selected placement, see {@link CheckoutScreen}. While a
+ * {@code /vcs place} copy is being lined up, a {@code Cancel place} button left of that runs {@code /vcs cancelPlace}.
  * <p>
- * The list is asked for when the overlay opens and when its refresh button is pressed, and not otherwise, see
+ * The list is asked for when the overlay opens, and not otherwise, see
  * {@link BuildBrowser}. How big the cells are and how fast they turn come from {@link ClientConfig}. The game keeps
  * running behind it.
  */
 public final class BuildBrowserScreen extends Screen {
-	/** Height of the strip at the top holding the title and the refresh button. */
+	/** Height of the strip at the top holding the title and the header's buttons. */
 	static final int HEADER = 32;
 	/** Space between cells, and between the grid and the edges of the screen. */
 	static final int GAP = 8;
@@ -75,9 +77,10 @@ public final class BuildBrowserScreen extends Screen {
 	 */
 	public static final String CREATE = "Create";
 	public static final String CANCEL_CREATION = "Cancel creation";
-	/** Label of the header button, left of {@link #CREATE}, shown only while a {@code /vcs place} copy is being lined up. */
+	/** Label of the header button left of {@link #CREATE}, which checks out a version into the selected placement, see {@link CheckoutScreen}. */
+	public static final String CHECKOUT = "Checkout";
+	/** Label of the header button, left of {@link #CHECKOUT}, shown only while a {@code /vcs place} copy is being lined up. */
 	public static final String CANCEL_PLACE = "Cancel place";
-	public static final String REFRESH = "Refresh";
 	/** Labels of the buttons a hovered cell shows. */
 	public static final String SELECT = "Select";
 	public static final String TP = "TP";
@@ -105,6 +108,11 @@ public final class BuildBrowserScreen extends Screen {
 	private double scroll;
 	/** The header's create button, which turns into a cancel button while a {@code /vcs create} waits for its punch. */
 	private @Nullable Button create;
+	/** The header's checkout button, pressable only while a placement is selected. */
+	private @Nullable Button checkout;
+	/** The placement the checkout button's tooltip was last made for. */
+	private @Nullable ClientPlacement checkoutFor;
+	private boolean checkoutTooltipSet;
 	/** The header's cancel place button, visible only while a {@code /vcs place} copy is being lined up. */
 	private @Nullable Button cancelPlace;
 	/** The build whose cell the buttons are on, or null while no cell is hovered and they are hidden. */
@@ -137,20 +145,24 @@ public final class BuildBrowserScreen extends Screen {
 	protected void init() {
 		// As wide as its longer label, so it does not jump about when it changes.
 		int createWidth = Math.max(60, font.width(CANCEL_CREATION) + BUTTON_PADDING);
-		int createLeft = width - GAP - 60 - 4 - createWidth;
+		int createLeft = width - GAP - createWidth;
 		create = addRenderableWidget(Button.builder(Component.literal(CREATE), button -> createOrCancel())
 			.bounds(createLeft, 6, createWidth, 20)
 			.build());
 		updateCreate();
+		int checkoutWidth = font.width(CHECKOUT) + BUTTON_PADDING;
+		int checkoutLeft = createLeft - 4 - checkoutWidth;
+		checkout = addRenderableWidget(Button.builder(Component.literal(CHECKOUT), button -> openCheckout())
+			.bounds(checkoutLeft, 6, checkoutWidth, 20)
+			.build());
+		checkoutTooltipSet = false;
+		updateCheckout();
 		int cancelPlaceWidth = font.width(CANCEL_PLACE) + BUTTON_PADDING;
 		cancelPlace = addRenderableWidget(Button.builder(Component.literal(CANCEL_PLACE), button -> sendCommand("vcs cancelPlace"))
-			.bounds(createLeft - 4 - cancelPlaceWidth, 6, cancelPlaceWidth, 20)
+			.bounds(checkoutLeft - 4 - cancelPlaceWidth, 6, cancelPlaceWidth, 20)
 			.tooltip(Tooltip.create(Component.literal("Drop the copy being placed")))
 			.build());
 		updateCancelPlace();
-		addRenderableWidget(Button.builder(Component.literal(REFRESH), button -> BuildBrowser.refresh())
-			.bounds(width - GAP - 60, 6, 60, 20)
-			.build());
 		// Clickable but not drawn with the other widgets: they go over the previews, so the grid draws them after its cells.
 		for (Button button : buttons()) {
 			addWidget(button);
@@ -176,6 +188,41 @@ public final class BuildBrowserScreen extends Screen {
 			}
 		} else {
 			minecraft.setScreen(new CreateBuildScreen(this));
+		}
+	}
+
+	/** The listed build of the selected placement, or null if none is selected or the list does not have it. */
+	private static @Nullable BuildSummary selectedBuild() {
+		ClientPlacement selected = ClientPlacements.selected();
+		if (selected == null || BuildBrowser.listState() != BuildBrowser.ListState.LOADED) {
+			return null;
+		}
+		return BuildBrowser.builds().stream().filter(build -> build.name().equals(selected.build())).findFirst().orElse(null);
+	}
+
+	/** Lets the checkout button be pressed only while a placement is selected, and says which one it checks out into. */
+	private void updateCheckout() {
+		if (checkout == null) {
+			return;
+		}
+		ClientPlacement selected = selectedBuild() == null ? null : ClientPlacements.selected();
+		if (checkoutTooltipSet && Objects.equals(selected, checkoutFor)) {
+			return;
+		}
+		checkoutTooltipSet = true;
+		checkoutFor = selected;
+		checkout.active = selected != null;
+		checkout.setTooltip(Tooltip.create(Component.literal(selected == null
+			? "Select a placement first to check out a version into it"
+			: "Check out a version of " + selected.build() + " into its placement " + selected.placement())));
+	}
+
+	/** Opens the window that checks out a version into the selected placement, see {@link CheckoutScreen}. */
+	private void openCheckout() {
+		BuildSummary build = selectedBuild();
+		ClientPlacement selected = ClientPlacements.selected();
+		if (build != null && selected != null && minecraft != null) {
+			minecraft.setScreen(new CheckoutScreen(this, build, selected));
 		}
 	}
 
@@ -219,10 +266,11 @@ public final class BuildBrowserScreen extends Screen {
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
 		updateCreate();
+		updateCheckout();
 		updateCancelPlace();
 		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
 		// Centred, unless the header's buttons reach that far; then as far right as they leave room for.
-		int buttonsLeft = cancelPlace != null && cancelPlace.visible ? cancelPlace.getX() : create != null ? create.getX() : width;
+		int buttonsLeft = cancelPlace != null && cancelPlace.visible ? cancelPlace.getX() : checkout != null ? checkout.getX() : width;
 		int titleWidth = font.width(title);
 		int titleX = Math.max(GAP, Math.min((width - titleWidth) / 2, buttonsLeft - GAP - titleWidth));
 		graphics.text(font, title, titleX, 12, WHITE);
@@ -338,7 +386,7 @@ public final class BuildBrowserScreen extends Screen {
 				case REQUESTED -> loading(graphics, centerX, centerY, "Downloading");
 				case DOWNLOADING -> loading(graphics, centerX, centerY, "Downloading " + (int) (thumbnail.progress() * 100) + "%");
 				case MESHING -> loading(graphics, centerX, centerY, "Preparing");
-				case FAILED -> wrapped(graphics, thumbnail.failure() + (thumbnail.retryable() ? "; refresh to try again" : ""), x, y, size, RED);
+				case FAILED -> wrapped(graphics, thumbnail.failure() + (thumbnail.retryable() ? "; reopen to try again" : ""), x, y, size, RED);
 				case READY -> {
 					ThumbnailMesh mesh = thumbnail.mesh();
 					if (mesh == null || mesh.isEmpty()) {
