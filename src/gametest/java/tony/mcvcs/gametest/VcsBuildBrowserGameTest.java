@@ -16,8 +16,10 @@ import java.util.Arrays;
 import com.mojang.blaze3d.platform.Window;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Checkbox;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.BlockPos;
@@ -32,12 +34,14 @@ import tony.mcvcs.build.PreviewGrid;
 import tony.mcvcs.client.browser.BuildBrowser;
 import tony.mcvcs.client.browser.BuildBrowserKey;
 import tony.mcvcs.client.browser.BuildBrowserScreen;
+import tony.mcvcs.client.browser.CreateBuildScreen;
 import tony.mcvcs.client.browser.DeleteBuildScreen;
 import tony.mcvcs.client.browser.PlacementPickerScreen;
 import tony.mcvcs.client.browser.Thumbnail;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.client.preview.PlacePreview;
+import tony.mcvcs.client.selection.PendingClickHighlight;
 import tony.mcvcs.client.preview.PreviewManager;
 import tony.mcvcs.network.BuildSummary;
 
@@ -47,7 +51,7 @@ import tony.mcvcs.network.BuildSummary;
  * coarser grid of itself; the refresh button picks up a new commit; the buttons a hovered cell shows select the build,
  * start {@code /vcs place} of it and teleport onto it, the first two asking which placement for a build with several and
  * greyed out for a build placed nowhere; the three dots' menu deletes a build once asked, emptying its placements only
- * if ticked to; and a player who may not run {@code /vcs} is told so.
+ * if ticked to; Create asks for a name and starts {@code /vcs create}, with {@code -b} if ticked to; and a player who may not run {@code /vcs} is told so.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsBuildBrowserGameTest extends VcsGameTest {
@@ -55,12 +59,16 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 	private static final String BIG = "gametest-browser-hall";
 	/** Longer than {@link PreviewGrid#MAX_SIDE}, so its preview is sampled at every second block. */
 	private static final String LONG = "gametest-browser-bridge";
+	/** Named in the create window, then made directly, since no block is punched. */
+	private static final String NEW = "gametest-browser-new";
+	/** In the way of {@link #NEW}, so creating it there fails. */
+	private static final String SHED = "gametest-browser-shed";
 
 	@Override
 	protected void run(ClientGameTestContext context) {
 		checkKey(context);
 
-		resetBuilds(SMALL, BIG, LONG);
+		resetBuilds(SMALL, BIG, LONG, NEW, SHED);
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().adjustSettings(settings -> settings.setAllowCommands(true)).create()) {
 			singleplayer.getClientLevel().waitForChunksRender();
 			// Held still, so the screenshots show the same side every run; the big build's 48 blocks are past the limit.
@@ -302,8 +310,70 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			moveAway(context);
 			context.waitTicks(2);
 			context.takeScreenshot("mcvcs-builds-overlay-deleted");
+
+			// Create asks for a name, refusing a bad one; B typed into the field is just a letter.
+			clickHeader(context, BuildBrowserScreen.CREATE);
+			context.waitForScreen(CreateBuildScreen.class);
+			context.getInput().typeChars("1bad");
+			context.getInput().pressKey(GLFW.GLFW_KEY_B);
+			context.waitTicks(2);
+			if (context.computeOnClient(client -> !(client.screen instanceof CreateBuildScreen screen) || screen.canCreate())) {
+				throw new AssertionError("Expected the create window to stay open with Create greyed out for a name starting with a digit");
+			}
+			context.runOnClient(client -> client.screen.children().stream().filter(EditBox.class::isInstance).map(EditBox.class::cast).findFirst().orElseThrow().setValue(""));
+			context.getInput().typeChars(NEW);
+			moveAway(context);
+			context.waitTicks(2);
+			context.takeScreenshot("mcvcs-builds-overlay-create");
+			// Unticked, it waits for one punched block.
+			clickCreateWidget(context, CreateBuildScreen.CREATE);
+			context.waitFor(client -> client.screen == null);
+			context.waitFor(client -> PendingClickHighlight.armed() && PendingClickHighlight.corner() == null);
+			assertActionBar(context, "Punch a block of the build to create " + NEW);
+
+			// While it waits, the overlay's Create button cancels it instead, and turns back once it has.
+			open(context);
+			context.waitFor(client -> headerButton(client, BuildBrowserScreen.CANCEL_CREATION) != null);
+			moveAway(context);
+			context.waitTicks(2);
+			context.takeScreenshot("mcvcs-builds-overlay-cancel-creation");
+			clickHeader(context, BuildBrowserScreen.CANCEL_CREATION);
+			context.waitFor(client -> !PendingClickHighlight.armed() && headerButton(client, BuildBrowserScreen.CREATE) != null);
 			context.getInput().pressKey(BuildBrowserKey.KEY);
 			context.waitFor(client -> client.screen == null);
+
+			// Not created yet, so the window opens with the name kept; ticked, it waits for two corners instead.
+			openCreate(context);
+			assertDraft(context, NEW, false);
+			clickCreateWidget(context, CreateBuildScreen.BOX);
+			clickCreateWidget(context, CreateBuildScreen.CREATE);
+			context.waitFor(client -> client.screen == null);
+			context.waitTicks(5);
+			assertActionBar(context, "Punch the first corner of " + NEW);
+			// Typed, the command cancels it just the same.
+			runCommand(context, "vcs cancelCreate");
+			context.waitFor(client -> !PendingClickHighlight.armed());
+
+			// Refused for overlapping another build, it keeps the name and the ticked box.
+			BlockPos shedMin = playerPos(singleplayer).offset(4, 3, -8);
+			BlockPos shedMax = shedMin.offset(1, 1, 1);
+			fillBox(singleplayer, shedMin, shedMax, Blocks.OAK_PLANKS.defaultBlockState(), shedMin, Blocks.OAK_PLANKS.defaultBlockState());
+			create(context, singleplayer, SHED, shedMin, shedMax);
+			create(context, singleplayer, NEW, shedMin, shedMax);
+			openCreate(context);
+			assertDraft(context, NEW, true);
+			moveAway(context);
+			context.waitTicks(2);
+			context.takeScreenshot("mcvcs-builds-overlay-create-kept");
+			context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+			context.waitForScreen(BuildBrowserScreen.class);
+			context.getInput().pressKey(BuildBrowserKey.KEY);
+			context.waitFor(client -> client.screen == null);
+
+			// Created, the window starts empty and unticked again.
+			create(context, singleplayer, NEW, shedMin.offset(0, 4, 0), shedMax.offset(0, 4, 0));
+			openCreate(context);
+			assertDraft(context, "", false);
 		} finally {
 			ClientConfig.load();
 		}
@@ -442,6 +512,63 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			}
 			return found;
 		});
+	}
+
+	/** Clicks the button labelled {@code label} in the overlay's header. */
+	private static void clickHeader(ClientGameTestContext context, String label) {
+		ScreenRectangle button = context.computeOnClient(client -> {
+			Button found = headerButton(client, label);
+			if (found == null) {
+				throw new AssertionError("Expected a " + label + " button on " + client.screen);
+			}
+			return found.getRectangle();
+		});
+		clickAt(context, button.left() + button.width() / 2.0, button.top() + button.height() / 2.0);
+	}
+
+	/** The overlay's header button labelled {@code label}, or null if the overlay has none. */
+	private static Button headerButton(Minecraft client, String label) {
+		return client.screen instanceof BuildBrowserScreen screen ? screen.children().stream()
+			.filter(child -> child instanceof Button found && found.getMessage().getString().equals(label))
+			.map(Button.class::cast).findFirst().orElse(null) : null;
+	}
+
+	/** Opens the overlay and its create window. */
+	private static void openCreate(ClientGameTestContext context) {
+		open(context);
+		clickHeader(context, BuildBrowserScreen.CREATE);
+		context.waitForScreen(CreateBuildScreen.class);
+	}
+
+	/** The create window shows {@code name} with the box ticked or not as {@code box} says. */
+	private static void assertDraft(ClientGameTestContext context, String name, boolean box) {
+		context.runOnClient(client -> {
+			String field = client.screen.children().stream().filter(EditBox.class::isInstance).map(EditBox.class::cast).findFirst().orElseThrow().getValue();
+			boolean ticked = client.screen.children().stream().filter(Checkbox.class::isInstance).map(Checkbox.class::cast).findFirst().orElseThrow().selected();
+			if (!field.equals(name) || ticked != box) {
+				throw new AssertionError("Expected the create window to show '" + name + "' with the box " + (box ? "ticked" : "unticked")
+					+ " but it shows '" + field + "' with the box " + (ticked ? "ticked" : "unticked"));
+			}
+		});
+	}
+
+	/** Clicks the button or checkbox labelled {@code label} in the create window. */
+	private static void clickCreateWidget(ClientGameTestContext context, String label) {
+		ScreenRectangle widget = context.computeOnClient(client -> {
+			ScreenRectangle found = client.screen instanceof CreateBuildScreen screen ? screen.widgetOf(label) : null;
+			if (found == null) {
+				throw new AssertionError("Expected " + label + " on " + client.screen);
+			}
+			return found;
+		});
+		clickAt(context, widget.left() + widget.width() / 2.0, widget.top() + widget.height() / 2.0);
+	}
+
+	private static void assertActionBar(ClientGameTestContext context, String expected) {
+		String message = context.computeOnClient(VcsTestSupport::overlayMessage);
+		if (!expected.equals(message)) {
+			throw new AssertionError("Expected the action bar to say '" + expected + "' but it says '" + message + "'");
+		}
 	}
 
 	/** Clicks the refresh button in the top right corner. */

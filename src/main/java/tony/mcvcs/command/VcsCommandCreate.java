@@ -35,13 +35,30 @@ import tony.mcvcs.network.ChatButtons;
  */
 public final class VcsCommandCreate {
 	/** Flag that makes the build the box between two punched corners instead of what is connected to one block. */
-	static final String BOX = "-b";
+	public static final String BOX = "-b";
 	static final VcsHelp HELP = new VcsHelp("create", "/vcs create <buildname> [placementname] [-b]",
 		"start a build from the block you punch",
 		"Starts a build called <buildname> and saves it as version 1. Punch any block of the build: the selection grows over everything connected to that block, so it should hover in the air, touching nothing that is not part of it.",
 		new VcsHelp.Key(BOX, "punch two opposite corners instead; the box between them becomes the build"));
 
+	static final VcsHelp CANCEL_HELP = new VcsHelp("cancelCreate", "/vcs cancelCreate",
+		"stop waiting for the punch your `/vcs create` asked for",
+		"Stops waiting for the block or corners your `/vcs create` asked you to punch; no build is created.");
+
 	private VcsCommandCreate() {
+	}
+
+	/** {@code /vcs cancelCreate}: disarms the player's click if {@code /vcs create} armed it. */
+	static int cancel(CommandSourceStack source) throws CommandSyntaxException {
+		ServerPlayer player = source.getPlayerOrException();
+		String buildName = PendingClick.creating(player);
+		if (buildName == null) {
+			source.sendFailure(Component.literal("Nothing to cancel; no /vcs create is waiting for a punch"));
+			return 0;
+		}
+		PendingClick.disarm(player);
+		source.sendSuccess(() -> Component.literal("Stopped creating build ").append(VcsMessages.name(buildName)), false);
+		return 1;
 	}
 
 	/** Creates the build from the next block the player clicks, see {@link PendingClick}, replacing whatever an earlier command left waiting for a click. */
@@ -51,7 +68,8 @@ public final class VcsCommandCreate {
 		if (!isNameFree(source, buildName) || !isPlacementNameValid(source, placementName)) {
 			return 0;
 		}
-		PendingClick.arm(player, Component.literal("Punch a block of the build to create ").append(VcsMessages.name(buildName)), (clicker, level, pos) -> createFromBlock(clicker, level, buildName, placementName, pos));
+		PendingClick.arm(player, Component.literal("Punch a block of the build to create ").append(VcsMessages.name(buildName)), null, buildName,
+			(clicker, level, pos) -> createFromBlock(clicker, level, buildName, placementName, pos));
 		source.sendSuccess(() -> Component.literal("Punch a block of the build, or right-click it with an empty hand, to create build ")
 			.append(VcsMessages.name(buildName)).append(" from it and everything connected to it"), false);
 		return 1;
@@ -67,7 +85,7 @@ public final class VcsCommandCreate {
 		if (!isNameFree(source, buildName) || !isPlacementNameValid(source, placementName)) {
 			return 0;
 		}
-		PendingClick.arm(player, Component.literal("Punch the first corner of ").append(VcsMessages.name(buildName)),
+		PendingClick.arm(player, Component.literal("Punch the first corner of ").append(VcsMessages.name(buildName)), null, buildName,
 			(clicker, level, first) -> armSecondCorner(clicker, level, buildName, placementName, first));
 		source.sendSuccess(() -> Component.literal("Punch two opposite corners, or right-click them with an empty hand, to create build ")
 			.append(VcsMessages.name(buildName)).append(" from the box between them"), false);
@@ -76,7 +94,7 @@ public final class VcsCommandCreate {
 
 	/** Waits for the second corner of the box whose first corner the player clicked at {@code first} in {@code firstLevel}. */
 	private static void armSecondCorner(ServerPlayer player, ServerLevel firstLevel, String buildName, String placementName, BlockPos first) {
-		PendingClick.arm(player, Component.literal("Punch the second corner of ").append(VcsMessages.name(buildName)), first, (clicker, level, second) -> {
+		PendingClick.arm(player, Component.literal("Punch the second corner of ").append(VcsMessages.name(buildName)), first, buildName, (clicker, level, second) -> {
 			CommandSourceStack source = clicker.createCommandSourceStack();
 			if (level != firstLevel) {
 				source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" was not created: its corners are in different dimensions"));

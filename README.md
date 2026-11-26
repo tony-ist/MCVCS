@@ -33,6 +33,8 @@ A **build** is your creation with all its saved versions. A **placement** is a c
 - `/vcs create <buildname> [placementname] [-b]`\
   Creates a new build and its main placement from a group of blocks you punch. When you punch a block, the selection grows until there is only air around it, and this bounding box becomes your build v1. Keep your build hovering in the air so it doesn't grow into the ground.
   - `-b`: punch two opposite corners instead; the box between them becomes the build.
+- `/vcs cancelCreate`\
+  Stops waiting for the punch; no build is created.
 - `/vcs builds`\
   Lists all builds and their placements, with buttons to select or teleport to each one.
 - `/vcs delete <buildname> [-c]`\
@@ -195,19 +197,19 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
-- /vcs tag latest 1.0.0 should be possible and autocomplete latest. /vcs tag 1.0.0 should tag head by default
 - Improve UI Overlay to include versions and placements
+- Make builds shared between multiple single player worlds
+- Make movement of preview during placement more intuitive, maybe only move in direction you look, not using the plane.
+- When placing a build through overlay allow people to choose version to place instead of defaulting to latest one
+
+- /vcs tag latest 1.0.0 should be possible and autocomplete latest. /vcs tag 1.0.0 should tag head by default
 - Aliases for commands to type them faster
 - Command /vcs move initiates moving preview for current placement allowing to change its position with numpad keys and press 5 moves it physically in the world
 - Add hotkeys to select next and previous version preview (could be made obsolete by UI Overlay)
 - Big diffs lag client too much (see it on mcinmc/p2)
 - Make diffs more visible. Right now they intersect into clutter. 
-- Make create build command in overlay
 - Ability to rotate during placement preview
 - Client config switches to toggle labels and bounding box displays
-- Make builds shared between multiple single player worlds
-- Make movement of preview during placement more intuitive, maybe only move in direction you look, not using the plane.
-- When placing a build through overlay allow people to choose version to place instead of defaulting to latest one
 
 ### Assemblies
 

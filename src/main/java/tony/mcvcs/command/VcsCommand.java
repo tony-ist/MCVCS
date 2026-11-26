@@ -25,7 +25,7 @@ import tony.mcvcs.build.Placement;
  * {@code /vcs} command tree. Only the syntax lives here: each subcommand is parsed and handed to the class that does
  * the work.
  * <ul>
- * <li>{@code /vcs create <buildname> [placementname] [-b]}: {@link VcsCommandCreate}</li>
+ * <li>{@code /vcs create <buildname> [placementname] [-b]} and {@code /vcs cancelCreate}: {@link VcsCommandCreate}</li>
  * <li>{@code /vcs place <buildname> [version | tag | latest] [placementname] [-f]}, {@code /vcs confirmPlace [-f]} and
  * {@code /vcs cancelPlace}: {@link VcsCommandPlace}</li>
  * <li>{@code /vcs unplace [-k]} and {@code /vcs confirmUnplace}: {@link VcsCommandUnplace}</li>
@@ -86,6 +86,8 @@ public final class VcsCommand {
 							.executes(context -> create(context, StringArgumentType.getString(context, "placementname"), false))
 							.then(Commands.literal(VcsCommandCreate.BOX)
 								.executes(context -> create(context, StringArgumentType.getString(context, "placementname"), true))))))
+				.then(sub(VcsCommandCreate.CANCEL_HELP)
+					.executes(context -> VcsCommandCreate.cancel(context.getSource())))
 				.then(sub(VcsCommandPlace.HELP)
 					.then(Commands.argument("buildname", StringArgumentType.word())
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))

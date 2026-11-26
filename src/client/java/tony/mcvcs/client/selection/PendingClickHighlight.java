@@ -33,6 +33,8 @@ public final class PendingClickHighlight {
 	private static volatile boolean armed;
 	/** The box corner the player already picked, if the click waited for is the other one; null otherwise. */
 	private static volatile @Nullable BlockPos corner;
+	/** The build the click waited for would create, if {@code /vcs create} is waiting for it; null otherwise. */
+	private static volatile @Nullable String creating;
 
 	private PendingClickHighlight() {
 	}
@@ -40,12 +42,14 @@ public final class PendingClickHighlight {
 	public static void register() {
 		ClientPlayNetworking.registerGlobalReceiver(PendingClickPayload.TYPE, (payload, context) -> {
 			corner = payload.corner().orElse(null);
+			creating = payload.creating().orElse(null);
 			armed = payload.armed();
 		});
 		// The server forgets the click when the player leaves, so the highlight goes too.
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			armed = false;
 			corner = null;
+			creating = null;
 		});
 		LevelRenderEvents.END_EXTRACTION.register(PendingClickHighlight::emit);
 	}
@@ -53,6 +57,11 @@ public final class PendingClickHighlight {
 	/** Whether the server is waiting for this player to click a block. */
 	public static boolean armed() {
 		return armed;
+	}
+
+	/** The build the server waits for this player's click to create, or null if no {@code /vcs create} is waiting. */
+	public static @Nullable String creating() {
+		return armed ? creating : null;
 	}
 
 	/** The box corner already picked while the server waits for the other one; null otherwise. */

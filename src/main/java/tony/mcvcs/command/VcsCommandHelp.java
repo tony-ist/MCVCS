@@ -20,6 +20,7 @@ public final class VcsCommandHelp {
 	/** Every subcommand's help, in the order {@code /vcs help} lists them. */
 	static final List<VcsHelp> ALL = List.of(
 		VcsCommandCreate.HELP,
+		VcsCommandCreate.CANCEL_HELP,
 		VcsCommandCommit.HELP,
 		VcsCommandTag.HELP,
 		VcsCommandTag.UNTAG_HELP,

@@ -63,8 +63,11 @@ public final class PendingClick {
 		void onClick(ServerPlayer player, ServerLevel level, BlockPos pos);
 	}
 
-	/** A click being waited for, and the action bar hint that says what it will do. */
-	private record Pending(Component hint, Action action) {
+	/**
+	 * A click being waited for, the action bar hint that says what it will do, and the build it creates if it is for
+	 * {@code /vcs create}, or null.
+	 */
+	private record Pending(Component hint, @Nullable String creating, Action action) {
 	}
 
 	private PendingClick() {
@@ -107,11 +110,22 @@ public final class PendingClick {
 	 * corner is {@code corner}, so the client outlines the box from it to the block in sight; null for a lone block.
 	 */
 	public static void arm(ServerPlayer player, Component hint, @Nullable BlockPos corner, Action action) {
-		PENDING.put(player.getUUID(), new Pending(hint, action));
+		arm(player, hint, corner, null, action);
+	}
+
+	/** As {@link #arm(ServerPlayer, Component, BlockPos, Action)}, for a click that creates the build {@code creating}, unless null. */
+	public static void arm(ServerPlayer player, Component hint, @Nullable BlockPos corner, @Nullable String creating, Action action) {
+		PENDING.put(player.getUUID(), new Pending(hint, creating, action));
 		player.sendOverlayMessage(hint);
 		if (ServerPlayNetworking.canSend(player, PendingClickPayload.TYPE)) {
-			ServerPlayNetworking.send(player, new PendingClickPayload(true, Optional.ofNullable(corner)));
+			ServerPlayNetworking.send(player, new PendingClickPayload(true, Optional.ofNullable(corner), Optional.ofNullable(creating)));
 		}
+	}
+
+	/** The build {@code player}'s armed click would create, or null if it is not armed by {@code /vcs create}. */
+	public static @Nullable String creating(ServerPlayer player) {
+		Pending pending = PENDING.get(player.getUUID());
+		return pending == null ? null : pending.creating();
 	}
 
 	/** Leaves {@code player}'s next click to do what it normally does. */
@@ -125,7 +139,7 @@ public final class PendingClick {
 	private static void ended(ServerPlayer player) {
 		player.sendOverlayMessage(Component.empty());
 		if (ServerPlayNetworking.canSend(player, PendingClickPayload.TYPE)) {
-			ServerPlayNetworking.send(player, new PendingClickPayload(false, Optional.empty()));
+			ServerPlayNetworking.send(player, new PendingClickPayload(false, Optional.empty(), Optional.empty()));
 		}
 	}
 

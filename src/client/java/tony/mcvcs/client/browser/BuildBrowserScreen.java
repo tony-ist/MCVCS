@@ -25,6 +25,7 @@ import org.jspecify.annotations.Nullable;
 import tony.mcvcs.build.ClientPlacement;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.config.ClientConfig;
+import tony.mcvcs.client.selection.PendingClickHighlight;
 import tony.mcvcs.network.BuildSummary;
 
 /**
@@ -39,7 +40,8 @@ import tony.mcvcs.network.BuildSummary;
  * is meant, see {@link PlacementPickerScreen}. Three dots in the hovered cell's top right corner open a menu whose
  * {@code Delete} asks whether to delete the build, see {@link DeleteBuildScreen}. A build bigger than
  * {@link ClientConfig.Settings#autoDownloadLimit} shows a placeholder instead of its preview until the cell is clicked
- * outside its buttons, which downloads the preview.
+ * outside its buttons, which downloads the preview. The {@code Create} button next to refresh starts a new build, see
+ * {@link CreateBuildScreen}; while that build waits for its punch, it reads {@code Cancel creation} and cancels it.
  * <p>
  * The list is asked for when the overlay opens and when its refresh button is pressed, and not otherwise, see
  * {@link BuildBrowser}. How big the cells are and how fast they turn come from {@link ClientConfig}. The game keeps
@@ -65,6 +67,13 @@ public final class BuildBrowserScreen extends Screen {
 	/** The yellow the selected placement's own box is drawn in. */
 	private static final int BORDER_SELECTED = 0xFFFFFF55;
 
+	/**
+	 * Labels of the header's buttons: the first asks for a new build's name, see {@link CreateBuildScreen}, or cancels
+	 * the {@code /vcs create} waiting for its punch.
+	 */
+	public static final String CREATE = "Create";
+	public static final String CANCEL_CREATION = "Cancel creation";
+	public static final String REFRESH = "Refresh";
 	/** Labels of the buttons a hovered cell shows. */
 	public static final String SELECT = "Select";
 	public static final String TP = "TP";
@@ -90,6 +99,8 @@ public final class BuildBrowserScreen extends Screen {
 	private static final int MENU = 0xF0101018;
 
 	private double scroll;
+	/** The header's create button, which turns into a cancel button while a {@code /vcs create} waits for its punch. */
+	private @Nullable Button create;
 	/** The build whose cell the buttons are on, or null while no cell is hovered and they are hidden. */
 	private @Nullable BuildSummary buttonsFor;
 	/** The build whose menu is open, or null while it is closed; its cell keeps its buttons wherever the mouse goes. */
@@ -118,7 +129,13 @@ public final class BuildBrowserScreen extends Screen {
 
 	@Override
 	protected void init() {
-		addRenderableWidget(Button.builder(Component.literal("Refresh"), button -> BuildBrowser.refresh())
+		// As wide as its longer label, so it does not jump about when it changes.
+		int createWidth = Math.max(60, font.width(CANCEL_CREATION) + BUTTON_PADDING);
+		create = addRenderableWidget(Button.builder(Component.literal(CREATE), button -> createOrCancel())
+			.bounds(width - GAP - 60 - 4 - createWidth, 6, createWidth, 20)
+			.build());
+		updateCreate();
+		addRenderableWidget(Button.builder(Component.literal(REFRESH), button -> BuildBrowser.refresh())
 			.bounds(width - GAP - 60, 6, 60, 20)
 			.build());
 		// Clickable but not drawn with the other widgets: they go over the previews, so the grid draws them after its cells.
@@ -132,6 +149,38 @@ public final class BuildBrowserScreen extends Screen {
 		scroll = Mth.clamp(scroll, 0.0, maxScroll());
 	}
 
+	/**
+	 * Opens the window asking for a new build's name, or while a {@code /vcs create} is waiting for its punch, runs
+	 * {@code /vcs cancelCreate} as if typed; the button changes back once the server says the click is no longer waited for.
+	 */
+	private void createOrCancel() {
+		if (minecraft == null) {
+			return;
+		}
+		if (PendingClickHighlight.creating() != null) {
+			if (minecraft.player != null) {
+				minecraft.player.connection.sendCommand("vcs cancelCreate");
+			}
+		} else {
+			minecraft.setScreen(new CreateBuildScreen(this));
+		}
+	}
+
+	/** Labels the create button for whether a {@code /vcs create} is waiting for its punch. */
+	private void updateCreate() {
+		if (create == null) {
+			return;
+		}
+		String creating = PendingClickHighlight.creating();
+		String label = creating == null ? CREATE : CANCEL_CREATION;
+		if (!create.getMessage().getString().equals(label)) {
+			create.setMessage(Component.literal(label));
+			create.setTooltip(Tooltip.create(Component.literal(creating == null
+				? "Start a new build"
+				: "Stop waiting for the punch that creates " + creating)));
+		}
+	}
+
 	@Override
 	public boolean isPauseScreen() {
 		return false;
@@ -139,6 +188,7 @@ public final class BuildBrowserScreen extends Screen {
 
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+		updateCreate();
 		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
 		graphics.centeredText(font, title, width / 2, 12, WHITE);
 
