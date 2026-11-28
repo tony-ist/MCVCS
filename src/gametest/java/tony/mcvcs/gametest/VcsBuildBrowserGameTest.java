@@ -37,11 +37,13 @@ import tony.mcvcs.client.browser.BuildBrowser;
 import tony.mcvcs.client.browser.BuildBrowserKey;
 import tony.mcvcs.client.browser.BuildBrowserScreen;
 import tony.mcvcs.client.browser.CheckoutScreen;
+import tony.mcvcs.client.browser.CommitPreview;
 import tony.mcvcs.client.browser.CreateBuildScreen;
 import tony.mcvcs.client.browser.DeleteBuildScreen;
 import tony.mcvcs.client.browser.PlacementPickerScreen;
 import tony.mcvcs.client.browser.RenameBuildScreen;
 import tony.mcvcs.client.browser.Thumbnail;
+import tony.mcvcs.client.browser.UnplaceScreen;
 import tony.mcvcs.client.browser.VersionPickerScreen;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.config.ClientConfig;
@@ -298,8 +300,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 
 			// A build placed nowhere has Select and TP greyed out, and pressing one does nothing.
 			runCommand(context, "vcs select " + BIG);
-			runCommand(context, "vcs unplace -k");
-			open(context);
+			checkUnplace(context, singleplayer, hallMin, hallMax);
 			context.waitFor(client -> {
 				BuildSummary hall = summary(BIG);
 				return BuildBrowser.listState() == BuildBrowser.ListState.LOADED && hall != null && hall.placements() == 0;
@@ -835,6 +836,113 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 		clickCheckoutWidget(context, CheckoutScreen.CHECKOUT);
 		context.waitFor(client -> client.screen == null);
 		context.waitFor(client -> ClientPlacements.selected() != null && ClientPlacements.selected().head() == 3);
+	}
+
+	/**
+	 * With the hall's only placement selected and one of its blocks changed: the three dots right of Create open a menu
+	 * whose Unplace asks whether to remove it, with its preview, a warning about the unsaved change and the box to keep
+	 * the blocks unticked; Cancel keeps it. Ticked, Remove takes it out of the build without asking again and leaves its
+	 * blocks, and with nothing selected any more Unplace is greyed out. Leaves the overlay open.
+	 */
+	private static void checkUnplace(ClientGameTestContext context, TestSingleplayerContext singleplayer, BlockPos hallMin, BlockPos hallMax) {
+		context.waitFor(client -> ClientPlacements.selected() != null && ClientPlacements.selected().build().equals(BIG));
+		setBlock(singleplayer, hallMax, Blocks.DIAMOND_BLOCK.defaultBlockState());
+		open(context);
+		context.runOnClient(client -> {
+			Button create = headerButton(client, BuildBrowserScreen.CREATE);
+			Button more = headerButton(client, BuildBrowserScreen.HEADER_MORE);
+			if (more == null || more.getX() < create.getRight() || more.getY() != create.getY()) {
+				throw new AssertionError("Expected the three dots right of " + BuildBrowserScreen.CREATE);
+			}
+		});
+		clickHeader(context, BuildBrowserScreen.HEADER_MORE);
+		context.waitFor(client -> client.screen instanceof BuildBrowserScreen screen && screen.headerMenuItemOf(BuildBrowserScreen.UNPLACE) != null);
+		hoverHeaderItem(context, BuildBrowserScreen.UNPLACE);
+		context.waitTicks(2);
+		context.takeScreenshot("mcvcs-builds-overlay-header-menu");
+		// Escape closes only the menu.
+		context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+		context.waitFor(client -> client.screen instanceof BuildBrowserScreen screen && screen.headerMenuItemOf(BuildBrowserScreen.UNPLACE) == null);
+
+		openUnplace(context);
+		context.waitFor(client -> {
+			UnplaceScreen screen = (UnplaceScreen) client.screen;
+			CommitPreview preview = BuildBrowser.commitPreview();
+			return screen.summary() != null && preview != null && preview.thumbnail().state() == Thumbnail.State.READY;
+		});
+		context.runOnClient(client -> {
+			UnplaceScreen screen = (UnplaceScreen) client.screen;
+			if (screen.summary().total() != 1) {
+				throw new AssertionError("Expected 1 unsaved change but got " + screen.summary().total());
+			}
+			if (((Checkbox) screen.widgetOf(UnplaceScreen.KEEP)).selected()) {
+				throw new AssertionError("Expected the box to keep the blocks to start unticked");
+			}
+		});
+		moveAway(context);
+		context.waitTicks(2);
+		context.takeScreenshot("mcvcs-builds-overlay-unplace");
+		clickUnplaceWidget(context, UnplaceScreen.CANCEL);
+		context.waitForScreen(BuildBrowserScreen.class);
+		context.waitTicks(5);
+		if (context.computeOnClient(client -> ClientPlacements.selected()) == null) {
+			throw new AssertionError("Expected Cancel to keep the hall in the world");
+		}
+
+		openUnplace(context);
+		clickUnplaceWidget(context, UnplaceScreen.KEEP);
+		moveAway(context);
+		context.waitTicks(2);
+		context.takeScreenshot("mcvcs-builds-overlay-unplace-keep");
+		clickUnplaceWidget(context, UnplaceScreen.REMOVE);
+		context.waitForScreen(BuildBrowserScreen.class);
+		context.waitFor(client -> {
+			BuildSummary hall = summary(BIG);
+			return BuildBrowser.listState() == BuildBrowser.ListState.LOADED && hall != null && hall.placements() == 0;
+		});
+		if (!blockAt(singleplayer, hallMin).is(Blocks.GOLD_BLOCK) || !blockAt(singleplayer, hallMax).is(Blocks.DIAMOND_BLOCK)) {
+			throw new AssertionError("Expected the hall's blocks to stay with the box ticked, but found " + blockAt(singleplayer, hallMin) + " and " + blockAt(singleplayer, hallMax));
+		}
+
+		context.waitFor(client -> ClientPlacements.selected() == null);
+		clickHeader(context, BuildBrowserScreen.HEADER_MORE);
+		context.waitFor(client -> client.screen instanceof BuildBrowserScreen screen && screen.headerMenuItemOf(BuildBrowserScreen.UNPLACE) != null);
+		context.waitTicks(2);
+		if (context.computeOnClient(client -> ((BuildBrowserScreen) client.screen).headerMenuItemOf(BuildBrowserScreen.UNPLACE).active)) {
+			throw new AssertionError("Expected Unplace to be greyed out with nothing selected");
+		}
+		context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+		context.waitFor(client -> client.screen instanceof BuildBrowserScreen screen && screen.headerMenuItemOf(BuildBrowserScreen.UNPLACE) == null);
+	}
+
+	/** Opens the header's menu and clicks its Unplace, which asks whether to remove the selected copy. */
+	private static void openUnplace(ClientGameTestContext context) {
+		clickHeader(context, BuildBrowserScreen.HEADER_MORE);
+		context.waitFor(client -> client.screen instanceof BuildBrowserScreen screen && screen.headerMenuItemOf(BuildBrowserScreen.UNPLACE) != null);
+		ScreenRectangle item = hoverHeaderItem(context, BuildBrowserScreen.UNPLACE);
+		clickAt(context, item.left() + item.width() / 2.0, item.top() + item.height() / 2.0);
+		context.waitForScreen(UnplaceScreen.class);
+	}
+
+	/** Moves the mouse onto the item labelled {@code label} in the open header menu, and says where it is. */
+	private static ScreenRectangle hoverHeaderItem(ClientGameTestContext context, String label) {
+		// The item is laid out when the menu is first drawn.
+		context.waitTick();
+		ScreenRectangle item = context.computeOnClient(client -> ((BuildBrowserScreen) client.screen).headerMenuItemOf(label).getRectangle());
+		moveTo(context, item.left() + item.width() / 2.0, item.top() + item.height() / 2.0);
+		return item;
+	}
+
+	/** Clicks the button or checkbox labelled {@code label} in the unplace window. */
+	private static void clickUnplaceWidget(ClientGameTestContext context, String label) {
+		ScreenRectangle widget = context.computeOnClient(client -> {
+			var found = client.screen instanceof UnplaceScreen screen ? screen.widgetOf(label) : null;
+			if (found == null) {
+				throw new AssertionError("Expected " + label + " on " + client.screen);
+			}
+			return found.getRectangle();
+		});
+		clickAt(context, widget.left() + widget.width() / 2.0, widget.top() + widget.height() / 2.0);
 	}
 
 	/** Opens the overlay and its checkout window. */

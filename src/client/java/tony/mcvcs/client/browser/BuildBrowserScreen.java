@@ -45,7 +45,9 @@ import tony.mcvcs.network.PlacementStatusPayload;
  * {@code Rename} asks for a new name, see {@link RenameBuildScreen}, and whose {@code Delete} asks whether to delete
  * the build, see {@link DeleteBuildScreen}. A build bigger than
  * {@link ClientConfig.Settings#autoDownloadLimit} shows a placeholder instead of its preview until the cell is clicked
- * outside its buttons, which downloads the preview. The {@code Create} button in the top right corner starts a new build, see
+ * outside its buttons, which downloads the preview. Three dots in the top right corner open the header's menu, whose
+ * {@code Unplace} asks whether to remove the selected placement from the world, see {@link UnplaceScreen}. The
+ * {@code Create} button left of them starts a new build, see
  * {@link CreateBuildScreen}; while that build waits for its punch, a {@code Cancel new build} button in the top left
  * corner cancels it.
  * {@code Checkout} left of it checks out a version into the selected placement, see {@link CheckoutScreen}, and
@@ -118,6 +120,10 @@ public final class BuildBrowserScreen extends Screen {
 	private static final int MORE_INSET = 2;
 	private static final int MORE_BACKGROUND = 0x80000000;
 	private static final int MORE_HOVERED = 0xFF5A5A5A;
+	/** Label of the three dots in the top right corner, right of {@link #CREATE}, which open the header's menu, and of its item. */
+	public static final String HEADER_MORE = "More options";
+	public static final String UNPLACE = "Unplace";
+	private static final int HEADER_MORE_WIDTH = 20;
 	/** Space between the menu's edges and its items. */
 	private static final int MENU_PADDING = 2;
 	private static final int MENU = 0xF0101018;
@@ -155,6 +161,13 @@ public final class BuildBrowserScreen extends Screen {
 	/** The menu's items, top to bottom; clicked by {@link #mouseClicked} itself, since they lie over the cell's other buttons. */
 	private final Button rename = Button.builder(Component.literal(RENAME), button -> openRename()).build();
 	private final Button delete = Button.builder(Component.literal(DELETE), button -> confirmDelete()).build();
+	/** The header's three dots, and whether their menu is open; its item is clicked by {@link #mouseClicked} itself. */
+	private final Button headerMore = new DotsButton(HEADER_MORE, HEADER_MORE_WIDTH, 20, button -> headerMenuOpen = true);
+	private boolean headerMenuOpen;
+	private final Button unplace = Button.builder(Component.literal(UNPLACE), button -> openUnplace()).build();
+	/** The placement the unplace item's tooltip was last made for. */
+	private @Nullable ClientPlacement unplaceFor;
+	private boolean unplaceTooltipSet;
 
 	public BuildBrowserScreen() {
 		super(Component.literal("Builds"));
@@ -175,8 +188,15 @@ public final class BuildBrowserScreen extends Screen {
 
 	@Override
 	protected void init() {
+		int moreLeft = width - GAP - HEADER_MORE_WIDTH;
+		headerMore.setRectangle(HEADER_MORE_WIDTH, 20, moreLeft, 6);
+		headerMore.setTooltip(Tooltip.create(Component.literal("More options")));
+		addRenderableWidget(headerMore);
+		headerMenuOpen = false;
+		unplace.visible = false;
+		unplaceTooltipSet = false;
 		int createWidth = Math.max(60, font.width(CREATE) + BUTTON_PADDING);
-		int createLeft = width - GAP - createWidth;
+		int createLeft = moreLeft - 4 - createWidth;
 		create = addRenderableWidget(Button.builder(Component.literal(CREATE), button -> openCreate())
 			.bounds(createLeft, 6, createWidth, 20)
 			.tooltip(Tooltip.create(Component.literal("Save something you built as a new build")))
@@ -403,12 +423,44 @@ public final class BuildBrowserScreen extends Screen {
 		return false;
 	}
 
+	/** Opens the window that removes the selected placement from the world, see {@link UnplaceScreen}. */
+	private void openUnplace() {
+		ClientPlacement selected = selectedBuild() == null ? null : ClientPlacements.selected();
+		closeHeaderMenu();
+		if (selected != null && minecraft != null) {
+			minecraft.setScreen(new UnplaceScreen(this, selected));
+		}
+	}
+
+	/** Lets the unplace item be pressed only while a placement is selected, and says which one it removes. */
+	private void updateUnplace() {
+		ClientPlacement selected = selectedBuild() == null ? null : ClientPlacements.selected();
+		if (unplaceTooltipSet && Objects.equals(selected, unplaceFor)) {
+			return;
+		}
+		unplaceTooltipSet = true;
+		unplaceFor = selected;
+		unplace.active = selected != null;
+		unplace.setTooltip(Tooltip.create(Component.literal(selected == null
+			? SELECT_FIRST
+			: "Remove " + selected.label() + " from the world")));
+	}
+
+	private void closeHeaderMenu() {
+		headerMenuOpen = false;
+		unplace.visible = false;
+	}
+
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
 		updateCheckout();
 		updateDiff();
 		updateCancelButtons();
-		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+		updateUnplace();
+		// Under the open header menu, nothing else lights up or shows its tooltip.
+		int behindX = headerMenuOpen ? -1 : mouseX;
+		int behindY = headerMenuOpen ? -1 : mouseY;
+		super.extractRenderState(graphics, behindX, behindY, partialTick);
 		// Centred, unless the header's buttons reach that far; then between them, as close to the centre as they leave
 		// room for, or left out if they leave none.
 		int buttonsLeft = diff != null ? diff.getX() : width;
@@ -425,9 +477,12 @@ public final class BuildBrowserScreen extends Screen {
 				if (BuildBrowser.builds().isEmpty()) {
 					graphics.centeredText(font, "No builds yet. Click " + CREATE + " to save your first one", width / 2, height / 2, GREY);
 				} else {
-					grid(graphics, mouseX, mouseY, partialTick);
+					grid(graphics, behindX, behindY, partialTick);
 				}
 			}
+		}
+		if (headerMenuOpen) {
+			menu(graphics, headerMore, List.of(unplace), mouseX, mouseY, partialTick);
 		}
 	}
 
@@ -462,19 +517,18 @@ public final class BuildBrowserScreen extends Screen {
 		graphics.disableScissor();
 
 		if (menuFor != null) {
-			menu(graphics, mouseX, mouseY, partialTick);
-		} else if (hovered != null && !overButton(mouseX, mouseY)) {
+			menu(graphics, more, menuItems(), mouseX, mouseY, partialTick);
+		} else if (hovered != null && !headerMenuOpen && !overButton(mouseX, mouseY)) {
 			// Over a button, that button's own tooltip says what it does instead.
 			graphics.setComponentTooltipForNextFrame(font, tooltip(hovered), mouseX, mouseY);
 		}
 	}
 
-	/** The open menu, hanging from the three dots and lined up with their right edge, over everything else. */
-	private void menu(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-		List<Button> items = menuItems();
+	/** The open menu of {@code items}, hanging from the three dots {@code dots} and lined up with their right edge, over everything else. */
+	private void menu(GuiGraphicsExtractor graphics, Button dots, List<Button> items, int mouseX, int mouseY, float partialTick) {
 		int itemWidth = items.stream().mapToInt(item -> font.width(item.getMessage())).max().orElse(0) + BUTTON_PADDING;
-		int right = more.getRight();
-		int top = more.getBottom() + 1;
+		int right = dots.getRight();
+		int top = dots.getBottom() + 1;
 		int left = right - itemWidth - 2 * MENU_PADDING;
 		int bottom = top + items.size() * BUTTON_HEIGHT + (items.size() - 1) * BUTTON_GAP + 2 * MENU_PADDING;
 		for (int i = 0; i < items.size(); i++) {
@@ -621,6 +675,12 @@ public final class BuildBrowserScreen extends Screen {
 	@Override
 	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
 		// An open menu takes the click: its item does its thing, and anywhere else, the dots included, closes it.
+		if (headerMenuOpen) {
+			if (!unplace.mouseClicked(event, doubleClick)) {
+				closeHeaderMenu();
+			}
+			return true;
+		}
 		if (menuFor != null) {
 			if (menuItems().stream().noneMatch(item -> item.mouseClicked(event, doubleClick))) {
 				closeMenu();
@@ -784,6 +844,10 @@ public final class BuildBrowserScreen extends Screen {
 			onClose();
 			return true;
 		}
+		if (event.isEscape() && headerMenuOpen) {
+			closeHeaderMenu();
+			return true;
+		}
 		if (event.isEscape() && menuFor != null) {
 			closeMenu();
 			return true;
@@ -862,10 +926,19 @@ public final class BuildBrowserScreen extends Screen {
 			.filter(button -> button.visible && button.getMessage().getString().equals(label)).findFirst().orElse(null);
 	}
 
-	/** Three dots in a row, lighter behind them under the mouse, which open a cell's menu. */
+	/** The item labelled {@code label} in the open header menu, for tests to click; null while the menu is closed. */
+	public @Nullable Button headerMenuItemOf(String label) {
+		return headerMenuOpen && unplace.getMessage().getString().equals(label) ? unplace : null;
+	}
+
+	/** Three dots in a row, lighter behind them under the mouse, which open a cell's menu or the header's. */
 	private static final class DotsButton extends Button {
 		DotsButton(OnPress onPress) {
-			super(0, 0, MORE_WIDTH, MORE_HEIGHT, Component.literal(MORE), onPress, DEFAULT_NARRATION);
+			this(MORE, MORE_WIDTH, MORE_HEIGHT, onPress);
+		}
+
+		DotsButton(String label, int width, int height, OnPress onPress) {
+			super(0, 0, width, height, Component.literal(label), onPress, DEFAULT_NARRATION);
 		}
 
 		@Override

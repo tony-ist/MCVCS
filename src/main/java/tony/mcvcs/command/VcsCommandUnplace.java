@@ -29,8 +29,9 @@ import tony.mcvcs.network.DiffSender;
 import tony.mcvcs.network.PreviewSender;
 
 /**
- * {@code /vcs unplace [-k]}: takes the selected placement out of its build and empties its box, leaving the ground
- * clear; {@link #KEEP} leaves the blocks standing instead and only stops the placement being tracked.
+ * {@code /vcs unplace [-k] [-f]}: takes the selected placement out of its build and empties its box, leaving the ground
+ * clear; {@link #KEEP} leaves the blocks standing instead and only stops the placement being tracked, and
+ * {@link VcsCommand#FORCE} skips the confirmation below.
  * <p>
  * The box holds a version of the build, which is on disk either way, so removing the placement loses nothing and is
  * done at once. What is not on disk is work done since: a box that differs from the version it holds is asked about
@@ -50,9 +51,10 @@ public final class VcsCommandUnplace {
 	private record Pending(String build, String placement, boolean keep) {
 	}
 
-	static final VcsHelp HELP = new VcsHelp("unplace", "/vcs unplace [" + KEEP + "]",
+	static final VcsHelp HELP = new VcsHelp("unplace", "/vcs unplace [" + KEEP + "] [" + VcsCommand.FORCE + "]",
 		"remove the selected copy from the world",
 		"Removes the selected copy and clears its blocks. Its saved versions stay: run `/vcs place` to put it back. If it has unsaved changes, you are asked to confirm with `/vcs confirmUnplace` first.",
+		new VcsHelp.Key(VcsCommand.FORCE, "remove it even with unsaved changes, without asking"),
 		new VcsHelp.Key(KEEP, "keep its blocks in the world, only stop tracking them"));
 	static final VcsHelp CONFIRM_HELP = new VcsHelp("confirmUnplace", "/vcs confirmUnplace",
 		"remove the copy your `/vcs unplace` asked about",
@@ -70,9 +72,11 @@ public final class VcsCommandUnplace {
 	/**
 	 * Removes the placement straight away, or asks first when its box holds work no version does.
 	 *
-	 * @param keep whether to leave the blocks standing instead of emptying the placement's box
+	 * @param keep  whether to leave the blocks standing instead of emptying the placement's box
+	 * @param force whether to remove it without asking even when its box holds work no version does, as the builds
+	 *              overlay's unplace window does, having asked itself
 	 */
-	static int run(CommandSourceStack source, boolean keep) throws CommandSyntaxException {
+	static int run(CommandSourceStack source, boolean keep, boolean force) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<BuildPlacement> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
@@ -87,6 +91,10 @@ public final class VcsCommandUnplace {
 			return 0;
 		}
 
+		if (force) {
+			PENDING.remove(player.getUUID());
+			return remove(source, player, placement, keep);
+		}
 		// Only what was built since the box last held a version would be lost, so only that is worth asking about.
 		int uncommitted = uncommitted(placement, level, player);
 		if (uncommitted == 0) {

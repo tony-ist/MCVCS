@@ -180,8 +180,13 @@ public final class BuildBrowser {
 	 * see {@link #commitPreview()}.
 	 */
 	public static void requestCommitPreview(ClientPlacement placement) {
+		requestCommitPreview(placement, true);
+	}
+
+	/** {@link #requestCommitPreview(ClientPlacement)}, with the changed blocks tinted in the preview only if {@code marked}. */
+	public static void requestCommitPreview(ClientPlacement placement, boolean marked) {
 		dropCommitPreview();
-		commitPreview = new CommitPreview(placement);
+		commitPreview = new CommitPreview(placement, marked);
 		ClientPlayNetworking.send(CommitPreviewRequestPayload.INSTANCE);
 	}
 
@@ -283,7 +288,7 @@ public final class BuildBrowser {
 		}
 		CommitPreview preview = commitPreview;
 		BuildBox grid = thumbnail.grid();
-		byte[] marks = preview != null && preview.thumbnail() == thumbnail && grid != null ? preview.marks(grid) : null;
+		byte[] marks = preview != null && preview.thumbnail() == thumbnail && preview.marked() && grid != null ? preview.marks(grid) : null;
 		mesh(thumbnail, blocks, marks);
 	}
 

@@ -18,13 +18,20 @@ import tony.mcvcs.network.CommitPreviewPayload;
 public final class CommitPreview {
 	private final ClientPlacement placement;
 	private final Thumbnail thumbnail;
+	/** Whether the changed blocks are tinted in the preview, as the commit window does; the unplace window shows them plain. */
+	private final boolean marked;
 	private @Nullable CommitPreviewPayload summary;
 	private final IntArrayList cells = new IntArrayList();
 	private final ByteArrayList kinds = new ByteArrayList();
 
-	CommitPreview(ClientPlacement placement) {
+	CommitPreview(ClientPlacement placement, boolean marked) {
 		this.placement = placement;
+		this.marked = marked;
 		this.thumbnail = new Thumbnail(new Thumbnail.Key(placement.build(), CommitPreviewPayload.VERSION, placement.box()));
+	}
+
+	boolean marked() {
+		return marked;
 	}
 
 	public ClientPlacement placement() {
