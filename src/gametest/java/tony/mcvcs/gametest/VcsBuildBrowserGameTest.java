@@ -203,10 +203,10 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 				PlacePreview place = PreviewManager.place();
 				return place != null && place.blocks().name().equals(BIG + "/p2") && place.blocks().version() == 1;
 			});
-			// While it is being placed, the overlay shows Cancel place left of Create, which drops the copy and hides itself.
+			// While it is being placed, the overlay shows Cancel place in its top left corner, which drops the copy and hides itself.
 			open(context);
 			context.waitFor(client -> visibleHeaderButton(client, BuildBrowserScreen.CANCEL_PLACE) != null);
-			assertLeftOf(context, BuildBrowserScreen.CANCEL_PLACE, BuildBrowserScreen.CREATE);
+			assertTopLeft(context, BuildBrowserScreen.CANCEL_PLACE);
 			moveAway(context);
 			context.waitTicks(2);
 			context.takeScreenshot("mcvcs-builds-overlay-cancel-place");
@@ -430,14 +430,23 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			context.waitFor(client -> PendingClickHighlight.armed() && PendingClickHighlight.corner() == null);
 			assertActionBar(context, "Hit any block of your build to save it as " + NEW);
 
-			// While it waits, the overlay's Create button cancels it instead, and turns back once it has.
+			// While it waits, the overlay shows Cancel new build in its top left corner, which cancels it and hides itself.
 			open(context);
-			context.waitFor(client -> headerButton(client, BuildBrowserScreen.CANCEL_CREATION) != null);
+			context.waitFor(client -> visibleHeaderButton(client, BuildBrowserScreen.CANCEL_CREATION) != null);
+			assertTopLeft(context, BuildBrowserScreen.CANCEL_CREATION);
+			// Placing at the same time, Cancel place takes the corner and Cancel new build moves right of it.
+			runCommand(context, "vcs place " + RENAMED);
+			context.waitFor(client -> visibleHeaderButton(client, BuildBrowserScreen.CANCEL_PLACE) != null);
+			assertTopLeft(context, BuildBrowserScreen.CANCEL_PLACE);
+			assertLeftOf(context, BuildBrowserScreen.CANCEL_PLACE, BuildBrowserScreen.CANCEL_CREATION);
 			moveAway(context);
 			context.waitTicks(2);
 			context.takeScreenshot("mcvcs-builds-overlay-cancel-creation");
+			clickHeader(context, BuildBrowserScreen.CANCEL_PLACE);
+			context.waitFor(client -> visibleHeaderButton(client, BuildBrowserScreen.CANCEL_PLACE) == null);
+			assertTopLeft(context, BuildBrowserScreen.CANCEL_CREATION);
 			clickHeader(context, BuildBrowserScreen.CANCEL_CREATION);
-			context.waitFor(client -> !PendingClickHighlight.armed() && headerButton(client, BuildBrowserScreen.CREATE) != null);
+			context.waitFor(client -> !PendingClickHighlight.armed() && visibleHeaderButton(client, BuildBrowserScreen.CANCEL_CREATION) == null);
 			context.getInput().pressKey(BuildBrowserKey.KEY);
 			context.waitFor(client -> client.screen == null);
 
@@ -692,6 +701,16 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 		context.runOnClient(client -> {
 			if (headerButton(client, left).getRight() > headerButton(client, right).getX()) {
 				throw new AssertionError("Expected " + left + " to the left of " + right);
+			}
+		});
+	}
+
+	/** The header button labelled {@code label} is the first one in the overlay's top left corner. */
+	private static void assertTopLeft(ClientGameTestContext context, String label) {
+		context.runOnClient(client -> {
+			Button button = headerButton(client, label);
+			if (button.getX() > 8 || button.getY() > 8) {
+				throw new AssertionError("Expected " + label + " in the top left corner but it is at " + button.getX() + ", " + button.getY());
 			}
 		});
 	}

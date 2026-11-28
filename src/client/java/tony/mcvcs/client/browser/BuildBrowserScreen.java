@@ -46,12 +46,14 @@ import tony.mcvcs.network.PlacementStatusPayload;
  * the build, see {@link DeleteBuildScreen}. A build bigger than
  * {@link ClientConfig.Settings#autoDownloadLimit} shows a placeholder instead of its preview until the cell is clicked
  * outside its buttons, which downloads the preview. The {@code Create} button in the top right corner starts a new build, see
- * {@link CreateBuildScreen}; while that build waits for its punch, it reads {@code Cancel creation} and cancels it.
+ * {@link CreateBuildScreen}; while that build waits for its punch, a {@code Cancel new build} button in the top left
+ * corner cancels it.
  * {@code Checkout} left of it checks out a version into the selected placement, see {@link CheckoutScreen}, and
  * {@code Commit} left of that previews and commits it, see {@link CommitScreen}. {@code Diff} left of that shows how
  * many blocks of the selected placement changed since the version it holds and runs {@code /vcs changes} to highlight
  * them in the world; while they are highlighted it reads {@code Hide diff} and runs {@code /vcs changes off}. While a
- * {@code /vcs place} copy is being lined up, a {@code Cancel place} button left of those runs {@code /vcs cancelPlace}.
+ * {@code /vcs place} copy is being lined up, a {@code Cancel placing} button in the top left corner, left of
+ * {@code Cancel new build}, runs {@code /vcs cancelPlace}.
  * <p>
  * The list is asked for when the overlay opens, and not otherwise, see
  * {@link BuildBrowser}. How big the cells are and how fast they turn come from {@link ClientConfig}. The game keeps
@@ -77,11 +79,9 @@ public final class BuildBrowserScreen extends Screen {
 	/** The yellow the selected placement's own box is drawn in. */
 	private static final int BORDER_SELECTED = 0xFFFFFF55;
 
-	/**
-	 * Labels of the header's buttons: the first asks for a new build's name, see {@link CreateBuildScreen}, or cancels
-	 * the {@code /vcs create} waiting for its punch.
-	 */
+	/** Label of the header button in the top right corner, which asks for a new build's name, see {@link CreateBuildScreen}. */
 	public static final String CREATE = "New build";
+	/** Label of the header button right of {@link #CANCEL_PLACE}, shown only while a {@code /vcs create} waits for its punch. */
 	public static final String CANCEL_CREATION = "Cancel new build";
 	/** Label of the header button left of {@link #CREATE}, which checks out a version into the selected placement, see {@link CheckoutScreen}. */
 	public static final String CHECKOUT = "Load";
@@ -93,7 +93,7 @@ public final class BuildBrowserScreen extends Screen {
 	 */
 	public static final String DIFF = "Changes";
 	public static final String HIDE_DIFF = "Hide changes";
-	/** Label of the header button, left of {@link #DIFF}, shown only while a {@code /vcs place} copy is being lined up. */
+	/** Label of the header button in the top left corner, shown only while a {@code /vcs place} copy is being lined up. */
 	public static final String CANCEL_PLACE = "Cancel placing";
 	/** Labels of the buttons a hovered cell shows. */
 	public static final String SELECT = "Select";
@@ -123,7 +123,7 @@ public final class BuildBrowserScreen extends Screen {
 	private static final int MENU = 0xF0101018;
 
 	private double scroll;
-	/** The header's create button, which turns into a cancel button while a {@code /vcs create} waits for its punch. */
+	/** The header's create button, in the top right corner. */
 	private @Nullable Button create;
 	/** The header's checkout button, pressable only while a placement is selected. */
 	private @Nullable Button checkout;
@@ -138,8 +138,12 @@ public final class BuildBrowserScreen extends Screen {
 	private @Nullable ClientPlacement statusFor;
 	/** The diff button's tooltip as last set. */
 	private @Nullable String diffTooltip;
-	/** The header's cancel place button, visible only while a {@code /vcs place} copy is being lined up. */
+	/** The header's cancel place button, in the top left corner, visible only while a {@code /vcs place} copy is being lined up. */
 	private @Nullable Button cancelPlace;
+	/** The header's cancel create button, right of the cancel place button, visible only while a {@code /vcs create} waits for its punch. */
+	private @Nullable Button cancelCreate;
+	/** The build the cancel create button's tooltip was last made for. */
+	private @Nullable String cancelCreateTooltipFor;
 	/** The build whose cell the buttons are on, or null while no cell is hovered and they are hidden. */
 	private @Nullable BuildSummary buttonsFor;
 	/** The build whose menu is open, or null while it is closed; its cell keeps its buttons wherever the mouse goes. */
@@ -171,13 +175,17 @@ public final class BuildBrowserScreen extends Screen {
 
 	@Override
 	protected void init() {
-		// As wide as its longer label, so it does not jump about when it changes.
-		int createWidth = Math.max(60, font.width(CANCEL_CREATION) + BUTTON_PADDING);
+		int createWidth = Math.max(60, font.width(CREATE) + BUTTON_PADDING);
 		int createLeft = width - GAP - createWidth;
-		create = addRenderableWidget(Button.builder(Component.literal(CREATE), button -> createOrCancel())
+		create = addRenderableWidget(Button.builder(Component.literal(CREATE), button -> openCreate())
 			.bounds(createLeft, 6, createWidth, 20)
+			.tooltip(Tooltip.create(Component.literal("Save something you built as a new build")))
 			.build());
-		updateCreate();
+		// Placed by updateCancelButtons: top left, right of the cancel place button while that shows.
+		cancelCreate = addRenderableWidget(Button.builder(Component.literal(CANCEL_CREATION), button -> sendCommand("vcs cancelCreate"))
+			.bounds(GAP, 6, font.width(CANCEL_CREATION) + BUTTON_PADDING, 20)
+			.build());
+		cancelCreateTooltipFor = null;
 		int checkoutWidth = font.width(CHECKOUT) + BUTTON_PADDING;
 		int checkoutLeft = createLeft - 4 - checkoutWidth;
 		checkout = addRenderableWidget(Button.builder(Component.literal(CHECKOUT), button -> openCheckout())
@@ -197,11 +205,11 @@ public final class BuildBrowserScreen extends Screen {
 		diffTooltip = null;
 		int cancelPlaceWidth = font.width(CANCEL_PLACE) + BUTTON_PADDING;
 		cancelPlace = addRenderableWidget(Button.builder(Component.literal(CANCEL_PLACE), button -> sendCommand("vcs cancelPlace"))
-			.bounds(commitLeft, 6, cancelPlaceWidth, 20)
+			.bounds(GAP, 6, cancelPlaceWidth, 20)
 			.tooltip(Tooltip.create(Component.literal("Remove the preview you are placing")))
 			.build());
 		updateDiff();
-		updateCancelPlace();
+		updateCancelButtons();
 		// Clickable but not drawn with the other widgets: they go over the previews, so the grid draws them after its cells.
 		for (Button button : buttons()) {
 			addWidget(button);
@@ -213,19 +221,9 @@ public final class BuildBrowserScreen extends Screen {
 		scroll = Mth.clamp(scroll, 0.0, maxScroll());
 	}
 
-	/**
-	 * Opens the window asking for a new build's name, or while a {@code /vcs create} is waiting for its punch, runs
-	 * {@code /vcs cancelCreate} as if typed; the button changes back once the server says the click is no longer waited for.
-	 */
-	private void createOrCancel() {
-		if (minecraft == null) {
-			return;
-		}
-		if (PendingClickHighlight.creating() != null) {
-			if (minecraft.player != null) {
-				minecraft.player.connection.sendCommand("vcs cancelCreate");
-			}
-		} else {
+	/** Opens the window asking for a new build's name. */
+	private void openCreate() {
+		if (minecraft != null) {
 			minecraft.setScreen(new CreateBuildScreen(this));
 		}
 	}
@@ -283,8 +281,7 @@ public final class BuildBrowserScreen extends Screen {
 	/**
 	 * Labels the diff button {@link #HIDE_DIFF} while a diff is highlighted, and otherwise with how many blocks of the
 	 * selected placement changed since the version it holds, asking the server again whenever the selection changes; it
-	 * is greyed out while that is awaited or nothing changed. Then lines it and the cancel place button up left of
-	 * {@code Commit}.
+	 * is greyed out while that is awaited or nothing changed. Then lines it up left of {@code Commit}.
 	 */
 	private void updateDiff() {
 		if (diff == null || commit == null) {
@@ -336,9 +333,6 @@ public final class BuildBrowserScreen extends Screen {
 		int diffWidth = Math.max(font.width(HIDE_DIFF), font.width(label)) + BUTTON_PADDING;
 		diff.setWidth(diffWidth);
 		diff.setX(commit.getX() - 4 - diffWidth);
-		if (cancelPlace != null) {
-			cancelPlace.setX(diff.getX() - 4 - cancelPlace.getWidth());
-		}
 	}
 
 	/** Runs {@code /vcs changes} against the version the selected placement holds, or {@code /vcs changes off} while one is highlighted. */
@@ -346,11 +340,52 @@ public final class BuildBrowserScreen extends Screen {
 		sendCommand(DiffManager.active() != null ? "vcs changes off" : "vcs changes");
 	}
 
-	/** Shows the cancel place button only while a {@code /vcs place} copy is being lined up. */
-	private void updateCancelPlace() {
-		if (cancelPlace != null) {
-			cancelPlace.visible = PreviewManager.place() != null;
+	/**
+	 * Shows the cancel place button in the top left corner only while a {@code /vcs place} copy is being lined up, and
+	 * the cancel create button right of it, or in that corner on its own, only while a {@code /vcs create} waits for its punch.
+	 */
+	private void updateCancelButtons() {
+		if (cancelPlace == null || cancelCreate == null) {
+			return;
 		}
+		String creating = PendingClickHighlight.creating();
+		cancelPlace.visible = PreviewManager.place() != null;
+		cancelCreate.visible = creating != null;
+		// Each as wide as its label, unless the buttons on the right leave less room; then shrunk alike to share it.
+		int placeWidth = cancelPlace.visible ? font.width(CANCEL_PLACE) + BUTTON_PADDING : 0;
+		int createWidth = cancelCreate.visible ? font.width(CANCEL_CREATION) + BUTTON_PADDING : 0;
+		int gaps = cancelPlace.visible && cancelCreate.visible ? 4 : 0;
+		int room = (diff != null ? diff.getX() : width) - GAP - GAP - gaps;
+		if (placeWidth + createWidth > room && room > 0) {
+			double scale = (double) room / (placeWidth + createWidth);
+			placeWidth = (int) (placeWidth * scale);
+			createWidth = room - placeWidth;
+		}
+		int left = GAP;
+		if (cancelPlace.visible) {
+			cancelPlace.setX(left);
+			cancelPlace.setWidth(placeWidth);
+			left += placeWidth + gaps;
+		}
+		if (cancelCreate.visible) {
+			cancelCreate.setX(left);
+			cancelCreate.setWidth(createWidth);
+			if (creating != null && !creating.equals(cancelCreateTooltipFor)) {
+				cancelCreateTooltipFor = creating;
+				cancelCreate.setTooltip(Tooltip.create(Component.literal("Stop creating " + creating)));
+			}
+		}
+	}
+
+	/** The right edge of the visible cancel buttons in the top left corner, or the screen's left edge if none show. */
+	private int cancelButtonsRight() {
+		if (cancelCreate != null && cancelCreate.visible) {
+			return cancelCreate.getRight();
+		}
+		if (cancelPlace != null && cancelPlace.visible) {
+			return cancelPlace.getRight();
+		}
+		return 0;
 	}
 
 	/**
@@ -363,21 +398,6 @@ public final class BuildBrowserScreen extends Screen {
 		}
 	}
 
-	/** Labels the create button for whether a {@code /vcs create} is waiting for its punch. */
-	private void updateCreate() {
-		if (create == null) {
-			return;
-		}
-		String creating = PendingClickHighlight.creating();
-		String label = creating == null ? CREATE : CANCEL_CREATION;
-		if (!create.getMessage().getString().equals(label)) {
-			create.setMessage(Component.literal(label));
-			create.setTooltip(Tooltip.create(Component.literal(creating == null
-				? "Save something you built as a new build"
-				: "Stop creating " + creating)));
-		}
-	}
-
 	@Override
 	public boolean isPauseScreen() {
 		return false;
@@ -385,16 +405,18 @@ public final class BuildBrowserScreen extends Screen {
 
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-		updateCreate();
 		updateCheckout();
 		updateDiff();
-		updateCancelPlace();
+		updateCancelButtons();
 		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
-		// Centred, unless the header's buttons reach that far; then as far right as they leave room for.
-		int buttonsLeft = cancelPlace != null && cancelPlace.visible ? cancelPlace.getX() : diff != null ? diff.getX() : width;
+		// Centred, unless the header's buttons reach that far; then between them, as close to the centre as they leave
+		// room for, or left out if they leave none.
+		int buttonsLeft = diff != null ? diff.getX() : width;
 		int titleWidth = font.width(title);
-		int titleX = Math.max(GAP, Math.min((width - titleWidth) / 2, buttonsLeft - GAP - titleWidth));
-		graphics.text(font, title, titleX, 12, WHITE);
+		int titleX = Math.max(cancelButtonsRight() + GAP, Math.min((width - titleWidth) / 2, buttonsLeft - GAP - titleWidth));
+		if (titleX + titleWidth <= buttonsLeft - GAP) {
+			graphics.text(font, title, titleX, 12, WHITE);
+		}
 
 		switch (BuildBrowser.listState()) {
 			case NONE, LOADING -> loading(graphics, width / 2, height / 2, "Loading builds");
