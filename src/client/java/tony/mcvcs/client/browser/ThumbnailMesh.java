@@ -53,7 +53,7 @@ public final class ThumbnailMesh implements AutoCloseable {
 	/**
 	 * Puts {@code result}, meshed from {@code grid} at {@code scale}, on the GPU and frees the memory it was built in.
 	 */
-	static ThumbnailMesh upload(ThumbnailMesher.Result result, BuildBox grid, int scale) {
+	public static ThumbnailMesh upload(ThumbnailMesher.Result result, BuildBox grid, int scale) {
 		GpuDevice device = RenderSystem.getDevice();
 		List<Layer> layers = new ArrayList<>();
 		try {
@@ -89,9 +89,30 @@ public final class ThumbnailMesh implements AutoCloseable {
 	 * Draws the version into {@code color} and {@code depth} through {@code projection}, placed by {@code modelView}.
 	 * Solid geometry goes first and translucent last, which is all the ordering a small preview needs.
 	 */
+	void draw(Matrix4fc modelView, GpuBufferSlice projection, GpuTextureView color, @Nullable GpuTextureView depth) {
+		drawWith(modelView, projection, color, depth, null);
+	}
+
+	/**
+	 * Draws the mesh into the world, placed by {@code modelView} from the camera, through the projection the game is
+	 * drawing the level with right now and into {@code color} and {@code depth}, so it is hidden behind terrain like
+	 * any block. The whole mesh is drawn once with each of {@code passes} in turn, in place of its layers' own
+	 * pipelines; every pass must take the vertex format of the mesh's block layers.
+	 */
+	public void drawInLevel(Matrix4fc modelView, GpuTextureView color, @Nullable GpuTextureView depth, RenderPipeline... passes) {
+		for (RenderPipeline pass : passes) {
+			drawWith(modelView, null, color, depth, pass);
+		}
+	}
+
+	/**
+	 * Draws the mesh; a null {@code projection} keeps the one {@link RenderSystem#bindDefaultUniforms} binds, and a
+	 * null {@code pipeline} draws each layer with its own.
+	 */
 	// The block atlas is looked up by the same deprecated id the game's own moving blocks are drawn with.
 	@SuppressWarnings("deprecation")
-	void draw(Matrix4fc modelView, GpuBufferSlice projection, GpuTextureView color, @Nullable GpuTextureView depth) {
+	private void drawWith(Matrix4fc modelView, @Nullable GpuBufferSlice projection, GpuTextureView color, @Nullable GpuTextureView depth,
+						  @Nullable RenderPipeline pipeline) {
 		if (closed || layers.isEmpty()) {
 			return;
 		}
@@ -109,9 +130,11 @@ public final class ThumbnailMesh implements AutoCloseable {
 			GpuBuffer indices = quadIndices.getBuffer(layer.indexCount());
 			try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder()
 				.createRenderPass(() -> "MCVCS build preview", color, OptionalInt.empty(), depth, OptionalDouble.empty())) {
-				pass.setPipeline(layer.pipeline());
+				pass.setPipeline(pipeline == null ? layer.pipeline() : pipeline);
 				RenderSystem.bindDefaultUniforms(pass);
-				pass.setUniform("Projection", projection);
+				if (projection != null) {
+					pass.setUniform("Projection", projection);
+				}
 				pass.setUniform("DynamicTransforms", transforms);
 				if (layer.textured()) {
 					pass.bindTexture("Sampler0", atlas, atlasSampler);

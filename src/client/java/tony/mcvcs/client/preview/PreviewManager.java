@@ -3,14 +3,12 @@ package tony.mcvcs.client.preview;
 import java.util.Arrays;
 
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLevelEvents;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
-import net.minecraft.util.Util;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -31,46 +29,25 @@ import tony.mcvcs.build.BuildBox;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Client side of the preview protocol. Holds what the server last sent and answers the chunk mesher's block lookups
- * inside its box, see {@link tony.mcvcs.client.mixin.RenderSectionRegionMixin}; also keeps the renderer from skipping
- * those boxes' sections as empty, see {@link tony.mcvcs.client.mixin.ClientChunkCacheMixin}.
+ * Client side of the preview protocol: holds what the server last sent.
  * <p>
- * Two things can be drawn at once, since they answer different questions: the version {@code /vcs preview} shows in
+ * Two things can be shown at once, since they answer different questions: the version {@code /vcs preview} shows in
  * place of a placement's real blocks, and the copy a {@code /vcs place} is about to put down somewhere else in the
- * world. The copy wins where they overlap, being the thing the player is working with.
+ * world. The version is drawn by the world's own chunk meshes: this answers the chunk mesher's block lookups inside its
+ * box, see {@link tony.mcvcs.client.mixin.RenderSectionRegionMixin}, and keeps the renderer from skipping that box's
+ * sections as empty, see {@link tony.mcvcs.client.mixin.ClientChunkCacheMixin}. The copy is drawn by
+ * {@link tony.mcvcs.client.place.PlacePreviewBlocks}, apart from the chunks.
  * <p>
  * Packets and events are handled on the client thread; {@link #substitute} runs on the section compile threads and
- * only ever reads the immutable values published through {@link #active} and {@link #drawnPlace}.
+ * only ever reads the immutable value published through {@link #active}.
  */
 public final class PreviewManager {
-	/**
-	 * Largest copy, in blocks of its box, that is drawn anew at every step it is moved. Drawing it anew means
-	 * re-meshing every chunk section its box touches, which for the biggest builds is a good part of the loaded
-	 * world and stalls every step. A bigger copy only has its outline follow the steps, and its blocks are drawn
-	 * again once it has stood still for {@link #SETTLE_MILLIS}.
-	 */
-	public static final long REDRAW_WHILE_MOVING_LIMIT = 1_000_000;
-	/** How long a copy above {@link #REDRAW_WHILE_MOVING_LIMIT} has to stand still before its blocks are drawn again. */
-	public static final long SETTLE_MILLIS = 300;
-
 	/** The version preview currently drawn, or null to draw the real world in every placement. */
 	private static volatile @Nullable ClientPreview active;
 	/** The copy a {@code /vcs place} is showing, or null when none is being aligned. */
 	private static volatile @Nullable PlacePreview place;
-	/**
-	 * The copy as the chunk meshes draw it: {@link #place} itself, or null while a copy too big to be drawn at every
-	 * step is being moved, see {@link #REDRAW_WHILE_MOVING_LIMIT}.
-	 */
-	private static volatile @Nullable PlacePreview drawnPlace;
-	/** When a copy hidden while it moves is drawn again, in {@link Util#getMillis} time; pushed back by every step. */
-	private static long settleAt;
 	/** Whichever of the two is still arriving slice by slice; null between previews. */
 	private static @Nullable Pending pending;
-	/**
-	 * Set on a section compile thread while it meshes a block that is not the copy's, so that {@link #substitute} shows
-	 * that block air where the copy stands, see {@link tony.mcvcs.client.mixin.SectionCompilerMixin}.
-	 */
-	private static final ThreadLocal<Boolean> SEEING_PAST_PLACE = ThreadLocal.withInitial(() -> false);
 
 	private PreviewManager() {
 	}
@@ -82,11 +59,10 @@ public final class PreviewManager {
 			pending = new Pending(payload.label(), payload.version(), payload.dimension(), payload.box(), true, payload.force()));
 		ClientPlayNetworking.registerGlobalReceiver(PreviewBlocksPayload.TYPE, (payload, context) -> blocks(payload, context.client()));
 		ClientPlayNetworking.registerGlobalReceiver(PreviewClearPayload.TYPE, (payload, context) -> showVersion(null, context.client()));
-		ClientPlayNetworking.registerGlobalReceiver(PlacePreviewClearPayload.TYPE, (payload, context) -> showPlace(null, context.client()));
+		ClientPlayNetworking.registerGlobalReceiver(PlacePreviewClearPayload.TYPE, (payload, context) -> showPlace(null));
 		// A preview belongs to the world it was requested in, so leaving that world drops it.
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> forget());
 		ClientLevelEvents.AFTER_CLIENT_LEVEL_CHANGE.register((client, level) -> forget());
-		ClientTickEvents.END_CLIENT_TICK.register(PreviewManager::tick);
 	}
 
 	/** The version preview currently drawn, if any. */
@@ -99,33 +75,15 @@ public final class PreviewManager {
 		return place;
 	}
 
-	/** Whether the blocks of the copy a {@code /vcs place} is showing are drawn where it stands right now. */
-	public static boolean placeDrawn() {
-		PlacePreview showing = place;
-		return showing != null && drawnPlace == showing;
-	}
-
 	/**
-	 * Draws the copy a {@code /vcs place} is showing with its minimum corner at {@code min} instead, and has the
-	 * renderer rebuild what it left and what it now covers. Does nothing when no copy is being shown.
-	 * <p>
-	 * A copy above {@link #REDRAW_WHILE_MOVING_LIMIT} is not drawn in its new place yet: its blocks are taken away
-	 * at the first step and drawn again once it stops, see {@link #tick}, so that a run of steps costs one rebuild
-	 * rather than one each. Its outline follows every step all the same, being drawn from {@link #place}.
+	 * Shows the copy a {@code /vcs place} is showing with its minimum corner at {@code min} instead. Its blocks follow
+	 * at once, since they are drawn wherever the copy stands, see {@link tony.mcvcs.client.place.PlacePreviewBlocks}.
+	 * Does nothing when no copy is being shown.
 	 */
-	public static void movePlace(BlockPos min, Minecraft client) {
+	public static void movePlace(BlockPos min) {
 		PlacePreview showing = place;
-		if (showing == null) {
-			return;
-		}
-
-		PlacePreview moved = showing.movedTo(min);
-		place = moved;
-		if (moved.box().volume() > REDRAW_WHILE_MOVING_LIMIT) {
-			settleAt = Util.getMillis() + SETTLE_MILLIS;
-			draw(null, client);
-		} else {
-			draw(moved, client);
+		if (showing != null) {
+			place = showing.movedTo(min);
 		}
 	}
 
@@ -134,57 +92,21 @@ public final class PreviewManager {
 	 * Safe to call from any thread.
 	 */
 	public static @Nullable BlockState substitute(ClientLevel level, BlockPos pos) {
-		ResourceKey<Level> dimension = level.dimension();
-		PlacePreview showing = drawnPlace;
-		if (showing != null && showing.blocks().covers(dimension, pos)) {
-			return SEEING_PAST_PLACE.get() ? Blocks.AIR.defaultBlockState() : showing.blocks().stateAt(pos);
-		}
 		ClientPreview preview = active;
-		return preview != null && preview.covers(dimension, pos) ? preview.stateAt(pos) : null;
-	}
-
-	/** Whether {@code pos} in {@code level} is drawn as a block of the copy a {@code /vcs place} is showing. Safe to call from any thread. */
-	public static boolean placeDrawnAt(ClientLevel level, BlockPos pos) {
-		PlacePreview showing = drawnPlace;
-		return showing != null && showing.blocks().covers(level.dimension(), pos);
+		return preview != null && preview.covers(level.dimension(), pos) ? preview.stateAt(pos) : null;
 	}
 
 	/**
-	 * Has {@link #substitute} answer air where the copy stands, on this thread, until {@link #endSeeingPastPlace}; for
-	 * meshing the blocks around the copy, which is drawn see-through and so must not hide their faces.
-	 *
-	 * @return what to pass to {@link #endSeeingPastPlace}: false when no copy is drawn and nothing was changed
-	 */
-	public static boolean beginSeeingPastPlace() {
-		if (drawnPlace == null) {
-			return false;
-		}
-		SEEING_PAST_PLACE.set(true);
-		return true;
-	}
-
-	public static void endSeeingPastPlace(boolean began) {
-		if (began) {
-			SEEING_PAST_PLACE.set(false);
-		}
-	}
-
-	/**
-	 * {@code emptySections} without the sections a preview draws blocks in, or {@code emptySections} itself when no
-	 * preview touches any of them. See {@link tony.mcvcs.client.mixin.ClientChunkCacheMixin} for why. Called on the
+	 * {@code emptySections} without the sections the version preview draws blocks in, or {@code emptySections} itself
+	 * when it touches none of them. See {@link tony.mcvcs.client.mixin.ClientChunkCacheMixin} for why. Called on the
 	 * render thread every frame, so it only copies the set when it has to.
 	 */
 	public static LongOpenHashSet withoutPreviewed(ClientLevel level, LongOpenHashSet emptySections) {
-		LongOpenHashSet result = emptySections;
 		ClientPreview preview = active;
-		if (preview != null && preview.dimension().equals(level.dimension())) {
-			result = without(result, emptySections, preview.box());
+		if (preview == null || !preview.dimension().equals(level.dimension())) {
+			return emptySections;
 		}
-		PlacePreview showing = drawnPlace;
-		if (showing != null && showing.blocks().dimension().equals(level.dimension())) {
-			result = without(result, emptySections, showing.box());
-		}
-		return result;
+		return without(emptySections, emptySections, preview.box());
 	}
 
 	/** {@code result} without the sections {@code box} touches, copying {@code emptySections} the first time one is removed. */
@@ -218,7 +140,7 @@ public final class PreviewManager {
 		if (payload.last()) {
 			pending = null;
 			if (target.place) {
-				showPlace(new PlacePreview(target.build(), target.force), client);
+				showPlace(new PlacePreview(target.build(), target.force));
 				PlacePreviewStatus.refresh(client);
 				PlacePreviewKeys.announce(client);
 			} else {
@@ -232,15 +154,6 @@ public final class PreviewManager {
 		pending = null;
 		active = null;
 		place = null;
-		drawnPlace = null;
-	}
-
-	/** Draws a copy hidden while it was moved once it has stood still long enough, see {@link #movePlace}. */
-	private static void tick(Minecraft client) {
-		PlacePreview showing = place;
-		if (showing != null && drawnPlace != showing && Util.getMillis() >= settleAt) {
-			draw(showing, client);
-		}
 	}
 
 	/** Swaps the drawn version preview and has the renderer rebuild every section either the old or the new one touched. */
@@ -254,21 +167,11 @@ public final class PreviewManager {
 		rebuild(client, previous == null ? null : previous.box(), preview == null ? null : preview.box());
 	}
 
-	/** The same for the copy a {@code /vcs place} is showing, which moves far more often than it appears. */
-	private static void showPlace(@Nullable PlacePreview preview, Minecraft client) {
+	/** Swaps the copy a {@code /vcs place} is showing; nothing in the world's chunks has to be rebuilt for it. */
+	private static void showPlace(@Nullable PlacePreview preview) {
 		place = preview;
 		if (preview == null) {
 			dropPending(true);
-		}
-		draw(preview, client);
-	}
-
-	/** Has the chunk meshes draw {@code preview} as the copy, or none, rebuilding what the one drawn before covered. */
-	private static void draw(@Nullable PlacePreview preview, Minecraft client) {
-		PlacePreview previous = drawnPlace;
-		drawnPlace = preview;
-		if (previous != preview) {
-			rebuild(client, previous == null ? null : previous.box(), preview == null ? null : preview.box());
 		}
 	}
 

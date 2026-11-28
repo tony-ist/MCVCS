@@ -224,11 +224,7 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Ability to rotate during placement preview
 - Confirm you want to resize when there are uncommited changes
 - Removing/editing labels through overlay
-
-### Assemblies
-
-- Make checkout of builds that intersect others possible: diff works, why not checkout?
-- Submodules for build. One build can have submodules inside its box. Each submodule is itself a build. When we place parent build, all submodule placements appear inside. Bounding box for parent build includes all bounding boxes for submodules. Think about what happens when submodule and parent intersect not fullly.
+- Add version to overlay
 
 ### Nice to have
 
@@ -239,3 +235,4 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - /vcs off command to turn off diff and preview
 - In tests display test name and sequential number and all number of tests running in chat or just screen.
 - Renaming placements
+- Split overlay tests into different game test files

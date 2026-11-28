@@ -12,6 +12,7 @@ import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.block.BlockAndTintGetter;
@@ -52,20 +53,24 @@ import tony.mcvcs.diff.ChangeKind;
  * <p>
  * Nothing here touches the level or the GPU, so it can run on any thread; {@link ThumbnailMesh#upload} then puts the
  * result on the GPU from the render thread.
+ * <p>
+ * The copy a {@code /vcs place} is showing is meshed here too, see-through, see {@link #meshSeeThrough}.
  */
-final class ThumbnailMesher {
+public final class ThumbnailMesher {
 	/** Block light and sky light both at 15. */
 	private static final int FULL_BRIGHT = 0xF000F0;
+	/** Multiplies a see-through mesh's colors: keeps them as they are and lets a little over half of what is behind show through. */
+	private static final int SEE_THROUGH_TINT = ARGB.color(0x70, 0xFF, 0xFF, 0xFF);
 	/**
 	 * Most vertices a preview may have, over all its layers: about 110 MiB of GPU memory. A grid of at most
 	 * {@link tony.mcvcs.build.PreviewGrid#MAX_SIDE} a side stays well under it unless it is dense with blocks whose
 	 * faces are never hidden, such as redstone dust, glass panes or leaves; past it, the preview is refused rather
 	 * than let one cell take the memory of hundreds.
 	 */
-	static final int MAX_VERTICES = 4 * 1024 * 1024;
+	public static final int MAX_VERTICES = 4 * 1024 * 1024;
 
 	/** A version with more geometry than {@link #MAX_VERTICES}. */
-	static final class TooDetailedException extends RuntimeException {
+	public static final class TooDetailedException extends RuntimeException {
 		TooDetailedException() {
 			super("Too detailed to preview");
 		}
@@ -91,9 +96,9 @@ final class ThumbnailMesher {
 	private static final float MARK_OUTSET = 0.02f;
 
 	/** The layers that have any geometry, solid first and translucent last. */
-	record Result(List<Layer> layers) {
+	public record Result(List<Layer> layers) {
 		/** Releases the vertices of a result that will never be uploaded. */
-		void free() {
+		public void free() {
 			for (Layer layer : layers) {
 				MemoryUtil.memFree(layer.vertices());
 			}
@@ -101,8 +106,15 @@ final class ThumbnailMesher {
 	}
 
 	/** What meshing needs from the client, gathered on the client thread so the meshing itself touches none of it. */
-	record Context(BlockStateModelSet models, BlockColors colors, boolean ambientOcclusion, boolean cutoutLeaves,
+	public record Context(BlockStateModelSet models, BlockColors colors, boolean ambientOcclusion, boolean cutoutLeaves,
 				   CardinalLighting lighting, @Nullable Holder<Biome> biome) {
+		/** The client's models, colors and options as they are now, tinted for the biome the player stands in. Client thread only. */
+		public static Context of(Minecraft client) {
+			Holder<Biome> biome = client.level != null && client.player != null ? client.level.getBiome(client.player.blockPosition()) : null;
+			CardinalLighting lighting = client.level != null ? client.level.cardinalLighting() : CardinalLighting.DEFAULT;
+			return new Context(client.getModelManager().getBlockStateModelSet(), client.getBlockColors(),
+				client.options.ambientOcclusion().get(), client.options.cutoutLeaves().get(), lighting, biome);
+		}
 	}
 
 	/**
@@ -123,6 +135,21 @@ final class ThumbnailMesher {
 	 * @throws TooDetailedException if the mesh would have more than {@link #MAX_VERTICES} vertices
 	 */
 	static Result mesh(BuildBox extent, BlockState[] blocks, byte @Nullable [] marks, Context context) {
+		return mesh(extent, blocks, marks, context, false);
+	}
+
+	/**
+	 * Meshes {@code blocks}, which fill {@code extent} in {@link BuildBox} order, see-through: every face goes into the
+	 * translucent layer with its alpha scaled down, so the copy a {@code /vcs place} is showing cannot be mistaken for
+	 * blocks already in the world.
+	 *
+	 * @throws TooDetailedException if the mesh would have more than {@link #MAX_VERTICES} vertices
+	 */
+	public static Result meshSeeThrough(BuildBox extent, BlockState[] blocks, Context context) {
+		return mesh(extent, blocks, null, context, true);
+	}
+
+	private static Result mesh(BuildBox extent, BlockState[] blocks, byte @Nullable [] marks, Context context, boolean seeThrough) {
 		VersionBlocks level = new VersionBlocks(extent, blocks, context.lighting(), context.biome());
 		ModelBlockRenderer renderer = new ModelBlockRenderer(context.ambientOcclusion(), true, context.colors());
 		Map<ChunkSectionLayer, ByteBufferBuilder> buffers = new EnumMap<>(ChunkSectionLayer.class);
@@ -132,9 +159,14 @@ final class ThumbnailMesher {
 		BlockQuadOutput output = (x, y, z, quad, instance) -> {
 			count(vertices);
 			instance.setLightCoords(FULL_BRIGHT);
-			builder(buffers, builders, quad.materialInfo().layer()).putBlockBakedQuad(x, y, z, quad, instance);
+			ChunkSectionLayer layer = quad.materialInfo().layer();
+			if (seeThrough) {
+				instance.multiplyColor(SEE_THROUGH_TINT);
+				layer = ChunkSectionLayer.TRANSLUCENT;
+			}
+			builder(buffers, builders, layer).putBlockBakedQuad(x, y, z, quad, instance);
 		};
-		BlockQuadOutput opaqueOutput = (x, y, z, quad, instance) -> {
+		BlockQuadOutput opaqueOutput = seeThrough ? output : (x, y, z, quad, instance) -> {
 			count(vertices);
 			instance.setLightCoords(FULL_BRIGHT);
 			builder(buffers, builders, ChunkSectionLayer.SOLID).putBlockBakedQuad(x, y, z, quad, instance);

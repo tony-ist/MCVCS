@@ -347,7 +347,7 @@ public final class PlacePreviewKeys {
 		}
 
 		BlockPos min = preview.box().min().relative(direction);
-		PreviewManager.movePlace(min, client);
+		PreviewManager.movePlace(min);
 		ClientPlayNetworking.send(new PlacePreviewMovePayload(min));
 
 		// The move changed what the copy stands over, and the message about to be sent reports it.

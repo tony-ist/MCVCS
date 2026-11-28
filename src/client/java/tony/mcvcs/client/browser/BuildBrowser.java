@@ -9,9 +9,6 @@ import java.util.concurrent.Executors;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
-import net.minecraft.core.Holder;
-import net.minecraft.world.level.CardinalLighting;
-import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jspecify.annotations.Nullable;
 
@@ -304,11 +301,7 @@ public final class BuildBrowser {
 	 */
 	private static void mesh(Thumbnail thumbnail, BlockState[] blocks, byte @Nullable [] marks) {
 		Minecraft client = Minecraft.getInstance();
-		Holder<Biome> biome = client.level != null && client.player != null ? client.level.getBiome(client.player.blockPosition()) : null;
-		CardinalLighting lighting = client.level != null ? client.level.cardinalLighting() : CardinalLighting.DEFAULT;
-		ThumbnailMesher.Context context = new ThumbnailMesher.Context(
-			client.getModelManager().getBlockStateModelSet(), client.getBlockColors(),
-			client.options.ambientOcclusion().get(), client.options.cutoutLeaves().get(), lighting, biome);
+		ThumbnailMesher.Context context = ThumbnailMesher.Context.of(client);
 		int started = generation;
 		BuildBox grid = thumbnail.grid();
 		int scale = thumbnail.scale();

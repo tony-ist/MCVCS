@@ -26,12 +26,14 @@ import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.client.build.ClientPlacements;
+import tony.mcvcs.client.place.PlacePreviewBlocks;
 import tony.mcvcs.client.place.PlacePreviewKeys;
 import tony.mcvcs.client.place.PlacePreviewKeys.ScrollAxis;
 import tony.mcvcs.client.place.PlacePreviewStatus;
@@ -52,6 +54,7 @@ import tony.mcvcs.client.preview.PreviewManager;
 public class VcsPlacePreviewGameTest extends VcsGameTest {
 	private static final String BUILD_NAME = "gametest-place-preview";
 	private static final String MOVED = "moved";
+	private static final String LAYERED_NAME = "gametest-place-preview-layers";
 
 	@Override
 	protected void run(ClientGameTestContext context) {
@@ -81,6 +84,8 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 			BuildBox shown = below(feet);
 			runCommand(context, "vcs place " + BUILD_NAME + " latest " + MOVED);
 			assertShowing(context, shown);
+			// Its blocks are meshed once, away from the client thread, and drawn from then on wherever it stands.
+			context.waitFor(client -> PlacePreviewBlocks.drawn());
 			// The action bar stays empty while the copy can be placed: how to move and place it is on the hint line.
 			assertOverlay(context, "");
 			if (blockAt(singleplayer, shown.min()) != Blocks.AIR.defaultBlockState()) {
@@ -293,7 +298,48 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 			if (PreviewManager.place() != null) {
 				throw new AssertionError("Expected no copy to be shown after cancelling");
 			}
+
+			checkLayeredCopy(context, singleplayer, start);
 		}
+	}
+
+	/**
+	 * Only the nearest surface of a copy is drawn, faded over the world: a copy with floors one above another shows its
+	 * top floor, not every floor below it blended together. A gold floor under two stone ones, with gold pillars between
+	 * them, seen from above shows a plain stone top floor, with no yellow showing through it.
+	 */
+	private static void checkLayeredCopy(ClientGameTestContext context, TestSingleplayerContext singleplayer, BlockPos start) {
+		BlockPos min = start.offset(20, 1, 0);
+		BlockPos max = min.offset(8, 6, 8);
+		fillBox(singleplayer, min, max, Blocks.AIR.defaultBlockState(), min, Blocks.AIR.defaultBlockState());
+		// The bottom floor is gold, so any of it showing through the stone floors above would tint them yellow.
+		for (int y = 0; y <= 6; y += 3) {
+			BlockState floor = y == 0 ? Blocks.GOLD_BLOCK.defaultBlockState() : Blocks.STONE.defaultBlockState();
+			fillBox(singleplayer, min.offset(0, y, 0), new BlockPos(max.getX(), min.getY() + y, max.getZ()), floor, min.offset(0, y, 0), floor);
+		}
+		for (BlockPos corner : new BlockPos[]{min.offset(1, 1, 1), min.offset(7, 1, 1), min.offset(1, 1, 7), min.offset(7, 1, 7)}) {
+			fillBox(singleplayer, corner, corner.offset(0, 4, 0), Blocks.GOLD_BLOCK.defaultBlockState(), corner, Blocks.GOLD_BLOCK.defaultBlockState());
+		}
+		create(context, singleplayer, LAYERED_NAME, min, max);
+		read(schematic(LAYERED_NAME, 1));
+
+		// The copy hangs below the player's feet, extending east and south, like the small one above.
+		BlockPos feet = hover(singleplayer, context, start.offset(20, 20, 40));
+		BuildBox shown = new BuildBox(feet.offset(0, -7, 0), feet.offset(8, -1, 8));
+		fillBox(singleplayer, shown.min(), shown.max(), Blocks.AIR.defaultBlockState(), shown.min(), Blocks.AIR.defaultBlockState());
+		runCommand(context, "vcs place " + LAYERED_NAME);
+		assertShowing(context, shown);
+		context.waitFor(client -> PlacePreviewBlocks.drawn());
+
+		teleport(singleplayer, shown.min().offset(-2, 13, -2));
+		context.waitTicks(2);
+		lookAt(context, shown.min(), shown.max());
+		context.runOnClient(client -> client.gui.getChat().clearMessages(false));
+		context.waitTicks(5);
+		screenshotLastFrame(context, "mcvcs-vcs-place-preview-layered");
+
+		runCommand(context, "vcs cancelPlace");
+		context.waitFor(client -> PreviewManager.place() == null);
 	}
 
 	/**
@@ -344,9 +390,9 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 		context.getInput().pressKey(key);
 		BuildBox moved = new BuildBox(box.min().offset(x, y, z), box.max().offset(x, y, z));
 		assertShowing(context, moved);
-		// A copy this small is drawn in its new place at the step itself, not after it has stood still.
-		if (!context.computeOnClient(client -> PreviewManager.placeDrawn())) {
-			throw new AssertionError("Expected a small copy to be drawn right after a step to " + moved);
+		// A step only moves where the mesh is drawn: the copy's blocks are there at the step itself, never meshed again.
+		if (!context.computeOnClient(client -> PlacePreviewBlocks.drawn())) {
+			throw new AssertionError("Expected the copy's blocks to be drawn right after a step to " + moved);
 		}
 		return moved;
 	}

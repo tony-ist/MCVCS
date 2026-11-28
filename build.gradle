@@ -9,6 +9,11 @@ repositories {
 		url = "https://maven.terraformersmc.com/releases/"
 		content { includeGroup "com.terraformersmc" }
 	}
+	// Sodium, only for runs that ask for it, see the dependencies.
+	maven {
+		url = "https://api.modrinth.com/maven"
+		content { includeGroup "maven.modrinth" }
+	}
 }
 
 loom {
@@ -62,6 +67,12 @@ dependencies {
 
 	// Compile only: the mod runs without Mod Menu, which alone loads the "modmenu" entrypoint.
 	compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+
+	// `gradlew runClientGameTest -Psodium=mc26.1.2-0.9.2-fabric` runs the client with Sodium, which replaces the game's
+	// chunk renderer, to check that what the mod draws in the world still shows. Never part of the built mod.
+	if (project.hasProperty("sodium")) {
+		localRuntime "maven.modrinth:sodium:${project.property("sodium")}"
+	}
 }
 
 processResources {
