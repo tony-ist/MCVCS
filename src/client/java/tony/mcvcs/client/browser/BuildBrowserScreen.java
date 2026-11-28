@@ -35,6 +35,7 @@ import tony.mcvcs.client.resize.ClientResize;
 import tony.mcvcs.client.selection.PendingClickHighlight;
 import tony.mcvcs.network.BuildSummary;
 import tony.mcvcs.network.PlacementStatusPayload;
+import tony.mcvcs.network.VersionCheck;
 
 /**
  * The builds overlay: every build in the world in a grid, each cell showing the newest committed version of its build
@@ -594,10 +595,12 @@ public final class BuildBrowserScreen extends Screen {
 		// Centred, unless the header's buttons reach that far; then between them, as close to the centre as they leave
 		// room for, or left out if they leave none.
 		int buttonsLeft = diff != null ? diff.getX() : width;
-		int titleWidth = font.width(title);
+		// The mod's own version follows the title in grey, so players can tell which MCVCS they have.
+		Component heading = title.copy().append(Component.literal(" " + VersionCheck.version()).withStyle(ChatFormatting.GRAY));
+		int titleWidth = font.width(heading);
 		int titleX = Math.max(cancelButtonsRight() + GAP, Math.min((width - titleWidth) / 2, buttonsLeft - GAP - titleWidth));
 		if (titleX + titleWidth <= buttonsLeft - GAP) {
-			graphics.text(font, title, titleX, 12, WHITE);
+			graphics.text(font, heading, titleX, 12, WHITE);
 		}
 
 		switch (BuildBrowser.listState()) {

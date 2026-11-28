@@ -212,20 +212,18 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
-- Make movement of preview during placement more intuitive, maybe only move in direction you look, not using the plane.
-- /vcs tag latest 1.0.0 should be possible and autocomplete latest. /vcs tag 1.0.0 should tag head by default
 - Aliases for commands to type them faster
 - New command /vcs move initiates moving preview for current placement allowing to change its position with numpad keys and press 5 moves it physically in the world
 - Add hotkeys to select next and previous version preview (could be made obsolete by UI Overlay)
-- Big diffs lag client too much (see it on mcinmc/p2)
 - Make diffs more visible. Right now they intersect into clutter. 
+- Big diffs lag client too much (see it on mcinmc/p2)
 - Ability to rotate during placement preview
 - Confirm you want to resize when there are uncommited changes
 - Removing/editing labels through overlay
-- Add version to overlay
 
 ### Nice to have
 
+- /vcs tag latest 1.0.0 should be possible and autocomplete latest. /vcs tag 1.0.0 should tag head by default
 - Archiving versions of builds so that they are not shown in lists
 - When modifying build, update diff in real time
 - Disable sounds in test client so that I don't get jumpscared. Also make it creative mode and spanw player as flying not falling if he's in midair
