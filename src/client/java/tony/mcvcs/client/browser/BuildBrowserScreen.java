@@ -99,9 +99,9 @@ public final class BuildBrowserScreen extends Screen {
 	public static final String DIFF = "Changes";
 	public static final String HIDE_DIFF = "Hide changes";
 	/** Label of the header button in the top left corner, shown only while a {@code /vcs place} copy is being lined up. */
-	public static final String CANCEL_PLACE = "Cancel placing";
+	public static final String CANCEL_PLACE = "✖ Cancel placing";
 	/** Label of the header button left of {@link #CANCEL_PLACE}, shown with it, which places the copy as {@code /vcs confirmPlace} does. */
-	public static final String CONFIRM_PLACE = "Confirm placing";
+	public static final String CONFIRM_PLACE = "✔ Confirm placing";
 	/** Labels of the buttons a hovered cell shows. */
 	public static final String SELECT = "Select";
 	public static final String TP = "Go to";
@@ -179,7 +179,7 @@ public final class BuildBrowserScreen extends Screen {
 	private boolean unplaceTooltipSet;
 
 	public BuildBrowserScreen() {
-		super(Component.literal("Builds"));
+		super(Component.literal("MCVCS Builds"));
 	}
 
 	/** Whether the list has been asked for since this overlay opened; coming back to it from the picker keeps it. */
@@ -233,12 +233,12 @@ public final class BuildBrowserScreen extends Screen {
 			.build());
 		diffTooltip = null;
 		// Placed by updateCancelButtons: top left, left of the cancel place button.
-		confirmPlace = addRenderableWidget(Button.builder(Component.literal(CONFIRM_PLACE), button -> sendCommand("vcs confirmPlace"))
+		confirmPlace = addRenderableWidget(Button.builder(iconLabel(CONFIRM_PLACE, ChatFormatting.GREEN), button -> sendCommand("vcs confirmPlace"))
 			.bounds(GAP, 6, font.width(CONFIRM_PLACE) + BUTTON_PADDING, 20)
 			.build());
 		confirmPlaceTooltipFor = null;
 		int cancelPlaceWidth = font.width(CANCEL_PLACE) + BUTTON_PADDING;
-		cancelPlace = addRenderableWidget(Button.builder(Component.literal(CANCEL_PLACE), button -> sendCommand("vcs cancelPlace"))
+		cancelPlace = addRenderableWidget(Button.builder(iconLabel(CANCEL_PLACE, ChatFormatting.RED), button -> sendCommand("vcs cancelPlace"))
 			.bounds(GAP, 6, cancelPlaceWidth, 20)
 			.tooltip(Tooltip.create(Component.literal("Remove the preview you are placing")))
 			.build());
@@ -394,6 +394,8 @@ public final class BuildBrowserScreen extends Screen {
 		String refusalKey = refusal == null ? "" : refusal;
 		if (!refusalKey.equals(confirmPlaceTooltipFor)) {
 			confirmPlaceTooltipFor = refusalKey;
+			// The check is greyed out with the rest of the label while the copy cannot be placed.
+			confirmPlace.setMessage(refusal == null ? iconLabel(CONFIRM_PLACE, ChatFormatting.GREEN) : Component.literal(CONFIRM_PLACE));
 			confirmPlace.setTooltip(Tooltip.create(refusal == null
 				? Component.literal("Place the copy where it is shown")
 				: Component.literal(PlacePreviewKeys.REFUSED + refusal).withStyle(ChatFormatting.RED)));
@@ -428,6 +430,11 @@ public final class BuildBrowserScreen extends Screen {
 				cancelCreate.setTooltip(Tooltip.create(Component.literal("Stop creating " + creating)));
 			}
 		}
+	}
+
+	/** {@code label}, whose first character is an icon, with that icon drawn in {@code color}. */
+	private static Component iconLabel(String label, ChatFormatting color) {
+		return Component.empty().append(Component.literal(label.substring(0, 1)).withStyle(color)).append(label.substring(1));
 	}
 
 	/** The right edge of the visible cancel buttons in the top left corner, or the screen's left edge if none show. */
