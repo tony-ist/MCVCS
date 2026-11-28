@@ -133,6 +133,9 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			if (context.computeOnClient(client -> visibleHeaderButton(client, BuildBrowserScreen.CANCEL_PLACE)) != null) {
 				throw new AssertionError("Expected no Cancel place button while nothing is being placed");
 			}
+			if (context.computeOnClient(client -> visibleHeaderButton(client, BuildBrowserScreen.CONFIRM_PLACE)) != null) {
+				throw new AssertionError("Expected no Confirm place button while nothing is being placed");
+			}
 
 			// Clicking the hall's placeholder downloads its preview instead of placing it.
 			click(context, BIG);
@@ -205,16 +208,19 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 				PlacePreview place = PreviewManager.place();
 				return place != null && place.blocks().name().equals(BIG + "/p2") && place.blocks().version() == 1;
 			});
-			// While it is being placed, the overlay shows Cancel place in its top left corner, which drops the copy and hides itself.
+			// While it is being placed, the overlay shows Confirm place in its top left corner and Cancel place right of it,
+			// which drops the copy and hides both.
 			open(context);
 			context.waitFor(client -> visibleHeaderButton(client, BuildBrowserScreen.CANCEL_PLACE) != null);
-			assertTopLeft(context, BuildBrowserScreen.CANCEL_PLACE);
+			assertTopLeft(context, BuildBrowserScreen.CONFIRM_PLACE);
+			assertLeftOf(context, BuildBrowserScreen.CONFIRM_PLACE, BuildBrowserScreen.CANCEL_PLACE);
 			moveAway(context);
 			context.waitTicks(2);
 			context.takeScreenshot("mcvcs-builds-overlay-cancel-place");
 			clickHeader(context, BuildBrowserScreen.CANCEL_PLACE);
 			context.waitFor(client -> PreviewManager.place() == null);
-			context.waitFor(client -> visibleHeaderButton(client, BuildBrowserScreen.CANCEL_PLACE) == null);
+			context.waitFor(client -> visibleHeaderButton(client, BuildBrowserScreen.CANCEL_PLACE) == null
+				&& visibleHeaderButton(client, BuildBrowserScreen.CONFIRM_PLACE) == null);
 			context.waitForScreen(BuildBrowserScreen.class);
 			context.getInput().pressKey(BuildBrowserKey.KEY);
 			context.waitFor(client -> client.screen == null);
@@ -435,10 +441,11 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			open(context);
 			context.waitFor(client -> visibleHeaderButton(client, BuildBrowserScreen.CANCEL_CREATION) != null);
 			assertTopLeft(context, BuildBrowserScreen.CANCEL_CREATION);
-			// Placing at the same time, Cancel place takes the corner and Cancel new build moves right of it.
+			// Placing at the same time, Confirm place and Cancel place take the corner and Cancel new build moves right of them.
 			runCommand(context, "vcs place " + RENAMED);
 			context.waitFor(client -> visibleHeaderButton(client, BuildBrowserScreen.CANCEL_PLACE) != null);
-			assertTopLeft(context, BuildBrowserScreen.CANCEL_PLACE);
+			assertTopLeft(context, BuildBrowserScreen.CONFIRM_PLACE);
+			assertLeftOf(context, BuildBrowserScreen.CONFIRM_PLACE, BuildBrowserScreen.CANCEL_PLACE);
 			assertLeftOf(context, BuildBrowserScreen.CANCEL_PLACE, BuildBrowserScreen.CANCEL_CREATION);
 			moveAway(context);
 			context.waitTicks(2);
@@ -878,10 +885,26 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			if (((Checkbox) screen.widgetOf(UnplaceScreen.KEEP)).selected()) {
 				throw new AssertionError("Expected the box to keep the blocks to start unticked");
 			}
+			if (!(screen.widgetOf(UnplaceScreen.CLEAR) instanceof Checkbox clear) || clear.selected()) {
+				throw new AssertionError("Expected an unticked " + UnplaceScreen.CLEAR + " box with unsaved changes");
+			}
+			if (screen.widgetOf(UnplaceScreen.REMOVE).active) {
+				throw new AssertionError("Expected Remove to be greyed out until " + UnplaceScreen.CLEAR + " is ticked");
+			}
 		});
 		moveAway(context);
 		context.waitTicks(2);
 		context.takeScreenshot("mcvcs-builds-overlay-unplace");
+		clickUnplaceWidget(context, UnplaceScreen.REMOVE);
+		context.waitTicks(2);
+		if (!(context.computeOnClient(client -> client.screen) instanceof UnplaceScreen)) {
+			throw new AssertionError("Expected Remove to do nothing until " + UnplaceScreen.CLEAR + " is ticked");
+		}
+		clickUnplaceWidget(context, UnplaceScreen.CLEAR);
+		context.waitTick();
+		if (!context.computeOnClient(client -> ((UnplaceScreen) client.screen).widgetOf(UnplaceScreen.REMOVE).active)) {
+			throw new AssertionError("Expected Remove to work once " + UnplaceScreen.CLEAR + " is ticked");
+		}
 		clickUnplaceWidget(context, UnplaceScreen.CANCEL);
 		context.waitForScreen(BuildBrowserScreen.class);
 		context.waitTicks(5);
@@ -890,7 +913,20 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 		}
 
 		openUnplace(context);
+		// The unsaved changes, and their checkbox, arrive after the window opens.
+		context.waitFor(client -> ((UnplaceScreen) client.screen).widgetOf(UnplaceScreen.CLEAR) != null);
+		context.waitTick();
 		clickUnplaceWidget(context, UnplaceScreen.KEEP);
+		context.waitTicks(2);
+		context.runOnClient(client -> {
+			UnplaceScreen screen = (UnplaceScreen) client.screen;
+			if (screen.widgetOf(UnplaceScreen.CLEAR) != null) {
+				throw new AssertionError("Expected " + UnplaceScreen.CLEAR + " to be hidden with the blocks kept");
+			}
+			if (!screen.widgetOf(UnplaceScreen.REMOVE).active) {
+				throw new AssertionError("Expected Remove to work with the blocks kept");
+			}
+		});
 		moveAway(context);
 		context.waitTicks(2);
 		context.takeScreenshot("mcvcs-builds-overlay-unplace-keep");

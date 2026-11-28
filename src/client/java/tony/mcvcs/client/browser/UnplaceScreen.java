@@ -29,7 +29,8 @@ import tony.mcvcs.network.CommitPreviewPayload;
  * The builds overlay's {@code Unplace} window, for the selected placement: asks whether to remove it from the world,
  * over a preview of the blocks in its box as they stand, turning and draggable as the commit window's is, and warns
  * when it holds unsaved changes. A checkbox, unticked to begin with, keeps its blocks standing and only stops the
- * placement being tracked. {@code Remove} runs {@code /vcs unplace -f}, with {@code -k} if ticked, as if typed, and goes
+ * placement being tracked; unticked with unsaved changes, {@code Remove} waits for the {@link #CLEAR} checkbox to be
+ * ticked. {@code Remove} runs {@code /vcs unplace -f}, with {@code -k} if ticked, as if typed, and goes
  * back to the overlay, whose list is asked for again once the placement is gone. {@code Cancel}, Escape or a click
  * outside the window goes back to the overlay; the overlay's key closes both.
  * <p>
@@ -40,6 +41,7 @@ public final class UnplaceScreen extends Screen {
 	public static final String REMOVE = "Remove";
 	public static final String CANCEL = "Cancel";
 	public static final String KEEP = "Keep its blocks in the world";
+	public static final String CLEAR = "Clear all unsaved changes";
 
 	private static final int WIDTH = 260;
 	private static final int MARGIN = 16;
@@ -63,6 +65,11 @@ public final class UnplaceScreen extends Screen {
 	private final BuildBrowserScreen parent;
 	private final ClientPlacement placement;
 	private boolean keep;
+	/** Whether the player ticked {@link #CLEAR}, which {@code Remove} waits for when there are unsaved changes. */
+	private boolean clear;
+	private @Nullable Button removeButton;
+	/** The layout the widgets were placed for, to place them again when the warning arrives. */
+	private @Nullable Layout placed;
 	private float dragged;
 	private boolean dragging;
 
@@ -86,19 +93,33 @@ public final class UnplaceScreen extends Screen {
 	protected void init() {
 		parent.resize(width, height);
 		Layout layout = layout();
+		placed = layout;
 		Checkbox checkbox = Checkbox.builder(Component.literal(KEEP), font)
 			.pos(layout.left() + PADDING, layout.checkboxTop())
 			.maxWidth(layout.width() - 2 * PADDING)
 			.selected(keep)
+			// Shows or hides the box to clear unsaved changes, which the next frame lays out.
 			.onValueChange((box, value) -> keep = value)
 			.build();
 		checkbox.setTooltip(Tooltip.create(Component.literal("The blocks stay where they are, but this copy stops being tracked")));
 		addRenderableWidget(checkbox);
+		if (layout.clearTop() >= 0) {
+			addRenderableWidget(Checkbox.builder(Component.literal(CLEAR).withStyle(ChatFormatting.GOLD), font)
+				.pos(layout.left() + PADDING, layout.clearTop())
+				.maxWidth(layout.width() - 2 * PADDING)
+				.selected(clear)
+				.onValueChange((box, value) -> {
+					clear = value;
+					updateRemove();
+				})
+				.build());
+		}
 
 		int left = width / 2 - BUTTON_WIDTH - PADDING / 2;
-		addRenderableWidget(Button.builder(Component.literal(REMOVE).withStyle(ChatFormatting.RED), button -> remove())
+		removeButton = addRenderableWidget(Button.builder(Component.literal(REMOVE).withStyle(ChatFormatting.RED), button -> remove())
 			.bounds(left, layout.buttonsTop(), BUTTON_WIDTH, ROW)
 			.build());
+		updateRemove();
 		addRenderableWidget(Button.builder(Component.literal(CANCEL), button -> onClose())
 			.bounds(left + BUTTON_WIDTH + PADDING, layout.buttonsTop(), BUTTON_WIDTH, ROW)
 			.build());
@@ -108,6 +129,22 @@ public final class UnplaceScreen extends Screen {
 	public @Nullable CommitPreviewPayload summary() {
 		CommitPreview preview = BuildBrowser.commitPreview();
 		return preview == null ? null : preview.summary();
+	}
+
+	/**
+	 * Whether {@link #CLEAR} is shown and has to be ticked before the copy can be removed: when it has, or may have,
+	 * unsaved changes whose blocks are about to be cleared, that is unless {@link #KEEP} is ticked.
+	 */
+	private boolean needsClear() {
+		CommitPreviewPayload summary = summary();
+		return !keep && summary != null && (!summary.known() || summary.total() > 0);
+	}
+
+	/** {@code Remove} works once the changes are known, and only once {@link #CLEAR} is ticked if it is shown. */
+	private void updateRemove() {
+		if (removeButton != null) {
+			removeButton.active = summary() != null && (clear || !needsClear());
+		}
 	}
 
 	@Override
@@ -126,11 +163,12 @@ public final class UnplaceScreen extends Screen {
 
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-		// The warning arrives after the window opens and may make it taller.
+		// The warning and its checkbox arrive after the window opens and may make it taller.
 		Layout layout = layout();
-		if (layout.checkboxTop() != checkboxTop()) {
+		if (!layout.equals(placed)) {
 			rebuildWidgets();
 		}
+		updateRemove();
 		graphics.fill(layout.left(), layout.top(), layout.right(), layout.bottom(), PANEL);
 		graphics.outline(layout.left() - 1, layout.top() - 1, layout.width() + 2, layout.height() + 2, BORDER);
 		int y = layout.top() + PADDING;
@@ -146,11 +184,6 @@ public final class UnplaceScreen extends Screen {
 		preview(graphics, square);
 		graphics.disableScissor();
 		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
-	}
-
-	/** Where the checkbox is now, or -1 before {@link #init()}. */
-	private int checkboxTop() {
-		return children().stream().filter(Checkbox.class::isInstance).map(child -> ((Checkbox) child).getY()).findFirst().orElse(-1);
 	}
 
 	private record Line(FormattedCharSequence text, int color) {
@@ -288,23 +321,30 @@ public final class UnplaceScreen extends Screen {
 			.findFirst().orElse(null);
 	}
 
-	/** The window: the text, a square preview as big as the screen allows, the checkbox and the buttons, one under the other. */
+	/**
+	 * The window: the text, a square preview as big as the screen allows, the checkbox to keep the blocks, the one to
+	 * clear unsaved changes if it is needed, and the buttons, one under the other.
+	 */
 	private Layout layout() {
 		int panelWidth = Math.min(WIDTH, width - 2 * MARGIN);
 		int header = PADDING + lines(panelWidth - 2 * PADDING).size() * (font.lineHeight + 2) + PADDING / 2;
 		int checkbox = Checkbox.getBoxSize(font);
-		int below = PADDING + checkbox + PADDING + ROW + PADDING;
+		int checkboxes = needsClear() ? 2 : 1;
+		int below = PADDING + checkboxes * (checkbox + PADDING) + ROW + PADDING;
 		int side = Math.max(32, Math.min(Math.min(MAX_PREVIEW, panelWidth - 2 * PADDING), height - 2 * MARGIN - header - below));
 		int panelHeight = header + side + below;
 		int left = (width - panelWidth) / 2;
 		int top = (height - panelHeight) / 2;
 		int previewTop = top + header;
 		int checkboxTop = previewTop + side + PADDING;
+		int clearTop = checkboxes == 2 ? checkboxTop + checkbox + PADDING : -1;
+		int buttonsTop = checkboxTop + checkboxes * (checkbox + PADDING);
 		return new Layout(left, top, panelWidth, panelHeight,
-			new ScreenRectangle(left + (panelWidth - side) / 2, previewTop, side, side), checkboxTop, checkboxTop + checkbox + PADDING);
+			new ScreenRectangle(left + (panelWidth - side) / 2, previewTop, side, side), clearTop, checkboxTop, buttonsTop);
 	}
 
-	private record Layout(int left, int top, int width, int height, ScreenRectangle preview, int checkboxTop, int buttonsTop) {
+	/** {@code clearTop} is -1 when there is no checkbox to clear unsaved changes. */
+	private record Layout(int left, int top, int width, int height, ScreenRectangle preview, int clearTop, int checkboxTop, int buttonsTop) {
 		int right() {
 			return left + width;
 		}

@@ -228,14 +228,20 @@ public final class PlacePreviewKeys {
 			return;
 		}
 
-		Status status = PlacePreviewStatus.status();
-		String reason = status == null || !status.box().equals(preview.box()) ? null : status.reason();
+		String reason = refusal();
 		if (reason != null) {
 			player.sendOverlayMessage(Component.literal(REFUSED + reason).withStyle(ChatFormatting.RED));
 			return;
 		}
 		// Sent as if typed, so the server checks the permission and answers in chat the way it does for the command.
 		player.connection.sendCommand(CONFIRM_COMMAND);
+	}
+
+	/** Why the copy being shown cannot be placed where it stands, or null if it can, or no copy is shown, or the client cannot tell. */
+	public static @Nullable String refusal() {
+		PlacePreview preview = PreviewManager.place();
+		Status status = PlacePreviewStatus.status();
+		return preview == null || status == null || !status.box().equals(preview.box()) ? null : status.reason();
 	}
 
 	/** {@code 8} and {@code 2}: through the side of the box in sight, away from the player or back towards them. */

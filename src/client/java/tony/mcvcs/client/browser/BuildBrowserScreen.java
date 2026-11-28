@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
@@ -27,6 +28,7 @@ import tony.mcvcs.build.ClientPlacement;
 import tony.mcvcs.client.build.ClientPlacements;
 import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.client.diff.DiffManager;
+import tony.mcvcs.client.place.PlacePreviewKeys;
 import tony.mcvcs.client.preview.PreviewManager;
 import tony.mcvcs.client.selection.PendingClickHighlight;
 import tony.mcvcs.network.BuildSummary;
@@ -54,8 +56,9 @@ import tony.mcvcs.network.PlacementStatusPayload;
  * {@code Commit} left of that previews and commits it, see {@link CommitScreen}. {@code Diff} left of that shows how
  * many blocks of the selected placement changed since the version it holds and runs {@code /vcs changes} to highlight
  * them in the world; while they are highlighted it reads {@code Hide diff} and runs {@code /vcs changes off}. While a
- * {@code /vcs place} copy is being lined up, a {@code Cancel placing} button in the top left corner, left of
- * {@code Cancel new build}, runs {@code /vcs cancelPlace}.
+ * {@code /vcs place} copy is being lined up, a {@code Confirm placing} button in the top left corner runs
+ * {@code /vcs confirmPlace}, and a {@code Cancel placing} button right of it, left of {@code Cancel new build}, runs
+ * {@code /vcs cancelPlace}.
  * <p>
  * The list is asked for when the overlay opens, and not otherwise, see
  * {@link BuildBrowser}. How big the cells are and how fast they turn come from {@link ClientConfig}. The game keeps
@@ -97,6 +100,8 @@ public final class BuildBrowserScreen extends Screen {
 	public static final String HIDE_DIFF = "Hide changes";
 	/** Label of the header button in the top left corner, shown only while a {@code /vcs place} copy is being lined up. */
 	public static final String CANCEL_PLACE = "Cancel placing";
+	/** Label of the header button left of {@link #CANCEL_PLACE}, shown with it, which places the copy as {@code /vcs confirmPlace} does. */
+	public static final String CONFIRM_PLACE = "Confirm placing";
 	/** Labels of the buttons a hovered cell shows. */
 	public static final String SELECT = "Select";
 	public static final String TP = "Go to";
@@ -146,6 +151,10 @@ public final class BuildBrowserScreen extends Screen {
 	private @Nullable String diffTooltip;
 	/** The header's cancel place button, in the top left corner, visible only while a {@code /vcs place} copy is being lined up. */
 	private @Nullable Button cancelPlace;
+	/** The header's confirm place button, left of the cancel place button and shown with it. */
+	private @Nullable Button confirmPlace;
+	/** The reason the confirm place button's tooltip was last made for, or "" for none; null to make it again. */
+	private @Nullable String confirmPlaceTooltipFor;
 	/** The header's cancel create button, right of the cancel place button, visible only while a {@code /vcs create} waits for its punch. */
 	private @Nullable Button cancelCreate;
 	/** The build the cancel create button's tooltip was last made for. */
@@ -223,6 +232,11 @@ public final class BuildBrowserScreen extends Screen {
 			.bounds(commitLeft, 6, 0, 20)
 			.build());
 		diffTooltip = null;
+		// Placed by updateCancelButtons: top left, left of the cancel place button.
+		confirmPlace = addRenderableWidget(Button.builder(Component.literal(CONFIRM_PLACE), button -> sendCommand("vcs confirmPlace"))
+			.bounds(GAP, 6, font.width(CONFIRM_PLACE) + BUTTON_PADDING, 20)
+			.build());
+		confirmPlaceTooltipFor = null;
 		int cancelPlaceWidth = font.width(CANCEL_PLACE) + BUTTON_PADDING;
 		cancelPlace = addRenderableWidget(Button.builder(Component.literal(CANCEL_PLACE), button -> sendCommand("vcs cancelPlace"))
 			.bounds(GAP, 6, cancelPlaceWidth, 20)
@@ -361,31 +375,50 @@ public final class BuildBrowserScreen extends Screen {
 	}
 
 	/**
-	 * Shows the cancel place button in the top left corner only while a {@code /vcs place} copy is being lined up, and
-	 * the cancel create button right of it, or in that corner on its own, only while a {@code /vcs create} waits for its punch.
+	 * Shows the confirm place and cancel place buttons in the top left corner only while a {@code /vcs place} copy is
+	 * being lined up, and the cancel create button right of them, or in that corner on its own, only while a
+	 * {@code /vcs create} waits for its punch. The confirm place button is greyed out, saying why, while the copy
+	 * stands where it cannot be placed.
 	 */
 	private void updateCancelButtons() {
-		if (cancelPlace == null || cancelCreate == null) {
+		if (confirmPlace == null || cancelPlace == null || cancelCreate == null) {
 			return;
 		}
 		String creating = PendingClickHighlight.creating();
-		cancelPlace.visible = PreviewManager.place() != null;
+		boolean placing = PreviewManager.place() != null;
+		confirmPlace.visible = placing;
+		cancelPlace.visible = placing;
 		cancelCreate.visible = creating != null;
+		String refusal = placing ? PlacePreviewKeys.refusal() : null;
+		confirmPlace.active = refusal == null;
+		String refusalKey = refusal == null ? "" : refusal;
+		if (!refusalKey.equals(confirmPlaceTooltipFor)) {
+			confirmPlaceTooltipFor = refusalKey;
+			confirmPlace.setTooltip(Tooltip.create(refusal == null
+				? Component.literal("Place the copy where it is shown")
+				: Component.literal(PlacePreviewKeys.REFUSED + refusal).withStyle(ChatFormatting.RED)));
+		}
 		// Each as wide as its label, unless the buttons on the right leave less room; then shrunk alike to share it.
-		int placeWidth = cancelPlace.visible ? font.width(CANCEL_PLACE) + BUTTON_PADDING : 0;
+		int confirmWidth = placing ? font.width(CONFIRM_PLACE) + BUTTON_PADDING : 0;
+		int placeWidth = placing ? font.width(CANCEL_PLACE) + BUTTON_PADDING : 0;
 		int createWidth = cancelCreate.visible ? font.width(CANCEL_CREATION) + BUTTON_PADDING : 0;
-		int gaps = cancelPlace.visible && cancelCreate.visible ? 4 : 0;
+		int gaps = (placing ? 4 : 0) + (placing && cancelCreate.visible ? 4 : 0);
 		int room = (diff != null ? diff.getX() : width) - GAP - GAP - gaps;
-		if (placeWidth + createWidth > room && room > 0) {
-			double scale = (double) room / (placeWidth + createWidth);
+		int total = confirmWidth + placeWidth + createWidth;
+		if (total > room && room > 0) {
+			double scale = (double) room / total;
+			confirmWidth = (int) (confirmWidth * scale);
 			placeWidth = (int) (placeWidth * scale);
-			createWidth = room - placeWidth;
+			createWidth = room - confirmWidth - placeWidth;
 		}
 		int left = GAP;
-		if (cancelPlace.visible) {
+		if (placing) {
+			confirmPlace.setX(left);
+			confirmPlace.setWidth(confirmWidth);
+			left += confirmWidth + 4;
 			cancelPlace.setX(left);
 			cancelPlace.setWidth(placeWidth);
-			left += placeWidth + gaps;
+			left += placeWidth + (cancelCreate.visible ? 4 : 0);
 		}
 		if (cancelCreate.visible) {
 			cancelCreate.setX(left);
