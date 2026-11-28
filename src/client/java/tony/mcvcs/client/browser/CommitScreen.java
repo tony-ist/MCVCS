@@ -7,6 +7,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
@@ -33,7 +34,8 @@ import tony.mcvcs.network.CommitPreviewPayload;
  * holds; below that, the blocks in its box turn as the new version would look, the added ones tinted green, the changed
  * ones yellow, and red boxes where blocks were removed, the way {@code /vcs changes} colours them. Dragging the preview
  * turns it by hand. {@code Commit} closes the window and the overlay and runs {@code /vcs save}, with the tag typed
- * if any, as if typed; it is greyed out while nothing changed. {@code Show modified blocks} closes both and runs
+ * if any, as if typed, or {@code /vcs fit} if {@code Fit bounding box} is ticked; it is greyed out while nothing changed
+ * and the box is not to be fitted. {@code Show modified blocks} closes both and runs
  * {@code /vcs changes}, which highlights the changes in the world. {@code Cancel}, Escape or a click outside the window
  * goes back to the overlay.
  * <p>
@@ -44,6 +46,7 @@ public final class CommitScreen extends Screen {
 	public static final String COMMIT = "Save";
 	public static final String CANCEL = "Cancel";
 	public static final String SHOW_MODIFIED = CheckoutScreen.SHOW_MODIFIED;
+	public static final String FIT = "Fit bounding box";
 
 	private static final int WIDTH = 320;
 	private static final int MARGIN = 16;
@@ -68,6 +71,8 @@ public final class CommitScreen extends Screen {
 	private @Nullable EditBox tagField;
 	private @Nullable Button commit;
 	private @Nullable Button showModified;
+	/** Whether the box is fitted to the build before saving, with {@code /vcs fit} instead of {@code /vcs save}. */
+	private boolean fit;
 	/** How far the preview has been dragged round, in degrees, on top of how far it turns by itself. */
 	private float dragged;
 	private boolean dragging;
@@ -101,6 +106,18 @@ public final class CommitScreen extends Screen {
 		field.setResponder(value -> updateCommit());
 		addRenderableWidget(field);
 		tagField = field;
+
+		Checkbox checkbox = Checkbox.builder(Component.literal(FIT), font)
+			.pos(layout.left() + PADDING, layout.fitTop())
+			.maxWidth(layout.width() - 2 * PADDING)
+			.selected(fit)
+			.onValueChange((box, value) -> {
+				fit = value;
+				updateCommit();
+			})
+			.build();
+		checkbox.setTooltip(Tooltip.create(Component.literal("The selection is shrunk or expanded to fit neighbouring blocks")));
+		addRenderableWidget(checkbox);
 
 		int commitWidth = Math.max(BUTTON_WIDTH, font.width(COMMIT + " v" + (build.version() + 1)) + 16);
 		int showWidth = font.width(SHOW_MODIFIED) + 16;
@@ -154,11 +171,12 @@ public final class CommitScreen extends Screen {
 		if (showModified != null) {
 			showModified.active = summary != null && !nothing;
 		}
-		commit.active = summary != null && !nothing && refusal == null;
+		// Fitting can change the build's size even with no blocks changed inside it.
+		commit.active = summary != null && (!nothing || fit) && refusal == null;
 		String tooltip = summary == null ? "Checking..."
-			: nothing ? "No changes since " + held()
+			: nothing && !fit ? "No changes since " + held()
 			: refusal != null ? refusal
-			: "Save as v" + (build.version() + 1) + (tag().isEmpty() ? "" : ", labeled " + tag());
+			: (fit ? "Fit and save as v" : "Save as v") + (build.version() + 1) + (tag().isEmpty() ? "" : ", labeled " + tag());
 		commit.setTooltip(Tooltip.create(Component.literal(tooltip)));
 	}
 
@@ -296,13 +314,16 @@ public final class CommitScreen extends Screen {
 		graphics.centeredText(font, text, x, y + 2, GREY);
 	}
 
-	/** Closes the window and the overlay and runs {@code /vcs save}, with the tag if one was typed, as if typed. */
+	/**
+	 * Closes the window and the overlay and runs {@code /vcs save}, or {@code /vcs fit} if {@link #FIT} is ticked, with
+	 * the tag if one was typed, as if typed.
+	 */
 	private void commit() {
 		if (commit == null || !commit.active || minecraft == null) {
 			return;
 		}
 		String tag = tag();
-		closeAndRun("vcs save" + (tag.isEmpty() ? "" : " " + tag));
+		closeAndRun((fit ? "vcs fit" : "vcs save") + (tag.isEmpty() ? "" : " " + tag));
 	}
 
 	/** Closes the window and the overlay and runs {@code command} as if typed. */
@@ -385,12 +406,13 @@ public final class CommitScreen extends Screen {
 
 	/**
 	 * The window: the header, a square preview as big as the screen allows up to the window's width, the legend, the
-	 * tag field and the buttons, one under the other.
+	 * tag field, the fit checkbox and the buttons, one under the other.
 	 */
 	private Layout layout() {
 		int panelWidth = Math.min(WIDTH, width - 2 * MARGIN);
 		int header = PADDING + headerLines(panelWidth - 2 * PADDING).size() * (font.lineHeight + 2) + PADDING / 2;
-		int below = PADDING + font.lineHeight + PADDING + ROW + PADDING + ROW + PADDING;
+		int checkbox = Checkbox.getBoxSize(font);
+		int below = PADDING + font.lineHeight + PADDING + ROW + PADDING + checkbox + PADDING + ROW + PADDING;
 		int side = Math.max(32, Math.min(panelWidth - 2 * PADDING, height - 2 * MARGIN - header - below));
 		int panelHeight = header + side + below;
 		int left = (width - panelWidth) / 2;
@@ -398,11 +420,12 @@ public final class CommitScreen extends Screen {
 		int previewTop = top + header;
 		int legendTop = previewTop + side + PADDING;
 		int tagTop = legendTop + font.lineHeight + PADDING;
+		int fitTop = tagTop + ROW + PADDING;
 		return new Layout(left, top, panelWidth, panelHeight,
-			new ScreenRectangle(left + (panelWidth - side) / 2, previewTop, side, side), legendTop, tagTop, tagTop + ROW + PADDING);
+			new ScreenRectangle(left + (panelWidth - side) / 2, previewTop, side, side), legendTop, tagTop, fitTop, fitTop + checkbox + PADDING);
 	}
 
-	private record Layout(int left, int top, int width, int height, ScreenRectangle preview, int legendTop, int tagTop, int buttonsTop) {
+	private record Layout(int left, int top, int width, int height, ScreenRectangle preview, int legendTop, int tagTop, int fitTop, int buttonsTop) {
 		int right() {
 			return left + width;
 		}

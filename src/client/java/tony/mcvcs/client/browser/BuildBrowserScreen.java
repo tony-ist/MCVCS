@@ -48,7 +48,8 @@ import tony.mcvcs.network.PlacementStatusPayload;
  * the build, see {@link DeleteBuildScreen}. A build bigger than
  * {@link ClientConfig.Settings#autoDownloadLimit} shows a placeholder instead of its preview until the cell is clicked
  * outside its buttons, which downloads the preview. Three dots in the top right corner open the header's menu, whose
- * {@code Unplace} asks whether to remove the selected placement from the world, see {@link UnplaceScreen}. The
+ * {@code Deselect} runs {@code /vcs deselect} and whose {@code Unplace} asks whether to remove the selected placement
+ * from the world, see {@link UnplaceScreen}. The
  * {@code Create} button left of them starts a new build, see
  * {@link CreateBuildScreen}; while that build waits for its punch, a {@code Cancel new build} button in the top left
  * corner cancels it.
@@ -125,8 +126,9 @@ public final class BuildBrowserScreen extends Screen {
 	private static final int MORE_INSET = 2;
 	private static final int MORE_BACKGROUND = 0x80000000;
 	private static final int MORE_HOVERED = 0xFF5A5A5A;
-	/** Label of the three dots in the top right corner, right of {@link #CREATE}, which open the header's menu, and of its item. */
+	/** Label of the three dots in the top right corner, right of {@link #CREATE}, which open the header's menu, and of its items. */
 	public static final String HEADER_MORE = "More options";
+	public static final String DESELECT = "Deselect";
 	public static final String UNPLACE = "Unplace";
 	private static final int HEADER_MORE_WIDTH = 20;
 	/** Space between the menu's edges and its items. */
@@ -170,11 +172,12 @@ public final class BuildBrowserScreen extends Screen {
 	/** The menu's items, top to bottom; clicked by {@link #mouseClicked} itself, since they lie over the cell's other buttons. */
 	private final Button rename = Button.builder(Component.literal(RENAME), button -> openRename()).build();
 	private final Button delete = Button.builder(Component.literal(DELETE), button -> confirmDelete()).build();
-	/** The header's three dots, and whether their menu is open; its item is clicked by {@link #mouseClicked} itself. */
+	/** The header's three dots, and whether their menu is open; its items are clicked by {@link #mouseClicked} itself. */
 	private final Button headerMore = new DotsButton(HEADER_MORE, HEADER_MORE_WIDTH, 20, button -> headerMenuOpen = true);
 	private boolean headerMenuOpen;
+	private final Button deselect = Button.builder(Component.literal(DESELECT), button -> deselect()).build();
 	private final Button unplace = Button.builder(Component.literal(UNPLACE), button -> openUnplace()).build();
-	/** The placement the unplace item's tooltip was last made for. */
+	/** The placement the header menu items' tooltips were last made for. */
 	private @Nullable ClientPlacement unplaceFor;
 	private boolean unplaceTooltipSet;
 
@@ -201,8 +204,7 @@ public final class BuildBrowserScreen extends Screen {
 		headerMore.setRectangle(HEADER_MORE_WIDTH, 20, moreLeft, 6);
 		headerMore.setTooltip(Tooltip.create(Component.literal("More options")));
 		addRenderableWidget(headerMore);
-		headerMenuOpen = false;
-		unplace.visible = false;
+		closeHeaderMenu();
 		unplaceTooltipSet = false;
 		int createWidth = Math.max(60, font.width(CREATE) + BUTTON_PADDING);
 		int createLeft = moreLeft - 4 - createWidth;
@@ -472,7 +474,15 @@ public final class BuildBrowserScreen extends Screen {
 		}
 	}
 
-	/** Lets the unplace item be pressed only while a placement is selected, and says which one it removes. */
+	/** Runs {@code /vcs deselect}, keeping the overlay open. */
+	private void deselect() {
+		closeHeaderMenu();
+		if (ClientPlacements.selected() != null) {
+			sendCommand("vcs deselect");
+		}
+	}
+
+	/** Lets the header menu's items be pressed only while a placement is selected, and says which one they act on. */
 	private void updateUnplace() {
 		ClientPlacement selected = selectedBuild() == null ? null : ClientPlacements.selected();
 		if (unplaceTooltipSet && Objects.equals(selected, unplaceFor)) {
@@ -484,11 +494,21 @@ public final class BuildBrowserScreen extends Screen {
 		unplace.setTooltip(Tooltip.create(Component.literal(selected == null
 			? SELECT_FIRST
 			: "Remove " + selected.label() + " from the world")));
+		deselect.active = selected != null;
+		deselect.setTooltip(Tooltip.create(Component.literal(selected == null
+			? "No build is selected"
+			: "Stop selecting " + selected.label())));
+	}
+
+	private List<Button> headerMenuItems() {
+		return List.of(deselect, unplace);
 	}
 
 	private void closeHeaderMenu() {
 		headerMenuOpen = false;
-		unplace.visible = false;
+		for (Button item : headerMenuItems()) {
+			item.visible = false;
+		}
 	}
 
 	@Override
@@ -522,7 +542,7 @@ public final class BuildBrowserScreen extends Screen {
 			}
 		}
 		if (headerMenuOpen) {
-			menu(graphics, headerMore, List.of(unplace), mouseX, mouseY, partialTick);
+			menu(graphics, headerMore, headerMenuItems(), mouseX, mouseY, partialTick);
 		}
 	}
 
@@ -716,7 +736,7 @@ public final class BuildBrowserScreen extends Screen {
 	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
 		// An open menu takes the click: its item does its thing, and anywhere else, the dots included, closes it.
 		if (headerMenuOpen) {
-			if (!unplace.mouseClicked(event, doubleClick)) {
+			if (headerMenuItems().stream().noneMatch(item -> item.mouseClicked(event, doubleClick))) {
 				closeHeaderMenu();
 			}
 			return true;
@@ -968,7 +988,10 @@ public final class BuildBrowserScreen extends Screen {
 
 	/** The item labelled {@code label} in the open header menu, for tests to click; null while the menu is closed. */
 	public @Nullable Button headerMenuItemOf(String label) {
-		return headerMenuOpen && unplace.getMessage().getString().equals(label) ? unplace : null;
+		if (!headerMenuOpen) {
+			return null;
+		}
+		return headerMenuItems().stream().filter(item -> item.getMessage().getString().equals(label)).findFirst().orElse(null);
 	}
 
 	/** Three dots in a row, lighter behind them under the mouse, which open a cell's menu or the header's. */

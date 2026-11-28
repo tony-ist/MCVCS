@@ -847,7 +847,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 
 	/**
 	 * With the hall's only placement selected and one of its blocks changed: the three dots right of Create open a menu
-	 * whose Unplace asks whether to remove it, with its preview, a warning about the unsaved change and the box to keep
+	 * whose Deselect drops the selection, keeping the overlay open, and whose Unplace asks whether to remove it, with its preview, a warning about the unsaved change and the box to keep
 	 * the blocks unticked; Cancel keeps it. Ticked, Remove takes it out of the build without asking again and leaves its
 	 * blocks, and with nothing selected any more Unplace is greyed out. Leaves the overlay open.
 	 */
@@ -870,6 +870,18 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 		// Escape closes only the menu.
 		context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
 		context.waitFor(client -> client.screen instanceof BuildBrowserScreen screen && screen.headerMenuItemOf(BuildBrowserScreen.UNPLACE) == null);
+
+		// Deselect drops the selection and keeps the overlay open; select the hall again for the rest.
+		clickHeader(context, BuildBrowserScreen.HEADER_MORE);
+		context.waitFor(client -> client.screen instanceof BuildBrowserScreen screen && screen.headerMenuItemOf(BuildBrowserScreen.DESELECT) != null);
+		ScreenRectangle deselect = hoverHeaderItem(context, BuildBrowserScreen.DESELECT);
+		clickAt(context, deselect.left() + deselect.width() / 2.0, deselect.top() + deselect.height() / 2.0);
+		context.waitFor(client -> ClientPlacements.selected() == null);
+		if (!context.computeOnClient(client -> client.screen instanceof BuildBrowserScreen browser && browser.headerMenuItemOf(BuildBrowserScreen.DESELECT) == null)) {
+			throw new AssertionError("Expected Deselect to close the menu and keep the overlay open");
+		}
+		runCommand(context, "vcs select " + BIG);
+		context.waitFor(client -> ClientPlacements.selected() != null && ClientPlacements.selected().build().equals(BIG));
 
 		openUnplace(context);
 		context.waitFor(client -> {
@@ -946,6 +958,9 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 		context.waitTicks(2);
 		if (context.computeOnClient(client -> ((BuildBrowserScreen) client.screen).headerMenuItemOf(BuildBrowserScreen.UNPLACE).active)) {
 			throw new AssertionError("Expected Unplace to be greyed out with nothing selected");
+		}
+		if (context.computeOnClient(client -> ((BuildBrowserScreen) client.screen).headerMenuItemOf(BuildBrowserScreen.DESELECT).active)) {
+			throw new AssertionError("Expected Deselect to be greyed out with nothing selected");
 		}
 		context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
 		context.waitFor(client -> client.screen instanceof BuildBrowserScreen screen && screen.headerMenuItemOf(BuildBrowserScreen.UNPLACE) == null);

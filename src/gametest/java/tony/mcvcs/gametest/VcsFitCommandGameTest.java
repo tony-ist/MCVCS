@@ -41,8 +41,8 @@ import net.minecraft.world.level.block.Blocks;
 /**
  * {@code /vcs fit} grows the selected build's box until only air surrounds it, taking in blocks that touch it
  * diagonally and blocks that touch those, shrinks it where its sides hold only air, and saves the fitted box as the
- * next version. A build its box already fits is left alone, and one whose growth would reach into another build is
- * refused.
+ * next version. A build its box already fits is saved as {@code /vcs save} would, and one whose growth would reach
+ * into another build is refused.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsFitCommandGameTest extends VcsGameTest {
@@ -74,7 +74,7 @@ public class VcsFitCommandGameTest extends VcsGameTest {
 
 			// Nothing touches the box and the cube fills it, so there is nothing to fit and no version is written.
 			List<Component> enclosed = run(context, "vcs fit");
-			assertOnlyMessage(enclosed, BUILD_NAME + "/" + Build.MAIN + " already fits; nothing changed");
+			assertOnlyMessage(enclosed, "Nothing to save: " + BUILD_NAME + "/" + Build.MAIN + " has no changes since v1");
 			assertNoSchematic(BUILD_NAME, 2);
 			assertBox(context, singleplayer, BUILD_NAME, 1, box);
 
@@ -112,9 +112,10 @@ public class VcsFitCommandGameTest extends VcsGameTest {
 			lookAt(context, west, beyond);
 			screenshotLastFrame(context, "mcvcs-vcs-fit");
 
-			// The same again is a no-op: the grown box is enclosed by air and has blocks on every side.
+			// The same again saves like /vcs save, which has nothing to save: the grown box is enclosed by air and has
+			// blocks on every side.
 			List<Component> again = run(context, "vcs fit");
-			assertOnlyMessage(again, BUILD_NAME + "/" + Build.MAIN + " already fits; nothing changed");
+			assertOnlyMessage(again, "Nothing to save: " + BUILD_NAME + "/" + Build.MAIN + " has no changes since v2");
 			assertNoSchematic(BUILD_NAME, 3);
 
 			// A second build two blocks east of the first, filled with stone, and a block in the gap between them. The

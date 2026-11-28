@@ -96,8 +96,8 @@ Builds are shared by all single player worlds of one Minecraft instance: a build
 
 ### Resizing
 
-- `/vcs fit`\
-  Fits the selected build's box to the build inside it and saves it as a new version. Use it after you build past the box's edges or clear part of it.
+- `/vcs fit [label]`\
+  Fits the selected build's box to the build inside it and saves it as a new version, with the label if given. Use it after you build past the box's edges or clear part of it. In the save window, tick **Fit bounding box** to do the same.
 - `/vcs resize`\
   Resizes the selected build's box by hand. Hold `Left Alt` and scroll to move the side you look at, then press numpad `5` or run `/vcs confirmResize` to save it as a new version. The box turns red if it overlaps another copy. Needs the mod on your client.
 - `/vcs cancelResize`\
@@ -212,12 +212,10 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
-- Add a button on overlay to confirm placement
 - Add checkbox to fit selection in commit window in overlay
 - Resize and cancel resize button on overlay
 - Confirm you want to resize when there are uncommited changes
 - When placing too high, refuse instead of placing half
-- Unplace button in overlay
 
 - Make movement of preview during placement more intuitive, maybe only move in direction you look, not using the plane.
 - /vcs tag latest 1.0.0 should be possible and autocomplete latest. /vcs tag 1.0.0 should tag head by default
@@ -236,6 +234,7 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Nice to have
 
+- Archiving versions of builds so that they are not shown in lists
 - When modifying build, update diff in real time
 - Disable sounds in test client so that I don't get jumpscared. Also make it creative mode and spanw player as flying not falling if he's in midair
 - Render label of the build on the nearest edge to the player. This way labels of the big builds will be seen better.

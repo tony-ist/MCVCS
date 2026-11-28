@@ -35,7 +35,7 @@ import tony.mcvcs.network.CommitPreviewPayload;
  * The builds overlay's Commit button, left of Checkout, opens a window previewing the selected placement as it would
  * be committed: with nothing changed it says so and greys out Commit and Show modified blocks; with a block added,
  * one removed and one changed it counts each and marks them in the preview; Show modified blocks runs
- * {@code /vcs changes}; the overlay's Diff button, left of Commit, counts the changes and toggles their highlighting; Commit with a tag typed commits the placement as the next version with that tag.
+ * {@code /vcs changes}; the overlay's Diff button, left of Commit, counts the changes and toggles their highlighting; Fit bounding box lets Commit be pressed with nothing changed; Commit with a tag typed and Fit bounding box ticked commits the placement as the next version with that tag.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsCommitScreenGameTest extends VcsGameTest {
@@ -67,6 +67,11 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 					throw new AssertionError("Expected Commit and Show modified blocks greyed out with nothing changed");
 				}
 			});
+			// Fitting the box can save even with nothing changed.
+			clickWidget(context, CommitScreen.FIT);
+			if (!context.computeOnClient(client -> screen(client).widgetOf(CommitScreen.COMMIT).active)) {
+				throw new AssertionError("Expected Commit pressable with Fit bounding box ticked");
+			}
 			waitForPreview(context);
 			moveTo(context, 1, 1);
 			context.waitTicks(2);
@@ -122,11 +127,12 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 			context.waitFor(client -> client.screen == null);
 			context.waitFor(client -> DiffManager.active() != null);
 
-			// The tag typed goes with the commit.
+			// The tag typed goes with the commit, also with Fit bounding box ticked; the box already fits, so it saves as is.
 			openCommit(context);
 			waitForSummary(context);
 			clickWidget(context, "Label");
 			context.getInput().typeChars("2.0");
+			clickWidget(context, CommitScreen.FIT);
 			context.waitTicks(2);
 			if (!context.computeOnClient(client -> screen(client).widgetOf(CommitScreen.COMMIT).active)) {
 				throw new AssertionError("Expected Commit pressable with a new tag");

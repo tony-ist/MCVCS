@@ -6,8 +6,10 @@ import java.util.Optional;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import org.jspecify.annotations.Nullable;
 
 import tony.mcvcs.MCVCS;
 import tony.mcvcs.build.BoxExpansion;
@@ -29,20 +31,23 @@ import tony.mcvcs.build.BuildRegistry;
  * where it was built, see {@link BoxSnapshot#ofSchematic}, and one that no longer fits it can only be checked out.
  */
 public final class VcsCommandFit {
-	static final VcsHelp HELP = new VcsHelp("fit", "/vcs fit",
+	static final VcsHelp HELP = new VcsHelp("fit", "/vcs fit [label]",
 		"fit the box to the build, then save",
-		"Grows the selected build's box over anything you built past its edges, trims its empty sides, and saves the result as a new version. Anything touching the box is taken in, so keep builds surrounded by air. Refuses if the new box would overlap another copy or be over " + BoxExpansion.MAX_VOLUME + " blocks.");
+		"Grows the selected build's box over anything you built past its edges, trims its empty sides, and saves the result as a new version. Anything touching the box is taken in, so keep builds surrounded by air. Refuses if the new box would overlap another copy or be over " + BoxExpansion.MAX_VOLUME + " blocks. Add a label to name the version.");
 
 	private VcsCommandFit() {
 	}
 
 	/**
-	 * Fits the selected placement's box to the build inside it and saves the result as the build's next version. The
-	 * commit is part of the fit: blocks the box just took in are not in any version yet, and the version the box held
-	 * no longer has its size, so without it the placement would count as modified right away and
-	 * {@code /vcs load} would refuse.
+	 * Fits the selected placement's box to the build inside it and saves the result as the build's next version,
+	 * tagged with {@code tag} if one is given. The commit is part of the fit: blocks the box just took in are not in
+	 * any version yet, and the version the box held no longer has its size, so without it the placement would count as
+	 * modified right away and {@code /vcs load} would refuse. A box that already fits is committed as
+	 * {@code /vcs save} would, so changes inside it are not left unsaved.
+	 *
+	 * @param tag what to tag the new version with, see {@link VcsCommandTag}, or {@code null} for no tag
 	 */
-	static int run(CommandSourceStack source) throws CommandSyntaxException {
+	static int run(CommandSourceStack source, @Nullable String tag) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<BuildPlacement> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
@@ -51,6 +56,12 @@ public final class VcsCommandFit {
 		}
 
 		BuildPlacement placement = selected.get();
+		// Checked before anything is saved, so a tag that cannot be given leaves no untagged version behind.
+		Optional<MutableComponent> refusal = tag == null ? Optional.empty() : VcsCommandTag.refusal(placement.build(), tag);
+		if (refusal.isPresent()) {
+			source.sendFailure(refusal.get().append("; nothing was saved"));
+			return 0;
+		}
 		ServerLevel level = source.getServer().getLevel(placement.dimension());
 		if (level == null) {
 			source.sendFailure(VcsMessages.missingDimension(placement));
@@ -71,8 +82,7 @@ public final class VcsCommandFit {
 			return 0;
 		}
 		if (fitted.equals(box)) {
-			source.sendSuccess(() -> Component.empty().append(VcsMessages.placement(placement)).append(" already fits; nothing changed"), false);
-			return 0;
+			return VcsCommandCommit.run(source, tag);
 		}
 		// Every block belongs to at most one placement, so a box that reaches into another one is refused.
 		Optional<BuildPlacement> overlapping = BuildRegistry.overlapping(source.getServer(), placement.dimension(), fitted, placement);
@@ -85,6 +95,10 @@ public final class VcsCommandFit {
 		Build build = placement.build().withNextVersion(fitted.relativeTo(placement.origin()));
 		int version = build.version();
 		build = build.withPlacement(placement.name(), placement.placement().withHead(version));
+		if (tag != null) {
+			build = build.withTag(tag, version);
+		}
+		Build committed = build;
 
 		try {
 			BuildSaver.save(player, build, version, fitted, level);
@@ -92,7 +106,7 @@ public final class VcsCommandFit {
 
 			String verb = fitted.contains(box) ? "Expanded" : box.contains(fitted) ? "Shrank" : "Fitted";
 			source.sendSuccess(() -> Component.literal(verb + " ").append(VcsMessages.placement(placement)).append(" from " + VcsMessages.size(box) + " (" + box.volume() + " blocks) to "
-				+ VcsMessages.size(fitted) + " (" + fitted.volume() + " blocks) and saved it as v" + version), false);
+				+ VcsMessages.size(fitted) + " (" + fitted.volume() + " blocks) and saved it as " + committed.versionLabel(version)), false);
 			return 1;
 		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to fit '{}' to v{} for {}", placement.label(), version, player.getGameProfile().name(), e);

@@ -36,7 +36,7 @@ import tony.mcvcs.build.Placement;
  * <li>{@code /vcs label <version | label> <label>} and {@code /vcs unlabel <label>}: {@link VcsCommandTag}</li>
  * <li>{@code /vcs preview <version | label | off>}: {@link VcsCommandPreview}</li>
  * <li>{@code /vcs changes [version | label | off]}: {@link VcsCommandDiff}</li>
- * <li>{@code /vcs fit}: {@link VcsCommandFit}</li>
+ * <li>{@code /vcs fit [label]}: {@link VcsCommandFit}</li>
  * <li>{@code /vcs resize}, {@code /vcs confirmResize} and {@code /vcs cancelResize}: {@link VcsCommandResize}</li>
  * <li>{@code /vcs load <version | label | latest> [-f]}: {@link VcsCommandCheckout}</li>
  * <li>{@code /vcs delete <buildname> [-c]} and {@code /vcs confirmDelete}: {@link VcsCommandDelete}</li>
@@ -153,7 +153,9 @@ public final class VcsCommand {
 					.then(VersionRef.argument(VcsCommand::selectedBuild)
 						.executes(context -> VcsCommandDiff.run(context.getSource(), VersionRef.of(context)))))
 				.then(sub(VcsCommandFit.HELP)
-					.executes(context -> VcsCommandFit.run(context.getSource())))
+					.executes(context -> VcsCommandFit.run(context.getSource(), null))
+					.then(Commands.argument("label", StringArgumentType.word())
+						.executes(context -> VcsCommandFit.run(context.getSource(), StringArgumentType.getString(context, "label")))))
 				.then(sub(VcsCommandResize.HELP)
 					.executes(context -> VcsCommandResize.run(context.getSource())))
 				.then(sub(VcsCommandResize.CONFIRM_HELP)
