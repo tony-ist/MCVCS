@@ -43,7 +43,7 @@ import net.minecraft.world.level.block.Blocks;
 @SuppressWarnings("UnstableApiUsage")
 public class VcsDeleteCommandGameTest extends VcsGameTest {
 	private static final String BUILD_NAME = "gametest-delete";
-	private static final String CONFIRMATION = "Delete build " + BUILD_NAME + ", leaving its placements standing as blocks? This cannot be undone, all versions will be lost! Run /vcs confirmDelete to proceed.";
+	private static final String CONFIRMATION = "Delete build " + BUILD_NAME + ", leaving its blocks in the world? All its versions will be deleted, and this can't be undone! Run /vcs confirmDelete to delete it.";
 
 	/** Every game message the client has received, filled on the client thread. */
 	private static final List<Component> RECEIVED = new ArrayList<>();
@@ -66,7 +66,7 @@ public class VcsDeleteCommandGameTest extends VcsGameTest {
 			create(context, singleplayer, BUILD_NAME, min, max);
 			read(schematic(BUILD_NAME, 1));
 			setBlock(singleplayer, max, Blocks.GOLD_BLOCK.defaultBlockState());
-			runCommand(context, "vcs commit");
+			runCommand(context, "vcs save");
 			read(schematic(BUILD_NAME, 2));
 			waitForSelection(context, BUILD_NAME, 2);
 
@@ -92,7 +92,7 @@ public class VcsDeleteCommandGameTest extends VcsGameTest {
 			setBlock(singleplayer, min, Blocks.DIAMOND_BLOCK.defaultBlockState());
 			runCommand(context, "vcs preview 1");
 			context.waitFor(client -> PreviewManager.active() != null);
-			runCommand(context, "vcs diff 1");
+			runCommand(context, "vcs changes 1");
 			context.waitFor(client -> DiffManager.active() != null);
 
 			// Confirming removes everything and the client hears that the build is gone.

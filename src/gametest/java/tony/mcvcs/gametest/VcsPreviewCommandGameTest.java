@@ -63,7 +63,7 @@ public class VcsPreviewCommandGameTest extends VcsGameTest {
 			// v2: the whole box rebuilt out of diamond, hole included, so a preview of v1 differs from the world both
 			// where it has a block and where it has none.
 			fillBox(singleplayer, min, max, Blocks.DIAMOND_BLOCK.defaultBlockState(), gold, Blocks.DIAMOND_BLOCK.defaultBlockState());
-			runCommand(context, "vcs commit");
+			runCommand(context, "vcs save");
 			read(schematic(BUILD_NAME, 2));
 
 			// Tab completion offers every version of the selected build alongside "off".
@@ -131,7 +131,7 @@ public class VcsPreviewCommandGameTest extends VcsGameTest {
 		fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), min, Blocks.STONE.defaultBlockState());
 		create(context, singleplayer, FLOATING_NAME, min, max);
 		fillBox(singleplayer, min, max, Blocks.AIR.defaultBlockState(), min, Blocks.AIR.defaultBlockState());
-		runCommand(context, "vcs commit");
+		runCommand(context, "vcs save");
 		assertWorldBlock(singleplayer, min, Blocks.AIR);
 		return min;
 	}

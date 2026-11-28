@@ -40,7 +40,7 @@ import org.jspecify.annotations.Nullable;
  */
 public final class ClientResize {
 	/** What Numpad 5 says instead of confirming when the box would be refused; the reason follows. */
-	public static final String REFUSED = "Cannot resize - ";
+	public static final String REFUSED = "Can't resize: ";
 	private static final String CONFIRM_COMMAND = "vcs confirmResize";
 	private static final Direction[] FACES = Direction.values();
 
@@ -109,7 +109,7 @@ public final class ClientResize {
 			min = min.relative(direction);
 		}
 		if (min.getX() > max.getX() || min.getY() > max.getY() || min.getZ() > max.getZ()) {
-			client.player.sendOverlayMessage(Component.literal("The box cannot be thinner than one block").withStyle(ChatFormatting.RED));
+			client.player.sendOverlayMessage(Component.literal("Can't make it any smaller").withStyle(ChatFormatting.RED));
 			return true;
 		}
 
@@ -149,7 +149,7 @@ public final class ClientResize {
 			}
 		}
 		if (resize.box().volume() > BoxExpansion.MAX_VOLUME) {
-			return "over the limit of " + BoxExpansion.MAX_VOLUME + " blocks";
+			return "bigger than " + BoxExpansion.MAX_VOLUME + " blocks";
 		}
 		return null;
 	}

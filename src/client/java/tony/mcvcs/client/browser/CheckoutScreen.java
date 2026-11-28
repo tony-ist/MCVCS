@@ -25,17 +25,17 @@ import tony.mcvcs.network.PlacementStatusPayload;
  * The builds overlay's {@code Checkout} window, for the selected placement: its header names the build and the
  * placement and says which version the placement holds and how many of its blocks are modified, and the grid below
  * shows every version of the build, see {@link VersionGridScreen}, the one it holds marked {@code Current}. Clicking a
- * version picks it; {@code Check out} then closes the window and the overlay and runs {@code /vcs checkout} for it, with
+ * version picks it; {@code Check out} then closes the window and the overlay and runs {@code /vcs load} for it, with
  * {@code -f} if {@code Override all the modified blocks} is ticked, as if typed. While blocks are modified,
  * {@code Check out} is greyed out until that box is ticked, and {@code Show modified blocks} closes both and runs
- * {@code /vcs diff}. {@code Cancel} goes back to the overlay.
+ * {@code /vcs changes}. {@code Cancel} goes back to the overlay.
  */
 public final class CheckoutScreen extends VersionGridScreen {
 	/** Labels of the window's buttons and checkbox. */
-	public static final String CHECKOUT = "Check out";
+	public static final String CHECKOUT = "Load";
 	public static final String CANCEL = "Cancel";
-	public static final String OVERRIDE = "Override all the modified blocks";
-	public static final String SHOW_MODIFIED = "Show modified blocks";
+	public static final String OVERRIDE = "Discard unsaved changes";
+	public static final String SHOW_MODIFIED = "Show in world";
 	/** What marks the version the placement holds. */
 	public static final String CURRENT = "Current";
 
@@ -50,13 +50,13 @@ public final class CheckoutScreen extends VersionGridScreen {
 	private @Nullable Button showModified;
 
 	public CheckoutScreen(BuildBrowserScreen parent, BuildSummary build, ClientPlacement placement) {
-		super(Component.literal("Check out a version of " + placement.build() + " into placement " + placement.placement()), parent, build);
+		super(Component.literal("Load a version of " + placement.label()), parent, build);
 		this.placement = placement;
 	}
 
 	/** The command that checks out {@code version} into the selected placement, without the slash. */
 	static String checkoutCommand(BuildSummary.Version version, boolean override) {
-		return "vcs checkout " + version.version() + (override ? " " + VcsCommand.FORCE : "");
+		return "vcs load " + version.version() + (override ? " " + VcsCommand.FORCE : "");
 	}
 
 	@Override
@@ -100,10 +100,8 @@ public final class CheckoutScreen extends VersionGridScreen {
 
 	/** "Check out build <build> into placement <placement>", with both names in yellow. */
 	private Component headingText() {
-		return Component.literal("Check out build ")
-			.append(Component.literal(placement.build()).withStyle(ChatFormatting.YELLOW))
-			.append(" into placement ")
-			.append(Component.literal(placement.placement()).withStyle(ChatFormatting.YELLOW));
+		return Component.literal("Load a version of ")
+			.append(Component.literal(placement.label()).withStyle(ChatFormatting.YELLOW));
 	}
 
 	/** {@link #headingText()} wrapped to {@code width}. */
@@ -115,18 +113,18 @@ public final class CheckoutScreen extends VersionGridScreen {
 	private Component status() {
 		String holds = build.versions().stream().filter(version -> version.version() == placement.head())
 			.findFirst().map(BuildSummary.Version::label).orElse("v" + placement.head());
-		MutableComponent text = Component.literal("The placement holds " + holds + " · ").withStyle(ChatFormatting.GRAY);
+		MutableComponent text = Component.literal("Now showing " + holds + " · ").withStyle(ChatFormatting.GRAY);
 		int modified = modified();
 		if (!statusArrived()) {
-			return text.append("checking for modified blocks...");
+			return text.append("checking...");
 		}
 		if (modified == PlacementStatusPayload.UNKNOWN) {
-			return text.append(Component.literal("could not check for modified blocks").withStyle(ChatFormatting.RED));
+			return text.append(Component.literal("couldn't check changes").withStyle(ChatFormatting.RED));
 		}
 		if (modified == 0) {
-			return text.append(Component.literal("no modified blocks").withStyle(ChatFormatting.GREEN));
+			return text.append(Component.literal("no unsaved changes").withStyle(ChatFormatting.GREEN));
 		}
-		return text.append(Component.literal(String.format("%,d", modified) + (modified == 1 ? " modified block" : " modified blocks")).withStyle(ChatFormatting.GOLD));
+		return text.append(Component.literal(String.format("%,d", modified) + (modified == 1 ? " unsaved change" : " unsaved changes")).withStyle(ChatFormatting.GOLD));
 	}
 
 	@Override
@@ -151,14 +149,13 @@ public final class CheckoutScreen extends VersionGridScreen {
 				updateButtons();
 			})
 			.build();
-		checkbox.setTooltip(Tooltip.create(Component.literal("Checks out over the blocks changed since " + placement.label()
-			+ " last held a version, and over anything standing where a bigger version would reach. Those blocks are lost for good.")));
+		checkbox.setTooltip(Tooltip.create(Component.literal("Your unsaved changes, and any blocks where the new version needs space, are deleted for good")));
 		addRenderableWidget(checkbox);
 
 		int showWidth = font.width(SHOW_MODIFIED) + BUTTON_PADDING;
 		showModified = addRenderableWidget(Button.builder(Component.literal(SHOW_MODIFIED), button -> showModified())
 			.bounds(layout.right() - PADDING - showWidth, row1, showWidth, ROW)
-			.tooltip(Tooltip.create(Component.literal("Close the overlay and highlight the blocks changed since " + placement.label() + " last held a version")))
+			.tooltip(Tooltip.create(Component.literal("Close this screen and highlight your changes in the world")))
 			.build());
 
 		int checkoutWidth = font.width(CHECKOUT + " v" + build.version()) + BUTTON_PADDING;
@@ -188,9 +185,9 @@ public final class CheckoutScreen extends VersionGridScreen {
 		}
 		boolean blocked = modified > 0 && !override;
 		checkout.active = chosen != null && !blocked;
-		String tooltip = chosen == null ? "Pick a version above"
-			: blocked ? placement.label() + " has modified blocks: commit them first, or tick \"" + OVERRIDE + "\" to lose them"
-			: "Put " + chosen.label() + " into " + placement.label() + (override ? ", overriding the modified blocks" : "");
+		String tooltip = chosen == null ? "Pick a version"
+			: blocked ? "You have unsaved changes. Save them first, or tick \"" + OVERRIDE + "\""
+			: "Replace it with " + chosen.label() + (override ? ", discarding unsaved changes" : "");
 		checkout.setTooltip(Tooltip.create(Component.literal(tooltip)));
 	}
 
@@ -214,8 +211,8 @@ public final class CheckoutScreen extends VersionGridScreen {
 	@Override
 	protected Component tooltip(BuildSummary.Version version) {
 		return Component.literal(version.version() == placement.head()
-			? placement.label() + " holds " + version.label() + "; pick it to put it back as it was committed"
-			: "Pick " + version.label() + " to check out into " + placement.label());
+			? "This is " + version.label() + ". Pick it to undo your unsaved changes"
+			: "Load " + version.label());
 	}
 
 	@Override
@@ -224,7 +221,7 @@ public final class CheckoutScreen extends VersionGridScreen {
 		updateButtons();
 	}
 
-	/** Closes the window and the overlay and runs {@code /vcs checkout} for the chosen version, as if typed. */
+	/** Closes the window and the overlay and runs {@code /vcs load} for the chosen version, as if typed. */
 	private void checkout() {
 		BuildSummary.Version version = chosen;
 		if (version == null) {
@@ -233,9 +230,9 @@ public final class CheckoutScreen extends VersionGridScreen {
 		closeAndRun(checkoutCommand(version, override));
 	}
 
-	/** Closes the window and the overlay and runs {@code /vcs diff}, which highlights the modified blocks. */
+	/** Closes the window and the overlay and runs {@code /vcs changes}, which highlights the modified blocks. */
 	private void showModified() {
-		closeAndRun("vcs diff");
+		closeAndRun("vcs changes");
 	}
 
 	private void closeAndRun(String command) {

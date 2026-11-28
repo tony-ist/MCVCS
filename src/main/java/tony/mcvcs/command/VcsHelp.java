@@ -18,7 +18,7 @@ import tony.mcvcs.network.ChatButtons;
  * which puts itself into the chat box when clicked, and the description after a colon.
  * <p>
  * In the summary, the details and the keys' descriptions a command is written between backticks, e.g.
- * {@code `/vcs diff off`}; it is shown in green without them and clicking it puts it into the chat box.
+ * {@code `/vcs changes off`}; it is shown in green without them and clicking it puts it into the chat box.
  *
  * @param name    the subcommand's literal, e.g. {@code create}
  * @param usage   how it is typed, with its arguments, e.g. {@code /vcs create <buildname>}
@@ -99,7 +99,7 @@ record VcsHelp(String name, String usage, String summary, String details, List<K
 
 	/**
 	 * {@code command} in green; clicking it puts it into the chat box, only up to its first {@code <placeholder>} if
-	 * it has one, rather than running it, since an example such as {@code /vcs commit 2.0.0} is not meant to be run.
+	 * it has one, rather than running it, since an example such as {@code /vcs save 2.0.0} is not meant to be run.
 	 */
 	private static MutableComponent command(String command) {
 		int placeholder = command.indexOf('<');

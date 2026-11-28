@@ -25,9 +25,27 @@ final class VcsMessages {
 
 	/** What a command that needs a selected placement says when there is none. */
 	static MutableComponent noPlacementSelected() {
-		return Component.literal("Nothing selected in this world; run ").append(ChatButtons.command("/vcs select"))
-			.append(" and punch a block of a placement, or ").append(ChatButtons.template("/vcs create <buildname>")).append(" to start a build");
+		return Component.literal("Nothing selected; run ").append(ChatButtons.command("/vcs select"))
+			.append(" and hit a block of a build, or ").append(ChatButtons.template("/vcs create <buildname>")).append(" to start one");
 	}
+
+	/** What a command says when {@code placement} is in a dimension this server does not have. */
+	static MutableComponent missingDimension(BuildPlacement placement) {
+		return Component.empty().append(placement(placement)).append(" is in " + placement.dimension().identifier() + ", which does not exist here");
+	}
+
+	/** What a command says when the file of version {@code version} of {@code build} is missing. */
+	static MutableComponent missingVersion(String build, int version) {
+		return Component.literal("Can't find the saved file of ").append(name(build)).append(" v" + version);
+	}
+
+	/** E.g. {@code 3 unsaved changes}. */
+	static String unsavedChanges(int count) {
+		return count + (count == 1 ? " unsaved change" : " unsaved changes");
+	}
+
+	/** What a command says when two copies would overlap. */
+	static final String NO_OVERLAP = "; copies can't overlap";
 
 	/** E.g. {@code 3x2x2}. */
 	static String size(BuildBox box) {

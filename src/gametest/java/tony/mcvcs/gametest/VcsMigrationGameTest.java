@@ -54,7 +54,7 @@ public class VcsMigrationGameTest extends VcsGameTest {
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), gold, Blocks.GOLD_BLOCK.defaultBlockState());
 			create(context, singleplayer, BUILD_NAME, min, max);
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), gold, Blocks.STONE.defaultBlockState());
-			runCommand(context, "vcs commit");
+			runCommand(context, "vcs save");
 			read(schematic(BUILD_NAME, 2));
 		}
 
@@ -90,11 +90,11 @@ public class VcsMigrationGameTest extends VcsGameTest {
 			assertBlock(read(schematic(BUILD_NAME, 2)), gold, Blocks.STONE);
 
 			// The renamed files are the ones commands read.
-			runCommand(context, "vcs checkout 1");
+			runCommand(context, "vcs load 1");
 			BlockPos goldPos = gold;
 			boolean restored = reopened.getServer().computeOnServer(server -> server.overworld().getBlockState(goldPos).is(Blocks.GOLD_BLOCK));
 			if (!restored) {
-				throw new AssertionError("Expected /vcs checkout 1 to restore the gold block from the migrated v1 schematic");
+				throw new AssertionError("Expected /vcs load 1 to restore the gold block from the migrated v1 schematic");
 			}
 
 			// An old file whose new name is taken fails the migration and neither file is touched, so nothing is lost.

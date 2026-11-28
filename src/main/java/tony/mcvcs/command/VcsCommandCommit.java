@@ -1,7 +1,6 @@
 package tony.mcvcs.command;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Optional;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -25,7 +24,7 @@ import tony.mcvcs.diff.BuildDiff;
 import tony.mcvcs.network.ChatButtons;
 
 /**
- * {@code /vcs commit [tagname]}: saves what is inside the selected placement's box as the build's next version, tagged
+ * {@code /vcs save [tagname]}: saves what is inside the selected placement's box as the build's next version, tagged
  * with {@code tagname} if one is given, see {@link VcsCommandTag}. If anything other than air is touching the box, the
  * version is saved all the same but a yellow warning points the player at {@code /vcs fit}. A box that holds
  * exactly the version the placement is at has nothing to commit, and no version is saved.
@@ -35,18 +34,18 @@ import tony.mcvcs.network.ChatButtons;
  * the others go on holding whatever version they held.
  */
 public final class VcsCommandCommit {
-	static final VcsHelp HELP = new VcsHelp("commit", "/vcs commit [tagname]",
-		"save the selected placement as the build's next version",
-		"Saves what is inside the selected placement's box as the build's next version. Every other placement of the build can then check that version out. Refuses if nothing in the box has changed since the version the placement holds. With a tag name, e.g. `/vcs commit 2.0.0`, the new version is tagged.");
+	static final VcsHelp HELP = new VcsHelp("save", "/vcs save [label]",
+		"save the selected build as a new version",
+		"Saves the selected build as its next version. Its other copies can then load that version. Does nothing if nothing changed. Add a label to name the version, e.g. `/vcs save with-roof`.");
 
 	private VcsCommandCommit() {
 	}
 
-	/** What the command says, in yellow, after committing a placement that has blocks touching its box. */
+	/** What the command says, in yellow, after saving a copy that has blocks touching its box. */
 	public static MutableComponent notEnclosedWarning() {
-		return Component.literal("Warning: the build is not enclosed by air, so blocks touching its box were left out; run ")
+		return Component.literal("Warning: blocks touching the build's box were not saved; run ")
 			.append(ChatButtons.command("/vcs fit"))
-			.append(" to fit the build area to the build")
+			.append(" to grow the box over them")
 			.withStyle(ChatFormatting.YELLOW);
 	}
 
@@ -63,22 +62,22 @@ public final class VcsCommandCommit {
 		// Checked before anything is saved, so a tag that cannot be given leaves no untagged version behind.
 		Optional<MutableComponent> refusal = tag == null ? Optional.empty() : VcsCommandTag.refusal(placement.build(), tag);
 		if (refusal.isPresent()) {
-			source.sendFailure(refusal.get().append("; nothing was committed"));
+			source.sendFailure(refusal.get().append("; nothing was saved"));
 			return 0;
 		}
 		ServerLevel level = source.getServer().getLevel(placement.dimension());
 		if (level == null) {
-			source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is in " + placement.dimension().identifier() + ", which does not exist here"));
+			source.sendFailure(VcsMessages.missingDimension(placement));
 			return 0;
 		}
 
 		// The box does not change on a commit, so the new version covers exactly what the placement holds now.
 		BuildBox box = placement.box();
 		if (unchanged(placement, level, player)) {
-			MutableComponent nothing = Component.literal("Nothing to commit: ").append(VcsMessages.placement(placement))
-				.append(" is the same as " + placement.build().versionLabel(placement.head()));
+			MutableComponent nothing = Component.literal("Nothing to save: ").append(VcsMessages.placement(placement))
+				.append(" has no changes since " + placement.build().versionLabel(placement.head()));
 			if (tag != null) {
-				nothing.append("; run ").append(ChatButtons.command("/vcs tag " + placement.head() + " " + tag)).append(" to tag that version");
+				nothing.append("; run ").append(ChatButtons.command("/vcs label " + placement.head() + " " + tag)).append(" to label that version");
 			}
 			source.sendFailure(nothing);
 			return 0;
@@ -96,18 +95,17 @@ public final class VcsCommandCommit {
 		boolean enclosed = BoxExpansion.isEnclosed(box, level);
 
 		try {
-			Path file = BuildSaver.save(player, build, version, box, level);
+			BuildSaver.save(player, build, version, box, level);
 			BuildRegistry.select(player, build, placement.name());
 
-			source.sendSuccess(() -> Component.literal("Committed ").append(VcsMessages.placement(placement)).append(" as build ")
-				.append(VcsMessages.name(placement.build().name())).append(" " + committed.versionLabel(version) + " (" + box.volume() + " blocks) at " + BuildStorage.root().relativize(file)), false);
+			source.sendSuccess(() -> Component.literal("Saved ").append(VcsMessages.placement(placement)).append(" as " + committed.versionLabel(version) + " (" + box.volume() + " blocks)"), false);
 			if (!enclosed) {
 				source.sendSuccess(VcsCommandCommit::notEnclosedWarning, false);
 			}
 			return 1;
 		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to commit '{}' as v{} for {}", placement.label(), version, player.getGameProfile().name(), e);
-			source.sendFailure(Component.literal("Failed to save schematic: " + e.getMessage()));
+			source.sendFailure(Component.literal("Failed to save: " + e.getMessage()));
 			return 0;
 		}
 	}

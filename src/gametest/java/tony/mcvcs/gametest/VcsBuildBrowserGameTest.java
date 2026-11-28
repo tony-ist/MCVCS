@@ -114,7 +114,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			// A second version of the tower, tagged, so its cell shows the newest version with its tag.
 			setBlock(singleplayer, towerMax, Blocks.GOLD_BLOCK.defaultBlockState());
 			runCommand(context, "vcs select " + SMALL);
-			runCommand(context, "vcs commit 2.0.0");
+			runCommand(context, "vcs save 2.0.0");
 			read(schematic(SMALL, 2));
 
 			// B opens the overlay; the tower's preview downloads by itself, the hall waits for a click.
@@ -164,7 +164,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			}
 			assertLeftOf(context, BuildBrowserScreen.CHECKOUT, BuildBrowserScreen.CREATE);
 			setBlock(singleplayer, towerMax.below(), Blocks.DIAMOND_BLOCK.defaultBlockState());
-			runCommand(context, "vcs commit");
+			runCommand(context, "vcs save");
 			read(schematic(SMALL, 3));
 			context.waitTicks(5);
 			assertVersion(context, SMALL, 2);
@@ -331,7 +331,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			// Delete asks first, with the box to also empty the placements unticked; Cancel goes back and keeps the build.
 			openDelete(context, LONG);
 			String question = context.computeOnClient(client -> client.screen.getTitle().getString());
-			if (!question.equals("Are you sure you want to delete " + LONG + "?")) {
+			if (!question.equals("Delete " + LONG + "?")) {
 				throw new AssertionError("Expected the delete window to ask about " + LONG + " but it says " + question);
 			}
 			context.runOnClient(client -> {
@@ -428,7 +428,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			clickCreateWidget(context, CreateBuildScreen.CREATE);
 			context.waitFor(client -> client.screen == null);
 			context.waitFor(client -> PendingClickHighlight.armed() && PendingClickHighlight.corner() == null);
-			assertActionBar(context, "Punch a block of the build to create " + NEW);
+			assertActionBar(context, "Hit any block of your build to save it as " + NEW);
 
 			// While it waits, the overlay's Create button cancels it instead, and turns back once it has.
 			open(context);
@@ -448,7 +448,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			clickCreateWidget(context, CreateBuildScreen.CREATE);
 			context.waitFor(client -> client.screen == null);
 			context.waitTicks(5);
-			assertActionBar(context, "Punch the first corner of " + NEW);
+			assertActionBar(context, "Hit one corner of " + NEW);
 			// Typed, the command cancels it just the same.
 			runCommand(context, "vcs cancelCreate");
 			context.waitFor(client -> !PendingClickHighlight.armed());
@@ -737,7 +737,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 	/**
 	 * With the tower's main placement selected, holding v3, and one of its blocks changed: Checkout names the build and
 	 * the placement, shows every version with v3 marked current, says one block is modified and greys out its button
-	 * until the unticked override box is ticked; Show modified blocks runs {@code /vcs diff}; ticked, checking out v1
+	 * until the unticked override box is ticked; Show modified blocks runs {@code /vcs changes}; ticked, checking out v1
 	 * puts it into the placement. With nothing modified, Show modified blocks is gone and v3 goes back without ticking.
 	 */
 	private static void checkCheckout(ClientGameTestContext context, TestSingleplayerContext singleplayer, BlockPos towerMin, BlockPos towerMax) {

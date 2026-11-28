@@ -30,7 +30,9 @@ public final class CreateBuildScreen extends Screen {
 	/** Labels of the window's buttons and checkbox. */
 	public static final String CREATE = "Create";
 	public static final String CANCEL = "Cancel";
-	public static final String BOX = "Use box selection";
+	/** Why a name cannot be given to a build, shown when it is refused. */
+	static final String NAME_RULE = "Start with a letter, and use only letters, digits, and _ + - .";
+	public static final String BOX = "Select by corners";
 
 	private static final int WIDTH = 240;
 	private static final int PADDING = 8;
@@ -57,7 +59,7 @@ public final class CreateBuildScreen extends Screen {
 	private @Nullable Button create;
 
 	public CreateBuildScreen(BuildBrowserScreen parent) {
-		super(Component.literal("Name of the new build"));
+		super(Component.literal("Name your build"));
 		this.parent = parent;
 	}
 
@@ -99,7 +101,7 @@ public final class CreateBuildScreen extends Screen {
 			.onValueChange((checked, value) -> box = value)
 			.build();
 		checkbox.setTooltip(Tooltip.create(Component.literal(
-			"Punch two opposite corners; the box between them becomes the build. Without this, punch one block and everything connected to it becomes the build")));
+			"Off: hit one block, and everything touching it is saved. On: hit two opposite corners, and everything between them is saved")));
 		addRenderableWidget(checkbox);
 
 		int buttonsLeft = width / 2 - BUTTON_WIDTH - PADDING / 2;
@@ -120,7 +122,7 @@ public final class CreateBuildScreen extends Screen {
 		}
 		create.active = Build.isValidNewName(name);
 		create.setTooltip(create.active || name.isEmpty() ? null : Tooltip.create(Component.literal(
-			"A build name must start with a letter from a to z and may only contain letters, digits, _ + - and dots between them")));
+			NAME_RULE)));
 	}
 
 	@Override

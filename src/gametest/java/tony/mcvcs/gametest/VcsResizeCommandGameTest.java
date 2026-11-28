@@ -92,7 +92,7 @@ public class VcsResizeCommandGameTest extends VcsGameTest {
 			// Pushing it further in leaves a box one block thick, and the next notch is refused.
 			box = scroll(context, box, 1.0, new BuildBox(min.offset(1, 0, 0), max));
 			scroll(context, box, 1.0, box);
-			assertOverlay(context, "The box cannot be thinner than one block");
+			assertOverlay(context, "Can't make it any smaller");
 			box = scroll(context, box, -1.0, new BuildBox(min, max));
 
 			// From above the top face is in sight; a notch down pulls it up towards the player.
@@ -167,7 +167,7 @@ public class VcsResizeCommandGameTest extends VcsGameTest {
 			context.getInput().pressKey(PlacePreviewKeys.CONFIRM);
 			context.waitFor(client -> ClientResize.active() == null);
 			context.waitTicks(5);
-			assertOnlyMessage(context.computeOnClient(client -> List.copyOf(RECEIVED)), "Resized " + LABEL + " from 2x2x2 (8 blocks) to 2x3x4 (24 blocks) and committed it as v2");
+			assertOnlyMessage(context.computeOnClient(client -> List.copyOf(RECEIVED)), "Resized " + LABEL + " from 2x2x2 (8 blocks) to 2x3x4 (24 blocks) and saved it as v2");
 			assertVersion(singleplayer, 2, box);
 			assertSize(read(schematic(BUILD_NAME, 2)), new Vec3i(2, 3, 4));
 

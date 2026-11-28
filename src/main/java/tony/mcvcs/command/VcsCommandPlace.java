@@ -72,19 +72,17 @@ public final class VcsCommandPlace {
 		}
 	}
 
-	static final VcsHelp HELP = new VcsHelp("place", "/vcs place <buildname> [version | tag | latest] [placementname] [" + VcsCommand.FORCE + "]",
-		"create another placement of the build",
-		"Creates a new placement of the build. One build can have multiple placements in the world, which live separate lives." + 
-		"\n\n" +
-		"When used, enters a preview phase. Use left alt + mouse wheel to move it. You can also use numpad keys (2, 8, 4,6). Press Numpad 5 to place it physically in the world. Alternatively, run `/vcs confirmPlace` to place it, or `/vcs cancelPlace` to drop it.",
-		new VcsHelp.Key(VcsCommand.FORCE, "overwrite the blocks standing where the copy is placed"));
+	static final VcsHelp HELP = new VcsHelp("place", "/vcs place <buildname> [version | label | latest] [copyname] [" + VcsCommand.FORCE + "]",
+		"put another copy of a build in the world",
+		"Shows a copy of the build where you stand. Hold Left Alt and scroll to move it, or use Numpad 8, 2, 4, 6, 7 and 9. Press Numpad 5 or run `/vcs confirmPlace` to place it, or `/vcs cancelPlace` to drop it. Each copy can be changed, saved and loaded on its own.",
+		new VcsHelp.Key(VcsCommand.FORCE, "overwrite the blocks where the copy goes"));
 	static final VcsHelp CONFIRM_HELP = new VcsHelp("confirmPlace", "/vcs confirmPlace [" + VcsCommand.FORCE + "]",
-		"place the copy your last `/vcs place` is showing",
-		"Puts the copy your last `/vcs place` is showing into the world where you have moved it, as a placement of its own, and selects it. Refuses if it overlaps another placement, and refuses if anything is already standing where it goes.",
-		new VcsHelp.Key(VcsCommand.FORCE, "overwrite those blocks for good; giving it to `/vcs place` does the same"));
+		"place the copy from `/vcs place`",
+		"Places the copy from `/vcs place` where you moved it, and selects it. Refuses if it overlaps another copy or blocks are in the way.",
+		new VcsHelp.Key(VcsCommand.FORCE, "overwrite the blocks in the way"));
 	static final VcsHelp CANCEL_HELP = new VcsHelp("cancelPlace", "/vcs cancelPlace",
-		"drop the copy your last `/vcs place` is showing",
-		"Stops showing the copy your last `/vcs place` is showing without placing anything. Nothing was ever put into the world, so nothing is taken back.");
+		"drop the copy from `/vcs place`",
+		"Removes the copy from `/vcs place` without placing anything.");
 
 	private VcsCommandPlace() {
 	}
@@ -120,7 +118,7 @@ public final class VcsCommandPlace {
 			return 0;
 		}
 		if (build.placement(name).isPresent()) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" already has a placement called ").append(VcsMessages.name(name)));
+			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" already has a copy called ").append(VcsMessages.name(name)));
 			return 0;
 		}
 
@@ -143,9 +141,9 @@ public final class VcsCommandPlace {
 			player.getGameProfile().name(), buildName, placed, name, box.min().toShortString(), level.dimension().identifier());
 
 		source.sendSuccess(() -> Component.literal("Showing ").append(VcsMessages.name(buildName + Build.LABEL_SEPARATOR + name))
-			.append(" " + build.versionLabel(placed) + " (" + VcsMessages.size(box) + ", " + box.volume() + " blocks) at " + box.min().toShortString())
-			.append("; hold left alt and turn the mouse wheel to move it, then run ").append(ChatButtons.command("/vcs confirmPlace"))
-			.append(" to place it or ").append(ChatButtons.command("/vcs cancelPlace")).append(" to drop it. Numpad 5 places it too."), false);
+			.append(" " + build.versionLabel(placed) + " (" + VcsMessages.size(box) + ", " + box.volume() + " blocks)")
+			.append("; hold Left Alt and scroll to move it, then press Numpad 5 or run ").append(ChatButtons.command("/vcs confirmPlace"))
+			.append(" to place it, or ").append(ChatButtons.command("/vcs cancelPlace")).append(" to drop it"), false);
 		return 1;
 	}
 
@@ -169,7 +167,7 @@ public final class VcsCommandPlace {
 		Build build = found.get();
 		if (build.placement(pending.placement()).isPresent()) {
 			drop(player);
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(pending.build())).append(" already has a placement called ").append(VcsMessages.name(pending.placement())));
+			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(pending.build())).append(" already has a copy called ").append(VcsMessages.name(pending.placement())));
 			return 0;
 		}
 		if (pending.version() > build.version()) {
@@ -236,11 +234,11 @@ public final class VcsCommandPlace {
 		try {
 			return BuildStorage.readSchematic(buildName, version);
 		} catch (NoSuchFileException e) {
-			source.sendFailure(Component.literal("No schematic for build ").append(VcsMessages.name(buildName)).append(" v" + version + " at " + e.getFile()));
+			source.sendFailure(VcsMessages.missingVersion(buildName, version));
 			return null;
 		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to read build '{}' v{} for {}", buildName, version, player.getGameProfile().name(), e);
-			source.sendFailure(Component.literal("Failed to load schematic: " + e.getMessage()));
+			source.sendFailure(Component.literal("Failed to load v" + version + ": " + e.getMessage()));
 			return null;
 		}
 	}
@@ -258,15 +256,14 @@ public final class VcsCommandPlace {
 		Optional<BuildPlacement> overlapping = BuildRegistry.overlapping(source.getServer(), level.dimension(), box, null);
 		if (overlapping.isPresent()) {
 			source.sendFailure(Component.literal("Placing build ").append(VcsMessages.name(buildName)).append(" here would overlap ")
-				.append(VcsMessages.placement(overlapping.get())).append("; placements may not intersect"));
+				.append(VcsMessages.placement(overlapping.get())).append(VcsMessages.NO_OVERLAP));
 			return 0;
 		}
 		// Blocks that are in the way are not part of any build, so they are only overwritten when asked for.
 		int inTheWay = nonAir(box, level);
 		if (inTheWay > 0 && !force) {
 			source.sendFailure(Component.literal("Placing build ").append(VcsMessages.name(buildName)).append(" here would overwrite " + inTheWay
-				+ (inTheWay == 1 ? " block" : " blocks") + " already standing in its " + VcsMessages.size(box) + " box at " + box.min().toShortString()
-				+ "; move somewhere clear or add " + VcsCommand.FORCE + " to overwrite them"));
+				+ (inTheWay == 1 ? " block" : " blocks") + " in the way; move somewhere clear or add " + VcsCommand.FORCE + " to overwrite them"));
 			return 0;
 		}
 
@@ -274,7 +271,7 @@ public final class VcsCommandPlace {
 			BuildPlacer.place(level, List.of(box), schematic, box);
 		} catch (IllegalArgumentException e) {
 			MCVCS.LOGGER.error("Failed to place build '{}' v{} for {}", buildName, placed, player.getGameProfile().name(), e);
-			source.sendFailure(Component.literal("Failed to place schematic: " + e.getMessage()));
+			source.sendFailure(Component.literal("Failed to place: " + e.getMessage()));
 			return 0;
 		}
 
@@ -286,7 +283,7 @@ public final class VcsCommandPlace {
 			BuildRegistry.select(player, updated, name);
 		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to record placement '{}' of build '{}' for {}", name, buildName, player.getGameProfile().name(), e);
-			source.sendFailure(Component.literal("Placed build ").append(VcsMessages.name(buildName)).append(" but failed to record the placement: " + e.getMessage()));
+			source.sendFailure(Component.literal("Placed build ").append(VcsMessages.name(buildName)).append(" but failed to remember the copy: " + e.getMessage()));
 			return 0;
 		}
 		MCVCS.LOGGER.info("{} placed build '{}' v{} as placement '{}' at {} in {}, overwriting {} blocks",

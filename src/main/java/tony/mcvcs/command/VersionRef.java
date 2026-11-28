@@ -73,7 +73,7 @@ record VersionRef(@Nullable Integer number, @Nullable String tag) {
 		if (tag != null) {
 			Optional<Integer> tagged = build.taggedVersion(tag);
 			if (tagged.isEmpty()) {
-				source.sendFailure(Component.literal("Build ").append(VcsMessages.name(build.name())).append(" has no version tagged " + tag));
+				source.sendFailure(Component.literal("Build ").append(VcsMessages.name(build.name())).append(" has no version labeled " + tag));
 			}
 			return tagged;
 		}

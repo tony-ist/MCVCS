@@ -21,9 +21,9 @@ import tony.mcvcs.network.ChatButtons;
  * or its first if that is gone; without a name at all it goes to the selected placement.
  */
 public final class VcsCommandTp {
-	static final VcsHelp HELP = new VcsHelp("tp", "/vcs tp [buildname [placementname]]",
-		"teleport onto a placement",
-		"Teleports you onto the top of that placement's box, at its centre, in whatever dimension it is in. Given only a build, it takes its " + Build.MAIN + " placement; given nothing, your selected placement.");
+	static final VcsHelp HELP = new VcsHelp("tp", "/vcs tp [buildname [copyname]]",
+		"teleport to a build",
+		"Teleports you on top of the build. Given only a build name, goes to its " + Build.MAIN + " copy; given nothing, to your selected build.");
 
 	private VcsCommandTp() {
 	}
@@ -36,8 +36,8 @@ public final class VcsCommandTp {
 		}
 		Optional<String> placement = build.get().defaultPlacementName();
 		if (placement.isEmpty()) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" is not placed in this world; run ")
-				.append(ChatButtons.command("/vcs place " + buildName)).append(" to put it in the world"));
+			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" is not in this world; run ")
+				.append(ChatButtons.command("/vcs place " + buildName)).append(" to put a copy here"));
 			return 0;
 		}
 		return run(source, buildName, placement.get());
@@ -52,7 +52,7 @@ public final class VcsCommandTp {
 		}
 		Optional<BuildPlacement> placement = BuildPlacement.of(build.get(), placementName);
 		if (placement.isEmpty()) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" has no placement ").append(VcsMessages.name(placementName))
+			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" has no copy ").append(VcsMessages.name(placementName))
 				.append("; it has " + (build.get().placements().isEmpty() ? "none" : String.join(", ", build.get().placementNames()))));
 			return 0;
 		}
@@ -83,7 +83,7 @@ public final class VcsCommandTp {
 	private static int teleport(CommandSourceStack source, ServerPlayer player, BuildPlacement placement) {
 		ServerLevel level = source.getServer().getLevel(placement.dimension());
 		if (level == null) {
-			source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is in " + placement.dimension().identifier() + ", which does not exist here"));
+			source.sendFailure(VcsMessages.missingDimension(placement));
 			return 0;
 		}
 

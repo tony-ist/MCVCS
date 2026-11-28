@@ -92,12 +92,12 @@ public class VcsSharedBuildsGameTest extends VcsGameTest {
 			if (context.computeOnClient(client -> ClientPlacements.selected()) != null || !context.computeOnClient(client -> ClientPlacements.all()).isEmpty()) {
 				throw new AssertionError("Expected no placement of the first world to be selected or drawn in the second");
 			}
-			assertOnlyMessage(run(context, "vcs select " + BUILD_NAME), "Build " + BUILD_NAME + " is not placed in this world; run /vcs place " + BUILD_NAME);
+			assertOnlyMessage(run(context, "vcs select " + BUILD_NAME), "Build " + BUILD_NAME + " is not in this world; run /vcs place " + BUILD_NAME);
 
 			// The name is the shared build's, so creating it again is refused and v1 stays the first world's stone.
 			BlockPos clash = playerPos(second).offset(2, 0, 2);
 			fillBox(second, clash, clash.offset(2, 1, 1), Blocks.DIAMOND_BLOCK.defaultBlockState(), clash, Blocks.DIAMOND_BLOCK.defaultBlockState());
-			assertOnlyMessage(run(context, "vcs create " + BUILD_NAME), "Build " + BUILD_NAME + " already exists; place it in this world with /vcs place " + BUILD_NAME);
+			assertOnlyMessage(run(context, "vcs create " + BUILD_NAME), "Build " + BUILD_NAME + " already exists; put it in this world with /vcs place " + BUILD_NAME);
 			assertBlock(read(schematic(BUILD_NAME, 1)), read(schematic(BUILD_NAME, 1)).box().min(), Blocks.STONE);
 
 			// Placed here under the same name as the first world's placement: names only need to be unique per world.
@@ -116,7 +116,7 @@ public class VcsSharedBuildsGameTest extends VcsGameTest {
 
 			// A commit here is the shared build's next version; the first world's placement still holds v1, where it stood.
 			setBlock(second, placed.max(), Blocks.GOLD_BLOCK.defaultBlockState());
-			assertOnlyMessage(run(context, "vcs commit"), "Committed " + BUILD_NAME + "/" + Build.MAIN + " as build " + BUILD_NAME + " v2");
+			assertOnlyMessage(run(context, "vcs save"), "Saved " + BUILD_NAME + "/" + Build.MAIN + " as v2");
 			assertBlock(read(schematic(BUILD_NAME, 2)), read(schematic(BUILD_NAME, 2)).box().max(), Blocks.GOLD_BLOCK);
 			Placement firstMain = placementIn(firstWorld, Build.MAIN);
 			if (firstMain.head() != 1 || !firstMain.origin().equals(firstBox.min())) {
@@ -131,11 +131,11 @@ public class VcsSharedBuildsGameTest extends VcsGameTest {
 			screenshotLastFrame(context, "mcvcs-shared-placed");
 
 			// Deleting from here warns that the first world's placement goes too and that its blocks stay there.
-			String warning = "Warning: this build is shared with another world, '" + firstWorld
-				+ "'. Its placements there will be removed too, but their blocks will stay in that world.";
+			String warning = "It is also used in world '" + firstWorld
+				+ "'. It will stop being tracked there, but its blocks stay.";
 			List<Component> asked = run(context, "vcs delete " + BUILD_NAME + " -c");
-			assertOnlyMessage(asked, "Delete build " + BUILD_NAME + ", emptying its 1 placement in this world? This cannot be undone, all versions will be lost! "
-				+ warning + " Run /vcs confirmDelete to proceed.");
+			assertOnlyMessage(asked, "Delete build " + BUILD_NAME + ", clearing the blocks of its 1 copy in this world? All its versions will be deleted, and this can't be undone! "
+				+ warning + " Run /vcs confirmDelete to delete it.");
 
 			// The overlay's delete window says the same.
 			context.getInput().pressKey(BuildBrowserKey.KEY);

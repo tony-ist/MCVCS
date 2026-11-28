@@ -20,8 +20,8 @@ import tony.mcvcs.network.PreviewSender;
  */
 public final class VcsCommandDeselect {
 	static final VcsHelp HELP = new VcsHelp("deselect", "/vcs deselect",
-		"unselect your selected placement",
-		"Leaves you with no selected placement: its box, and any preview or diff highlighting of it, disappear, and the commands that need a selection refuse until you select one again.");
+		"clear your selection",
+		"Clears your selection, hiding its outline and any preview or highlighted changes.");
 
 	private VcsCommandDeselect() {
 	}
@@ -30,7 +30,7 @@ public final class VcsCommandDeselect {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<BuildPlacement> selected = BuildRegistry.selected(player);
 		if (selected.isEmpty()) {
-			source.sendFailure(Component.literal("Nothing selected in this world"));
+			source.sendFailure(Component.literal("Nothing selected"));
 			return 0;
 		}
 

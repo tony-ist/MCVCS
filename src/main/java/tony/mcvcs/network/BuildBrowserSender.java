@@ -125,7 +125,7 @@ public final class BuildBrowserSender {
 					ServerPlayNetworking.send(player, new ThumbnailBlocksPayload(name, version, offset, palette, indices, last)));
 			} catch (RuntimeException e) {
 				MCVCS.LOGGER.error("Failed to send the commit preview of '{}' to {}", placement.label(), player.getGameProfile().name(), e);
-				ServerPlayNetworking.send(player, new ThumbnailFailedPayload(name, version, "Failed to read the placement"));
+				ServerPlayNetworking.send(player, new ThumbnailFailedPayload(name, version, "Couldn't show preview"));
 			}
 		});
 	}
@@ -149,7 +149,7 @@ public final class BuildBrowserSender {
 
 	/**
 	 * Tells {@code player} how many blocks of their selected placement differ from the version it holds, the same count
-	 * {@code /vcs checkout} refuses over. Worked out on the server thread, since it reads the world.
+	 * {@code /vcs load} refuses over. Worked out on the server thread, since it reads the world.
 	 */
 	private static void sendStatus(ServerPlayer player) {
 		Optional<BuildPlacement> selected = allowed(player) ? BuildRegistry.selected(player) : Optional.empty();
@@ -220,10 +220,10 @@ public final class BuildBrowserSender {
 				PreviewSender.slices(snapshot, (offset, palette, indices, last) ->
 					ServerPlayNetworking.send(player, new ThumbnailBlocksPayload(name, version, offset, palette, indices, last)));
 			} catch (NoSuchFileException e) {
-				ServerPlayNetworking.send(player, new ThumbnailFailedPayload(name, version, "Schematic missing"));
+				ServerPlayNetworking.send(player, new ThumbnailFailedPayload(name, version, "Couldn't show preview"));
 			} catch (IOException | RuntimeException e) {
 				MCVCS.LOGGER.error("Failed to send the preview of build '{}' v{} to {}", name, version, player.getGameProfile().name(), e);
-				ServerPlayNetworking.send(player, new ThumbnailFailedPayload(name, version, "Failed to read schematic"));
+				ServerPlayNetworking.send(player, new ThumbnailFailedPayload(name, version, "Couldn't show preview"));
 			}
 		});
 	}

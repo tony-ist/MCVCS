@@ -29,7 +29,7 @@ import org.jspecify.annotations.Nullable;
 public final class PlacePreviewRenderer {
 	/** Line color (ARGB) while the copy can be placed where it stands: the green of a preview. */
 	public static final int COLOR = 0xFF7CFF7C;
-	/** Line color (ARGB) while it would be refused: a light red, the same one {@code /vcs diff} marks removals with. */
+	/** Line color (ARGB) while it would be refused: a light red, the same one {@code /vcs changes} marks removals with. */
 	public static final int REFUSED_COLOR = 0xFFFF6B6B;
 	/** {@link #COLOR} at a line width of 2 pixels. */
 	private static final GizmoStyle STYLE = GizmoStyle.stroke(COLOR, 2.0f);

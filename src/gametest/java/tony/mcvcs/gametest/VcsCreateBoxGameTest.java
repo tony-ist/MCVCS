@@ -78,13 +78,13 @@ public class VcsCreateBoxGameTest extends VcsGameTest {
 			BuildBox box = new BuildBox(gold, diamond);
 
 			// Nothing is created yet; the player is asked for the first corner.
-			assertOnlyMessage(run(context, "vcs create " + BOX_NAME + " -b"), "Punch two opposite corners, or right-click them with an empty hand, to create build " + BOX_NAME);
-			assertArmed(context, "Punch the first corner of " + BOX_NAME, null);
+			assertOnlyMessage(run(context, "vcs create " + BOX_NAME + " -b"), "Hit two opposite corners, or right-click them with an empty hand, to save everything between them as " + BOX_NAME);
+			assertArmed(context, "Hit one corner of " + BOX_NAME, null);
 
 			// The first punch says nothing in chat and asks for the second corner, outlining the box so far.
 			lookAt(context, gold, gold);
 			assertNoMessage(click(context, options -> options.keyAttack));
-			assertArmed(context, "Punch the second corner of " + BOX_NAME, gold);
+			assertArmed(context, "Now hit the opposite corner of " + BOX_NAME, gold);
 			assertNoBuild(BOX_NAME);
 			assertBlockAt(singleplayer, gold, Blocks.GOLD_BLOCK);
 			lookAt(context, diamond, diamond);
@@ -92,7 +92,7 @@ public class VcsCreateBoxGameTest extends VcsGameTest {
 
 			// The second punch creates the build from exactly the box between the two, leaving out the emerald.
 			List<Component> created = click(context, options -> options.keyAttack);
-			assertOnlyMessage(created, "Created build " + BOX_NAME + " as placement " + Build.MAIN + " (2x3x2, 12 blocks) at");
+			assertOnlyMessage(created, "Created build " + BOX_NAME + " v1 (2x3x2, 12 blocks)");
 			assertDisarmed(context);
 			assertBox(context, singleplayer, BOX_NAME, Build.MAIN, box);
 			assertBlockAt(singleplayer, diamond, Blocks.DIAMOND_BLOCK);
@@ -113,9 +113,9 @@ public class VcsCreateBoxGameTest extends VcsGameTest {
 			run(context, "vcs create " + REVERSED_NAME + " " + REVERSED_PLACEMENT + " -b");
 			lookAt(context, top, top);
 			assertNoMessage(click(context, options -> options.keyUse));
-			assertArmed(context, "Punch the second corner of " + REVERSED_NAME, top);
+			assertArmed(context, "Now hit the opposite corner of " + REVERSED_NAME, top);
 			lookAt(context, bottom, bottom);
-			assertOnlyMessage(click(context, options -> options.keyUse), "Created build " + REVERSED_NAME + " as placement " + REVERSED_PLACEMENT + " (2x3x2, 12 blocks) at");
+			assertOnlyMessage(click(context, options -> options.keyUse), "Created build " + REVERSED_NAME + " v1 (2x3x2, 12 blocks)");
 			assertBox(context, singleplayer, REVERSED_NAME, REVERSED_PLACEMENT, new BuildBox(new BlockPos(top.getX(), bottom.getY(), bottom.getZ()), new BlockPos(bottom.getX(), top.getY(), top.getZ())));
 
 			// Two corners inside the first build make a box that overlaps it, which is refused.
@@ -123,7 +123,7 @@ public class VcsCreateBoxGameTest extends VcsGameTest {
 			lookAt(context, gold, gold);
 			assertNoMessage(click(context, options -> options.keyAttack));
 			lookAt(context, diamond, diamond);
-			assertOnlyMessage(click(context, options -> options.keyAttack), "Build " + OVERLAPPING_NAME + " would overlap " + BOX_NAME + "/" + Build.MAIN + "; placements may not intersect");
+			assertOnlyMessage(click(context, options -> options.keyAttack), "Build " + OVERLAPPING_NAME + " would overlap " + BOX_NAME + "/" + Build.MAIN + "; copies can't overlap");
 			assertNoBuild(OVERLAPPING_NAME);
 			assertDisarmed(context);
 		}

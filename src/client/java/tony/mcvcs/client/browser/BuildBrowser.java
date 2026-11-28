@@ -96,7 +96,7 @@ public final class BuildBrowser {
 				return;
 			}
 			if (payload.build().isEmpty()) {
-				preview.thumbnail().fail("No placement selected", false);
+				preview.thumbnail().fail("Nothing selected", false);
 			} else if (payload.build().equals(preview.placement().build())) {
 				preview.summarise(payload);
 			}
@@ -308,7 +308,7 @@ public final class BuildBrowser {
 		BuildBox grid = thumbnail.grid();
 		int scale = thumbnail.scale();
 		if (grid == null) {
-			thumbnail.fail("Malformed preview", true);
+			thumbnail.fail(Thumbnail.FAILED, true);
 			return;
 		}
 
@@ -322,7 +322,7 @@ public final class BuildBrowser {
 				return;
 			} catch (RuntimeException e) {
 				MCVCS.LOGGER.error("Failed to build the preview of '{}' v{}", thumbnail.key().build(), thumbnail.key().version(), e);
-				client.execute(() -> thumbnail.fail("Failed to build preview", true));
+				client.execute(() -> thumbnail.fail(Thumbnail.FAILED, true));
 				return;
 			}
 			client.execute(() -> {

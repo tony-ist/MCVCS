@@ -80,14 +80,14 @@ public class VcsPlaceCommandGameTest extends VcsGameTest {
 			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME + " 2"), "Build " + BUILD_NAME + " only has versions 1 to 1");
 			// And so is a placement name that does not start with a letter from a to z.
 			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME + " latest 2nd"),
-				"Placement name 2nd must start with a letter from a to z and may only contain letters, digits, _ + - and dots between them");
+				"Copy name 2nd is not allowed: start with a letter, and use only letters, digits, and _ + - .");
 
 			// Placing where the player stands shows the copy one block below their feet, extending east and south. The
 			// player is moved well clear of the first placement first.
 			BlockPos feet = hover(singleplayer, context, start.offset(0, 10, 20));
 			BuildBox second = below(feet);
 			List<Component> showing = run(context, "vcs place " + BUILD_NAME + " latest " + SECOND);
-			assertOnlyMessage(showing, "Showing " + BUILD_NAME + "/" + SECOND + " v1 (2x2x2, 8 blocks) at " + second.min().toShortString());
+			assertOnlyMessage(showing, "Showing " + BUILD_NAME + "/" + SECOND + " v1 (2x2x2, 8 blocks)");
 			// Nothing is in the world yet, and nothing is selected that was not selected before.
 			if (blockAt(singleplayer, second.min()) != Blocks.AIR.defaultBlockState()) {
 				throw new AssertionError("A copy that is only shown must leave the world alone but " + second.min().toShortString()
@@ -112,12 +112,12 @@ public class VcsPlaceCommandGameTest extends VcsGameTest {
 			// only hears about when it is confirmed; it stays up so it can be moved somewhere clear instead.
 			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME), "Showing " + BUILD_NAME + "/" + Build.PLACEMENT_PREFIX + "2");
 			assertOnlyMessage(run(context, "vcs confirmPlace"),
-				"Placing build " + BUILD_NAME + " here would overlap " + BUILD_NAME + "/" + SECOND + "; placements may not intersect");
+				"Placing build " + BUILD_NAME + " here would overlap " + BUILD_NAME + "/" + SECOND + "; copies can't overlap");
 			assertOnlyMessage(run(context, "vcs cancelPlace"), "Dropped the copy of " + BUILD_NAME + "/" + Build.PLACEMENT_PREFIX + "2");
 			assertOnlyMessage(run(context, "vcs confirmPlace"), "Nothing to place");
 			// A name already taken is refused before anything is shown, though.
 			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME + " latest " + SECOND),
-				"Build " + BUILD_NAME + " already has a placement called " + SECOND);
+				"Build " + BUILD_NAME + " already has a copy called " + SECOND);
 
 			// Blocks standing in the way are refused, then overwritten with -f. The player moves once more, and a dirt
 			// block is put where the copy's north-west corner would land.
@@ -125,7 +125,7 @@ public class VcsPlaceCommandGameTest extends VcsGameTest {
 			setBlock(singleplayer, third.min(), Blocks.DIRT.defaultBlockState());
 			// Unnamed, so the placement is called p2: the lowest free number, main being the first.
 			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME), "Showing " + BUILD_NAME + "/" + Build.PLACEMENT_PREFIX + "2");
-			assertOnlyMessage(run(context, "vcs confirmPlace"), "Placing build " + BUILD_NAME + " here would overwrite 1 block already standing in its 2x2x2 box at " + third.min().toShortString());
+			assertOnlyMessage(run(context, "vcs confirmPlace"), "Placing build " + BUILD_NAME + " here would overwrite 1 block in the way");
 			if (blockAt(singleplayer, third.min()) != Blocks.DIRT.defaultBlockState()) {
 				throw new AssertionError("A refused placement must leave the blocks alone but " + third.min().toShortString() + " holds " + blockAt(singleplayer, third.min()));
 			}
@@ -142,7 +142,7 @@ public class VcsPlaceCommandGameTest extends VcsGameTest {
 			runCommand(context, "vcs select " + BUILD_NAME + " " + SECOND);
 			waitForSelection(context, BUILD_NAME + "/" + SECOND);
 			setBlock(singleplayer, second.max(), Blocks.AIR.defaultBlockState());
-			runCommand(context, "vcs commit");
+			runCommand(context, "vcs save");
 			read(schematic(BUILD_NAME, 2));
 			assertHead(singleplayer, SECOND, 2);
 			assertHead(singleplayer, Build.MAIN, 1);
@@ -154,14 +154,14 @@ public class VcsPlaceCommandGameTest extends VcsGameTest {
 			// The version is the build's, though, so the first placement can check it out and loses its gold block too.
 			runCommand(context, "vcs select " + BUILD_NAME + " " + Build.MAIN);
 			waitForSelection(context, MAIN);
-			runCommand(context, "vcs checkout 2");
+			runCommand(context, "vcs load 2");
 			context.waitTicks(5);
 			assertHead(singleplayer, Build.MAIN, 2);
 			if (blockAt(singleplayer, box.max()) != Blocks.AIR.defaultBlockState()) {
 				throw new AssertionError("Expected v2 checked out at " + MAIN + " to empty " + box.max().toShortString() + " but it holds " + blockAt(singleplayer, box.max()));
 			}
 			// And back again, which leaves the other placements where they were.
-			runCommand(context, "vcs checkout 1");
+			runCommand(context, "vcs load 1");
 			context.waitTicks(5);
 			assertHead(singleplayer, Build.MAIN, 1);
 			assertHead(singleplayer, SECOND, 2);

@@ -25,7 +25,7 @@ import tony.mcvcs.network.BuildSummary;
  */
 public final class RenameBuildScreen extends Screen {
 	/** Labels of the window's buttons. */
-	public static final String SAVE = "Save";
+	public static final String SAVE = "Rename";
 	public static final String CANCEL = "Cancel";
 
 	private static final int WIDTH = 240;
@@ -92,7 +92,7 @@ public final class RenameBuildScreen extends Screen {
 		}
 		save.active = canSave();
 		save.setTooltip(save.active || name.isEmpty() || name.equals(build.name()) ? null : Tooltip.create(Component.literal(
-			"A build name must start with a letter from a to z and may only contain letters, digits, _ + - and dots between them")));
+			CreateBuildScreen.NAME_RULE)));
 	}
 
 	@Override

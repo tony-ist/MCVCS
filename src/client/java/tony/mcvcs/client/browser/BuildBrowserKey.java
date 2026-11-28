@@ -39,7 +39,7 @@ public final class BuildBrowserKey {
 			return;
 		}
 		if (!BuildBrowser.serverSupported()) {
-			client.player.sendOverlayMessage(Component.literal("This server does not have MCVCS installed, or has an older version of it"));
+			client.player.sendOverlayMessage(Component.literal("This server doesn't have MCVCS, or has an older version"));
 			return;
 		}
 		client.setScreen(new BuildBrowserScreen());

@@ -51,12 +51,12 @@ public final class VcsCommandUnplace {
 	}
 
 	static final VcsHelp HELP = new VcsHelp("unplace", "/vcs unplace [" + KEEP + "]",
-		"stop tracking the selected placement and empty its box",
-		"Removes your selected placement from its build and empties its box, since the version it holds is kept on disk. If the box has uncommitted changes, they would be lost, so you are asked to confirm with `/vcs confirmUnplace` first. The build and all its versions stay: run `/vcs place` to put it back into the world.",
-		new VcsHelp.Key(KEEP, "leave its blocks standing as ordinary world blocks instead of emptying the box"));
+		"remove the selected copy from the world",
+		"Removes the selected copy and clears its blocks. Its saved versions stay: run `/vcs place` to put it back. If it has unsaved changes, you are asked to confirm with `/vcs confirmUnplace` first.",
+		new VcsHelp.Key(KEEP, "keep its blocks in the world, only stop tracking them"));
 	static final VcsHelp CONFIRM_HELP = new VcsHelp("confirmUnplace", "/vcs confirmUnplace",
-		"remove the placement your last `/vcs unplace` named",
-		"Removes the placement your last `/vcs unplace` named, emptying its box unless " + KEEP + " was given, and discards the uncommitted changes it was holding. The build's versions are untouched; run `/vcs place` to put it back into the world.");
+		"remove the copy your `/vcs unplace` asked about",
+		"Removes the copy your last `/vcs unplace` asked about, deleting its unsaved changes. Its blocks are cleared unless you added " + KEEP + ".");
 
 	private VcsCommandUnplace() {
 	}
@@ -83,7 +83,7 @@ public final class VcsCommandUnplace {
 		BuildPlacement placement = selected.get();
 		ServerLevel level = source.getServer().getLevel(placement.dimension());
 		if (level == null) {
-			source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is in " + placement.dimension().identifier() + ", which does not exist here"));
+			source.sendFailure(VcsMessages.missingDimension(placement));
 			return 0;
 		}
 
@@ -94,10 +94,9 @@ public final class VcsCommandUnplace {
 		}
 
 		PENDING.put(player.getUUID(), new Pending(placement.build().name(), placement.name(), keep));
-		source.sendSuccess(() -> Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is modified: " + uncommitted
-			+ (uncommitted == 1 ? " block differs" : " blocks differ") + " from v" + placement.head() + ", and removing it would lose "
-			+ (uncommitted == 1 ? "that change" : "those changes") + (keep ? ", though its blocks would be left standing" : " along with its blocks")
-			+ ". Run ").append(ChatButtons.command("/vcs commit")).append(" to save them first, ").append(ChatButtons.command("/vcs diff"))
+		source.sendSuccess(() -> Component.empty().append(VcsMessages.placement(placement)).append(" has " + VcsMessages.unsavedChanges(uncommitted)
+			+ " since v" + placement.head() + ", which removing it would delete" + (keep ? ", though its blocks would stay" : "")
+			+ ". Run ").append(ChatButtons.command("/vcs save")).append(" to save them first, ").append(ChatButtons.command("/vcs changes"))
 			.append(" to see them, or ").append(ChatButtons.command("/vcs confirmUnplace")).append(" to remove it anyway."), false);
 		return 1;
 	}
@@ -115,7 +114,7 @@ public final class VcsCommandUnplace {
 		// The build may have gone, or the placement been removed by someone else, since they asked.
 		Optional<BuildPlacement> found = BuildRegistry.find(server, pending.build()).flatMap(build -> BuildPlacement.of(build, pending.placement()));
 		if (found.isEmpty()) {
-			source.sendFailure(Component.literal("No placement ").append(VcsMessages.name(pending.build() + Build.LABEL_SEPARATOR + pending.placement())).append(" in this world"));
+			source.sendFailure(Component.literal("No copy ").append(VcsMessages.name(pending.build() + Build.LABEL_SEPARATOR + pending.placement())).append(" in this world"));
 			return 0;
 		}
 		return remove(source, player, found.get(), pending.keep());
@@ -131,7 +130,7 @@ public final class VcsCommandUnplace {
 		if (!keep) {
 			ServerLevel level = server.getLevel(placement.dimension());
 			if (level == null) {
-				source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is in " + placement.dimension().identifier() + ", which does not exist here"));
+				source.sendFailure(VcsMessages.missingDimension(placement));
 				return 0;
 			}
 			// The way a checkout empties a box: without block updates.
@@ -143,7 +142,7 @@ public final class VcsCommandUnplace {
 			BuildStorage.clearSelectionsOf(placement.build().world(), placement.build().name(), placement.name());
 		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to unplace '{}' for {}", placement.label(), player.getGameProfile().name(), e);
-			source.sendFailure(Component.literal("Failed to remove placement: " + e.getMessage()));
+			source.sendFailure(Component.literal("Failed to remove copy: " + e.getMessage()));
 			return 0;
 		}
 		MCVCS.LOGGER.info("{} unplaced '{}' at {}, {}", player.getGameProfile().name(), placement.label(), box.min().toShortString(),
@@ -164,8 +163,8 @@ public final class VcsCommandUnplace {
 		// The placement is gone for every client, and for whoever had it selected.
 		BuildSync.broadcast(server);
 
-		source.sendSuccess(() -> Component.literal("Removed placement ").append(VcsMessages.placement(placement))
-			.append(keep ? "; its blocks were left standing" : " and emptied its box")
+		source.sendSuccess(() -> Component.literal("Removed ").append(VcsMessages.placement(placement))
+			.append(keep ? ", leaving its blocks in the world" : " and cleared its blocks")
 			.append("; build ").append(VcsMessages.name(placement.build().name())).append(" keeps its " + placement.build().version()
 				+ (placement.build().version() == 1 ? " version" : " versions")), false);
 		return 1;

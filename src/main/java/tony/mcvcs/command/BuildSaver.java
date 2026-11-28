@@ -16,7 +16,7 @@ import tony.mcvcs.build.Schematic;
 import tony.mcvcs.network.BuildSync;
 
 /**
- * Saves a build's box as one of its versions, the way {@code /vcs create}, {@code /vcs commit} and {@code /vcs fit}
+ * Saves a build's box as one of its versions, the way {@code /vcs create}, {@code /vcs save} and {@code /vcs fit}
  * all do: the blocks of the box are copied into a schematic anchored at {@link #ORIGIN_CORNER} and written to
  * {@link BuildStorage}. Only blocks and their block entities are kept; entities and biomes are not.
  */

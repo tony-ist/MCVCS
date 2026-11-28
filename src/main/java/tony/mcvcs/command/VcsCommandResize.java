@@ -1,7 +1,6 @@
 package tony.mcvcs.command;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -22,7 +21,6 @@ import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
-import tony.mcvcs.build.BuildStorage;
 import tony.mcvcs.network.ChatButtons;
 import tony.mcvcs.network.ResizeBeginPayload;
 import tony.mcvcs.network.ResizeClearPayload;
@@ -51,14 +49,14 @@ public final class VcsCommandResize {
 	}
 
 	static final VcsHelp HELP = new VcsHelp("resize", "/vcs resize",
-		"drag the faces of the box, then commit",
-		"Starts resizing the selected placement's box. Hold left alt and turn the mouse wheel to drag the face you are looking at: up pushes it away from you, down pulls it closer. The box turns red if it overlaps another placement. Press Numpad 5 or run `/vcs confirmResize` to save the new box as the next version, or `/vcs cancelResize` to drop it. Needs the mod on your client.");
+		"drag the sides of the box, then save",
+		"Lets you resize the selected build's box. Hold Left Alt and scroll to move the side you are looking at. The box turns red if it overlaps another copy. Press Numpad 5 or run `/vcs confirmResize` to save it as a new version, or `/vcs cancelResize` to stop. Needs MCVCS on your client.");
 	static final VcsHelp CONFIRM_HELP = new VcsHelp("confirmResize", "/vcs confirmResize",
-		"commit the box your `/vcs resize` is showing",
-		"Saves the box your `/vcs resize` is showing as the build's next version, with whatever blocks are inside it. Refuses if it overlaps another placement or exceeds " + BoxExpansion.MAX_VOLUME + " blocks.");
+		"save the box you are resizing",
+		"Saves the resized box, with whatever is inside it, as a new version. Refuses if it overlaps another copy or is over " + BoxExpansion.MAX_VOLUME + " blocks.");
 	static final VcsHelp CANCEL_HELP = new VcsHelp("cancelResize", "/vcs cancelResize",
-		"drop the box your `/vcs resize` is showing",
-		"Stops resizing and leaves the placement's box as it was.");
+		"stop resizing",
+		"Stops resizing and leaves the box as it was.");
 
 	private VcsCommandResize() {
 	}
@@ -93,8 +91,8 @@ public final class VcsCommandResize {
 		PENDING.put(player.getUUID(), new Pending(placement.build().name(), placement.name(), box, box));
 		ServerPlayNetworking.send(player, new ResizeBeginPayload(placement.label(), placement.dimension(), box));
 		source.sendSuccess(() -> Component.literal("Resizing ").append(VcsMessages.placement(placement)).append(" (" + VcsMessages.size(box) + ")")
-			.append("; hold left alt and turn the mouse wheel to drag the face you look at, then press Numpad 5 or run ").append(ChatButtons.command("/vcs confirmResize"))
-			.append(" to commit it, or ").append(ChatButtons.command("/vcs cancelResize")).append(" to drop it"), false);
+			.append("; hold Left Alt and scroll to move the side you are looking at, then press Numpad 5 or run ").append(ChatButtons.command("/vcs confirmResize"))
+			.append(" to save, or ").append(ChatButtons.command("/vcs cancelResize")).append(" to stop"), false);
 		return 1;
 	}
 
@@ -113,7 +111,7 @@ public final class VcsCommandResize {
 		Optional<BuildPlacement> found = BuildRegistry.find(source.getServer(), pending.build()).flatMap(build -> BuildPlacement.of(build, pending.placement()));
 		if (found.isEmpty()) {
 			drop(player);
-			source.sendFailure(Component.literal("Placement ").append(VcsMessages.name(pending.label())).append(" is gone; nothing was resized"));
+			source.sendFailure(Component.empty().append(VcsMessages.name(pending.label())).append(" is gone; nothing was resized"));
 			return 0;
 		}
 		BuildPlacement placement = found.get();
@@ -126,14 +124,14 @@ public final class VcsCommandResize {
 		ServerLevel level = source.getServer().getLevel(placement.dimension());
 		if (level == null) {
 			drop(player);
-			source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is in " + placement.dimension().identifier() + ", which does not exist here"));
+			source.sendFailure(VcsMessages.missingDimension(placement));
 			return 0;
 		}
 
 		BuildBox box = placement.box();
 		BuildBox resized = pending.box();
 		if (resized.equals(box)) {
-			source.sendFailure(Component.literal("The box of ").append(VcsMessages.placement(placement)).append(" is unchanged; drag a face first, or run ")
+			source.sendFailure(Component.literal("The box of ").append(VcsMessages.placement(placement)).append(" is unchanged; move a side first, or run ")
 				.append(ChatButtons.command("/vcs cancelResize")));
 			return 0;
 		}
@@ -145,7 +143,7 @@ public final class VcsCommandResize {
 		Optional<BuildPlacement> overlapping = BuildRegistry.overlapping(source.getServer(), placement.dimension(), resized, placement);
 		if (overlapping.isPresent()) {
 			source.sendFailure(Component.literal("Resizing ").append(VcsMessages.placement(placement)).append(" to " + VcsMessages.size(resized))
-				.append(" would overlap ").append(VcsMessages.placement(overlapping.get())).append("; placements may not intersect"));
+				.append(" would overlap ").append(VcsMessages.placement(overlapping.get())).append(VcsMessages.NO_OVERLAP));
 			return 0;
 		}
 
@@ -153,15 +151,15 @@ public final class VcsCommandResize {
 		int version = build.version();
 		build = build.withPlacement(placement.name(), placement.placement().withHead(version));
 		try {
-			Path file = BuildSaver.save(player, build, version, resized, level);
+			BuildSaver.save(player, build, version, resized, level);
 			drop(player);
 			BuildRegistry.select(player, build, placement.name());
 			source.sendSuccess(() -> Component.literal("Resized ").append(VcsMessages.placement(placement)).append(" from " + VcsMessages.size(box) + " (" + box.volume() + " blocks) to "
-				+ VcsMessages.size(resized) + " (" + resized.volume() + " blocks) and committed it as v" + version + " at " + BuildStorage.root().relativize(file)), false);
+				+ VcsMessages.size(resized) + " (" + resized.volume() + " blocks) and saved it as v" + version), false);
 			return 1;
 		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to resize '{}' to v{} for {}", placement.label(), version, player.getGameProfile().name(), e);
-			source.sendFailure(Component.literal("Failed to save schematic: " + e.getMessage()));
+			source.sendFailure(Component.literal("Failed to save: " + e.getMessage()));
 			return 0;
 		}
 	}

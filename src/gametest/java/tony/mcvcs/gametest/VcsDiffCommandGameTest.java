@@ -37,9 +37,9 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 
 /**
- * {@code /vcs diff} finds every block that differs between a saved version and the world, by state or by the data of
+ * {@code /vcs changes} finds every block that differs between a saved version and the world, by state or by the data of
  * its block entity, tells them apart by whether they were added, removed or changed, and has the client highlight
- * them until {@code /vcs diff off}.
+ * them until {@code /vcs changes off}.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsDiffCommandGameTest extends VcsGameTest {
@@ -70,10 +70,10 @@ public class VcsDiffCommandGameTest extends VcsGameTest {
 			read(schematic(BUILD_NAME, 1));
 
 			// Tab completion offers every version of the selected build alongside "off".
-			assertSuggestions(singleplayer, "vcs diff ", List.of("-h", "1", "off"));
+			assertSuggestions(singleplayer, "vcs changes ", List.of("-h", "1", "off"));
 
 			// Nothing has changed since v1, so nothing is highlighted.
-			runCommand(context, "vcs diff");
+			runCommand(context, "vcs changes");
 			assertNoDiff(context);
 
 			// One block of each kind: the hole filled in, the gold block dug out, and a stone block swapped for diamond.
@@ -84,11 +84,11 @@ public class VcsDiffCommandGameTest extends VcsGameTest {
 			putItem(singleplayer, barrel, 0, new ItemStack(Items.DIAMOND));
 
 			// Nothing to diff beyond the latest version; the earlier result stands.
-			runCommand(context, "vcs diff 2");
+			runCommand(context, "vcs changes 2");
 			assertNoDiff(context);
 
 			// With no version given the world is compared against the latest version, v1 for now.
-			runCommand(context, "vcs diff");
+			runCommand(context, "vcs changes");
 			ClientDiff diff = waitForDiff(context, 1);
 			assertDiff(diff, BUILD_NAME + "/" + Build.MAIN, 1, box);
 			assertChanges(diff.diff(), Map.of(
@@ -111,13 +111,13 @@ public class VcsDiffCommandGameTest extends VcsGameTest {
 			// v2 is the world as it is now, so diffing against it finds nothing and drops the highlights: the barrel's
 			// contents read back from the schematic the same as from the world. Diffing against v1 explicitly finds
 			// the same four blocks again.
-			runCommand(context, "vcs commit");
+			runCommand(context, "vcs save");
 			read(schematic(BUILD_NAME, 2));
-			assertSuggestions(singleplayer, "vcs diff ", List.of("-h", "1", "2", "off"));
+			assertSuggestions(singleplayer, "vcs changes ", List.of("-h", "1", "2", "off"));
 
-			runCommand(context, "vcs diff");
+			runCommand(context, "vcs changes");
 			assertNoDiff(context);
-			runCommand(context, "vcs diff 1");
+			runCommand(context, "vcs changes 1");
 			diff = waitForDiff(context, 1);
 			assertDiff(diff, BUILD_NAME + "/" + Build.MAIN, 1, box);
 			if (diff.diff().size() != 4) {
@@ -126,11 +126,11 @@ public class VcsDiffCommandGameTest extends VcsGameTest {
 
 			// Taking the diamond out again makes the barrel match v1 but not v2.
 			putItem(singleplayer, barrel, 0, ItemStack.EMPTY);
-			runCommand(context, "vcs diff");
+			runCommand(context, "vcs changes");
 			diff = waitForDiff(context, 2);
 			assertChanges(diff.diff(), Map.of(barrel, new Expected(ChangeKind.CHANGED, Blocks.BARREL, Blocks.BARREL, true)));
 
-			runCommand(context, "vcs diff off");
+			runCommand(context, "vcs changes off");
 			assertNoDiff(context);
 			screenshotLastFrame(context, "mcvcs-vcs-diff-off");
 

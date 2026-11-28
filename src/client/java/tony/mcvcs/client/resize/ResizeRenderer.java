@@ -78,15 +78,13 @@ public final class ResizeRenderer {
 		Gizmos.billboardText(label, new Vec3(center.x, aabb.maxY + lift, center.z), style).setAlwaysOnTop();
 	}
 
-	/** E.g. {@code Resizing. Left Alt + Mouse Wheel to drag a face, Keypad 5 or /vcs confirmResize to commit}. */
+	/** E.g. {@code Hold Left Alt and scroll to move the side you look at · Numpad 5 to finish}, the keys in green. */
 	public static Component message() {
-		return Component.literal("Resizing. ")
-			.append(PlacePreviewKeys.SCROLL.getTranslatedKeyMessage())
-			.append(" + Mouse Wheel to drag a face, ")
-			.append(PlacePreviewKeys.CONFIRM.getTranslatedKeyMessage())
-			.append(" or ")
-			.append(Component.literal("/vcs confirmResize").withStyle(ChatFormatting.GREEN))
-			.append(" to commit");
+		return Component.literal("Hold ")
+			.append(PlacePreviewKeys.keyName(PlacePreviewKeys.SCROLL).copy().withStyle(ChatFormatting.GREEN))
+			.append(" and scroll to move the side you look at · ")
+			.append(PlacePreviewKeys.keyName(PlacePreviewKeys.CONFIRM).copy().withStyle(ChatFormatting.GREEN))
+			.append(" to finish");
 	}
 
 	private static void hint(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {

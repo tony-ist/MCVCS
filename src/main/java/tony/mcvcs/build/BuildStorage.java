@@ -183,7 +183,7 @@ public final class BuildStorage {
 
 	/**
 	 * Records {@code build} as the latest state of the build with its name without writing any schematic, for
-	 * changes such as {@code /vcs checkout} moving a placement's head or {@code /vcs place} adding one. The build's
+	 * changes such as {@code /vcs load} moving a placement's head or {@code /vcs place} adding one. The build's
 	 * folder must exist already.
 	 */
 	public static void update(Build build) throws IOException {

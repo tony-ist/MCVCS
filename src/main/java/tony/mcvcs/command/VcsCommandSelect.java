@@ -28,9 +28,9 @@ import tony.mcvcs.network.ChatButtons;
  * whether or not this one then waits for a click of its own, and even when it fails.
  */
 public final class VcsCommandSelect {
-	static final VcsHelp HELP = new VcsHelp("select", "/vcs select [buildname [placementname]]",
-		"select a placement to work on",
-		"Selects the placement that later commands act on and whose box is drawn. With no arguments, punch a block of the placement you want: the block is left alone. With a build that has one placement, that one is selected; with a build that has several, punch one of them. With a placement name too, that placement is selected at once.");
+	static final VcsHelp HELP = new VcsHelp("select", "/vcs select [buildname [copyname]]",
+		"choose which build to work on",
+		"Selects a build, so `/vcs save`, `/vcs load` and the other commands work on it; it gets an outline in the world. With no name, hit a block of the build; the block is not broken. If the build has several copies, hit the one you want, or name it too.");
 
 	private VcsCommandSelect() {
 	}
@@ -38,8 +38,8 @@ public final class VcsCommandSelect {
 	/** {@code /vcs select}: the placement of whichever block the player punches next. */
 	static int run(CommandSourceStack source) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
-		PendingClick.arm(player, Component.literal("Punch a block of a placement to select it"), VcsCommandSelect::selectAt);
-		source.sendSuccess(() -> Component.literal("Punch a block of a placement, or right-click it with an empty hand, to select it"), false);
+		PendingClick.arm(player, Component.literal("Hit a block of a build to select it"), VcsCommandSelect::selectAt);
+		source.sendSuccess(() -> Component.literal("Hit a block of a build, or right-click it with an empty hand, to select it"), false);
 		return 1;
 	}
 
@@ -58,14 +58,14 @@ public final class VcsCommandSelect {
 
 		Build build = found.get();
 		if (build.placements().isEmpty()) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" is not placed in this world; run ").append(ChatButtons.command("/vcs place " + buildName)).append(" to put it in the world"));
+			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" is not in this world; run ").append(ChatButtons.command("/vcs place " + buildName)).append(" to put a copy here"));
 			return 0;
 		}
 		if (build.placements().size() > 1) {
-			PendingClick.arm(player, Component.literal("Punch a block of a placement of ").append(VcsMessages.name(buildName)).append(" to select it"),
+			PendingClick.arm(player, Component.literal("Hit a block of ").append(VcsMessages.name(buildName)).append(" to select it"),
 				VcsCommandSelect::selectAt);
 			source.sendSuccess(() -> Component.literal("Build ").append(VcsMessages.name(buildName)).append(" has " + build.placements().size()
-				+ " placements (" + String.join(", ", build.placementNames()) + "); punch a block of the one you want to select it"), false);
+				+ " copies (" + String.join(", ", build.placementNames()) + "); hit a block of the one you want"), false);
 			return 1;
 		}
 		return select(source, player, new BuildPlacement(build, build.placementNames().getFirst(), build.placements().values().iterator().next()));
@@ -82,7 +82,7 @@ public final class VcsCommandSelect {
 		}
 		Optional<BuildPlacement> placement = BuildPlacement.of(build.get(), placementName);
 		if (placement.isEmpty()) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" has no placement ").append(VcsMessages.name(placementName))
+			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" has no copy ").append(VcsMessages.name(placementName))
 				.append("; it has " + (build.get().placements().isEmpty() ? "none" : String.join(", ", build.get().placementNames()))));
 			return 0;
 		}
@@ -97,8 +97,8 @@ public final class VcsCommandSelect {
 		CommandSourceStack source = player.createCommandSourceStack();
 		Optional<BuildPlacement> placement = BuildRegistry.at(level.getServer(), level.dimension(), pos);
 		if (placement.isEmpty()) {
-			source.sendFailure(Component.literal("No placement covers " + pos.toShortString() + "; nothing was selected, run ")
-				.append(ChatButtons.command("/vcs select")).append(" to punch another block"));
+			source.sendFailure(Component.literal("No build at " + pos.toShortString() + "; run ")
+				.append(ChatButtons.command("/vcs select")).append(" to try another block"));
 			return;
 		}
 		select(source, player, placement.get());
@@ -114,7 +114,7 @@ public final class VcsCommandSelect {
 			return 0;
 		}
 		source.sendSuccess(() -> Component.literal("Selected ").append(VcsMessages.placement(placement))
-			.append(" at v" + placement.head() + " of " + placement.build().version() + " (" + placement.box().volume() + " blocks)"), false);
+			.append(" (v" + placement.head() + " of " + placement.build().version() + ", " + placement.box().volume() + " blocks)"), false);
 		return 1;
 	}
 }

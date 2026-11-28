@@ -97,11 +97,24 @@ public final class PlacePreviewKeys {
 	private static @Nullable ScrollAxis scrollAxis;
 
 	/** What {@code 5} says instead of placing when the copy stands where it cannot be placed; the reason follows. */
-	public static final String REFUSED = "Cannot place here - ";
+	public static final String REFUSED = "Can't place: ";
 	/** The command {@code 5} runs, the same one the player would type. */
 	private static final String CONFIRM_COMMAND = "vcs confirmPlace";
 
 	private PlacePreviewKeys() {
+	}
+
+	/**
+	 * The key {@code mapping} is bound to, named the way players know it: a keypad digit reads {@code Numpad 5}, which
+	 * the game itself shows as a bare {@code 5}.
+	 */
+	public static Component keyName(KeyMapping mapping) {
+		InputConstants.Key key = KeyMappingHelper.getBoundKeyOf(mapping);
+		int code = key.getValue();
+		if (key.getType() == InputConstants.Type.KEYSYM && code >= GLFW.GLFW_KEY_KP_0 && code <= GLFW.GLFW_KEY_KP_9) {
+			return Component.literal("Numpad " + (code - GLFW.GLFW_KEY_KP_0));
+		}
+		return mapping.getTranslatedKeyMessage();
 	}
 
 	private static KeyMapping key(String name, int code) {

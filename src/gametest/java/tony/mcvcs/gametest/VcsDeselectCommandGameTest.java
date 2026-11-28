@@ -65,7 +65,7 @@ public class VcsDeselectCommandGameTest extends VcsGameTest {
 			setBlock(singleplayer, min, Blocks.DIAMOND_BLOCK.defaultBlockState());
 			runCommand(context, "vcs preview 1");
 			context.waitFor(client -> PreviewManager.active() != null);
-			runCommand(context, "vcs diff 1");
+			runCommand(context, "vcs changes 1");
 			context.waitFor(client -> DiffManager.active() != null);
 
 			runCommand(context, "vcs deselect");
@@ -77,7 +77,7 @@ public class VcsDeselectCommandGameTest extends VcsGameTest {
 			screenshotLastFrame(context, "mcvcs-vcs-deselect");
 
 			// Commit needs a selection, so it writes nothing.
-			runCommand(context, "vcs commit");
+			runCommand(context, "vcs save");
 			context.waitTicks(5);
 			if (Files.exists(schematic(BUILD_NAME, 2))) {
 				throw new AssertionError("Commit after /vcs deselect must not write " + schematic(BUILD_NAME, 2));

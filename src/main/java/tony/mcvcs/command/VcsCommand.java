@@ -25,23 +25,23 @@ import tony.mcvcs.build.Placement;
  * {@code /vcs} command tree. Only the syntax lives here: each subcommand is parsed and handed to the class that does
  * the work.
  * <ul>
- * <li>{@code /vcs create <buildname> [placementname] [-b]} and {@code /vcs cancelCreate}: {@link VcsCommandCreate}</li>
- * <li>{@code /vcs place <buildname> [version | tag | latest] [placementname] [-f]}, {@code /vcs confirmPlace [-f]} and
+ * <li>{@code /vcs create <buildname> [copyname] [-b]} and {@code /vcs cancelCreate}: {@link VcsCommandCreate}</li>
+ * <li>{@code /vcs place <buildname> [version | label | latest] [copyname] [-f]}, {@code /vcs confirmPlace [-f]} and
  * {@code /vcs cancelPlace}: {@link VcsCommandPlace}</li>
  * <li>{@code /vcs unplace [-k]} and {@code /vcs confirmUnplace}: {@link VcsCommandUnplace}</li>
- * <li>{@code /vcs select [buildname [placementname]]}: {@link VcsCommandSelect}</li>
+ * <li>{@code /vcs select [buildname [copyname]]}: {@link VcsCommandSelect}</li>
  * <li>{@code /vcs builds}: {@link VcsCommandBuilds}</li>
  * <li>{@code /vcs deselect}: {@link VcsCommandDeselect}</li>
- * <li>{@code /vcs commit [tagname]}: {@link VcsCommandCommit}</li>
- * <li>{@code /vcs tag <version | tag> <tagname>} and {@code /vcs untag <tagname>}: {@link VcsCommandTag}</li>
- * <li>{@code /vcs preview <version | tag | off>}: {@link VcsCommandPreview}</li>
- * <li>{@code /vcs diff [version | tag | off]}: {@link VcsCommandDiff}</li>
+ * <li>{@code /vcs save [label]}: {@link VcsCommandCommit}</li>
+ * <li>{@code /vcs label <version | label> <label>} and {@code /vcs unlabel <label>}: {@link VcsCommandTag}</li>
+ * <li>{@code /vcs preview <version | label | off>}: {@link VcsCommandPreview}</li>
+ * <li>{@code /vcs changes [version | label | off]}: {@link VcsCommandDiff}</li>
  * <li>{@code /vcs fit}: {@link VcsCommandFit}</li>
  * <li>{@code /vcs resize}, {@code /vcs confirmResize} and {@code /vcs cancelResize}: {@link VcsCommandResize}</li>
- * <li>{@code /vcs checkout <version | tag | latest> [-f]}: {@link VcsCommandCheckout}</li>
+ * <li>{@code /vcs load <version | label | latest> [-f]}: {@link VcsCommandCheckout}</li>
  * <li>{@code /vcs delete <buildname> [-c]} and {@code /vcs confirmDelete}: {@link VcsCommandDelete}</li>
  * <li>{@code /vcs rename <buildname> <newname>}: {@link VcsCommandRename}</li>
- * <li>{@code /vcs tp [buildname [placementname]]}: {@link VcsCommandTp}</li>
+ * <li>{@code /vcs tp [buildname [copyname]]}: {@link VcsCommandTp}</li>
  * <li>{@code /vcs version}: {@link VcsCommandVersion}</li>
  * <li>{@code /vcs help [command]} and {@code /vcs -h}: {@link VcsCommandHelp}</li>
  * </ul>
@@ -83,10 +83,10 @@ public final class VcsCommand {
 						.executes(context -> create(context, Build.MAIN, false))
 						.then(Commands.literal(VcsCommandCreate.BOX)
 							.executes(context -> create(context, Build.MAIN, true)))
-						.then(Commands.argument("placementname", StringArgumentType.word())
-							.executes(context -> create(context, StringArgumentType.getString(context, "placementname"), false))
+						.then(Commands.argument("copyname", StringArgumentType.word())
+							.executes(context -> create(context, StringArgumentType.getString(context, "copyname"), false))
 							.then(Commands.literal(VcsCommandCreate.BOX)
-								.executes(context -> create(context, StringArgumentType.getString(context, "placementname"), true))))))
+								.executes(context -> create(context, StringArgumentType.getString(context, "copyname"), true))))))
 				.then(sub(VcsCommandCreate.CANCEL_HELP)
 					.executes(context -> VcsCommandCreate.cancel(context.getSource())))
 				.then(sub(VcsCommandPlace.HELP)
@@ -116,25 +116,25 @@ public final class VcsCommand {
 					.then(Commands.argument("buildname", StringArgumentType.word())
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))
 						.executes(context -> VcsCommandSelect.run(context.getSource(), StringArgumentType.getString(context, "buildname")))
-						.then(Commands.argument("placementname", StringArgumentType.word())
+						.then(Commands.argument("copyname", StringArgumentType.word())
 							.suggests((context, builder) -> SharedSuggestionProvider.suggest(placements(context.getSource(), StringArgumentType.getString(context, "buildname")), builder))
-							.executes(context -> VcsCommandSelect.run(context.getSource(), StringArgumentType.getString(context, "buildname"), StringArgumentType.getString(context, "placementname"))))))
+							.executes(context -> VcsCommandSelect.run(context.getSource(), StringArgumentType.getString(context, "buildname"), StringArgumentType.getString(context, "copyname"))))))
 				.then(sub(VcsCommandBuilds.HELP)
 					.executes(context -> VcsCommandBuilds.run(context.getSource())))
 				.then(sub(VcsCommandDeselect.HELP)
 					.executes(context -> VcsCommandDeselect.run(context.getSource())))
 				.then(sub(VcsCommandCommit.HELP)
 					.executes(context -> VcsCommandCommit.run(context.getSource(), null))
-					.then(Commands.argument("tagname", StringArgumentType.word())
-						.executes(context -> VcsCommandCommit.run(context.getSource(), StringArgumentType.getString(context, "tagname")))))
+					.then(Commands.argument("label", StringArgumentType.word())
+						.executes(context -> VcsCommandCommit.run(context.getSource(), StringArgumentType.getString(context, "label")))))
 				.then(sub(VcsCommandTag.HELP)
 					.then(VersionRef.argument(VcsCommand::selectedBuild)
-						.then(Commands.argument("tagname", StringArgumentType.word())
-							.executes(context -> VcsCommandTag.run(context.getSource(), VersionRef.of(context), StringArgumentType.getString(context, "tagname"))))))
+						.then(Commands.argument("label", StringArgumentType.word())
+							.executes(context -> VcsCommandTag.run(context.getSource(), VersionRef.of(context), StringArgumentType.getString(context, "label"))))))
 				.then(sub(VcsCommandTag.UNTAG_HELP)
-					.then(Commands.argument("tagname", StringArgumentType.word())
+					.then(Commands.argument("label", StringArgumentType.word())
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(selectedBuild(context).map(build -> build.tags().keySet()).orElse(Set.of()), builder))
-						.executes(context -> VcsCommandTag.untag(context.getSource(), StringArgumentType.getString(context, "tagname")))))
+						.executes(context -> VcsCommandTag.untag(context.getSource(), StringArgumentType.getString(context, "label")))))
 				.then(sub(VcsCommandPreview.HELP)
 					.then(Commands.literal("off")
 						.executes(context -> VcsCommandPreview.off(context.getSource())))
@@ -181,9 +181,9 @@ public final class VcsCommand {
 					.then(Commands.argument("buildname", StringArgumentType.word())
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(BuildRegistry.names(context.getSource().getServer()), builder))
 						.executes(context -> VcsCommandTp.run(context.getSource(), StringArgumentType.getString(context, "buildname")))
-						.then(Commands.argument("placementname", StringArgumentType.word())
+						.then(Commands.argument("copyname", StringArgumentType.word())
 							.suggests((context, builder) -> SharedSuggestionProvider.suggest(placements(context.getSource(), StringArgumentType.getString(context, "buildname")), builder))
-							.executes(context -> VcsCommandTp.run(context.getSource(), StringArgumentType.getString(context, "buildname"), StringArgumentType.getString(context, "placementname"))))))
+							.executes(context -> VcsCommandTp.run(context.getSource(), StringArgumentType.getString(context, "buildname"), StringArgumentType.getString(context, "copyname"))))))
 				.then(sub(VcsCommandVersion.HELP)
 					.executes(context -> VcsCommandVersion.run(context.getSource())))));
 	}
@@ -220,10 +220,10 @@ public final class VcsCommand {
 
 	/** The {@code <placementname> [-f]} tail of {@code /vcs place}, under the version that was given. */
 	private static RequiredArgumentBuilder<CommandSourceStack, String> placementOf(VersionSource version) {
-		return Commands.argument("placementname", StringArgumentType.word())
-			.executes(context -> place(context, version, StringArgumentType.getString(context, "placementname"), false))
+		return Commands.argument("copyname", StringArgumentType.word())
+			.executes(context -> place(context, version, StringArgumentType.getString(context, "copyname"), false))
 			.then(Commands.literal(FORCE)
-				.executes(context -> place(context, version, StringArgumentType.getString(context, "placementname"), true)));
+				.executes(context -> place(context, version, StringArgumentType.getString(context, "copyname"), true)));
 	}
 
 	private static int place(CommandContext<CommandSourceStack> context, VersionSource version, String placementName, boolean force) throws CommandSyntaxException {

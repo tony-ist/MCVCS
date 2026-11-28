@@ -22,8 +22,8 @@ import tony.mcvcs.network.BuildSync;
  */
 public final class VcsCommandRename {
 	static final VcsHelp HELP = new VcsHelp("rename", "/vcs rename <buildname> <newname>",
-		"give a build a new name",
-		"Renames the build, keeping all its versions, tags and placements. Builds are shared by all worlds, so it is renamed in every world, and anyone who had one of its placements selected keeps that selection. The new name may not be taken by another build.");
+		"rename a build",
+		"Renames the build in all your worlds, keeping its versions, labels and copies. The new name can't belong to another build.");
 
 	private VcsCommandRename() {
 	}

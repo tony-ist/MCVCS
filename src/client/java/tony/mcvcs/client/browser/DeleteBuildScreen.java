@@ -32,7 +32,7 @@ public final class DeleteBuildScreen extends Screen {
 	/** Labels of the window's buttons and checkbox. */
 	public static final String DELETE = "Delete";
 	public static final String CANCEL = "Cancel";
-	public static final String CLEAR = "Also delete all placed blocks in this world";
+	public static final String CLEAR = "Also remove it from the world";
 
 	/** How wide the window is, unless the screen is narrower. */
 	private static final int WIDTH = 240;
@@ -57,7 +57,7 @@ public final class DeleteBuildScreen extends Screen {
 	private boolean clear;
 
 	public DeleteBuildScreen(BuildBrowserScreen parent, BuildSummary build) {
-		super(Component.literal("Are you sure you want to delete " + build.name() + "?"));
+		super(Component.literal("Delete " + build.name() + "?"));
 		this.parent = parent;
 		this.build = build;
 	}
@@ -74,9 +74,8 @@ public final class DeleteBuildScreen extends Screen {
 			.onValueChange((box, value) -> clear = value)
 			.build();
 		checkbox.setTooltip(Tooltip.create(Component.literal(build.placements() == 0
-			? "It is not placed in this world, so there are no blocks to delete"
-			: "Empties the " + (build.placements() == 1 ? "box of its placement" : "boxes of its " + build.placements() + " placements")
-				+ "; without this, their blocks stay in the world")));
+			? "It is not in this world"
+			: "Clears its blocks from the world. If you leave this off, the blocks stay")));
 		addRenderableWidget(checkbox);
 
 		int buttonsLeft = width / 2 - BUTTON_WIDTH - PADDING / 2;
@@ -144,8 +143,8 @@ public final class DeleteBuildScreen extends Screen {
 
 	/** What deleting loses, wrapped to the window. */
 	private List<FormattedCharSequence> warning(Layout layout) {
-		String versions = build.version() == 1 ? "Its only version" : "All " + build.version() + " of its versions";
-		return font.split(Component.literal(versions + " will be lost. This cannot be undone."), layout.width() - 2 * PADDING);
+		String versions = build.version() == 1 ? "Its only saved version" : "All " + build.version() + " saved versions";
+		return font.split(Component.literal(versions + " will be deleted. This can't be undone."), layout.width() - 2 * PADDING);
 	}
 
 	/**

@@ -60,7 +60,7 @@ public record BuildPlacement(Build build, String name, Placement placement) {
 	}
 
 	/**
-	 * The box {@code version} is looked at through here, by {@code /vcs diff} and {@code /vcs preview}: the current
+	 * The box {@code version} is looked at through here, by {@code /vcs changes} and {@code /vcs preview}: the current
 	 * {@link #box} together with {@link #boxOf} that version, so a version bigger than the box, such as one committed
 	 * before {@code /vcs fit} shrank it, is seen whole. That may reach past the placement's own blocks into whatever
 	 * stands around it.

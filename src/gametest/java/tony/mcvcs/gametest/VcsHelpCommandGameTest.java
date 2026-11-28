@@ -48,7 +48,7 @@ public class VcsHelpCommandGameTest extends VcsGameTest {
 			if (place.size() != 4) {
 				throw new AssertionError("Expected a header, the usage, the details and one key but got " + strings(place));
 			}
-			assertRun(place.get(1), "/vcs place <buildname> [version | tag | latest] [placementname] [-f]", GOLD);
+			assertRun(place.get(1), "/vcs place <buildname> [version | label | latest] [copyname] [-f]", GOLD);
 			assertRun(place.get(2), "/vcs confirmPlace", GREEN);
 			assertRun(place.get(2), "/vcs cancelPlace", GREEN);
 			assertNoBackticks(place.get(2));
@@ -66,11 +66,11 @@ public class VcsHelpCommandGameTest extends VcsGameTest {
 			assertRun(unplace.get(unplace.size() - 1), "  -k", GOLD);
 
 			// A command without keys ends with its details.
-			List<Component> tag = help(context, "vcs tag -h");
+			List<Component> tag = help(context, "vcs label -h");
 			if (tag.size() != 3) {
 				throw new AssertionError("Expected a header, the usage and the details but got " + strings(tag));
 			}
-			assertRun(tag.get(2), "/vcs commit <tagname>", GREEN);
+			assertRun(tag.get(2), "/vcs save <label>", GREEN);
 
 			// The listing: the usage stays gold, commands in the summaries turn green.
 			List<Component> listing = help(context, "vcs help");
@@ -78,7 +78,7 @@ public class VcsHelpCommandGameTest extends VcsGameTest {
 				.orElseThrow(() -> new AssertionError("No /vcs confirmPlace line in " + strings(listing)));
 			assertRun(confirmPlace, "/vcs confirmPlace [-f]", GOLD);
 			assertRun(confirmPlace, "/vcs place", GREEN);
-			assertRun(confirmPlace, "place the copy your last ", WHITE);
+			assertRun(confirmPlace, "place the copy from ", WHITE);
 			for (Component line : listing) {
 				assertNoBackticks(line);
 			}

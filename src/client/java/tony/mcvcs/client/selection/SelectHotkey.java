@@ -70,7 +70,7 @@ public final class SelectHotkey {
 
 		ClientPlacement placement = lookedAt(ClientPlacements.all(), player.level().dimension(), player.getEyePosition(), player.getViewVector(1.0f), RANGE);
 		if (placement == null) {
-			player.sendOverlayMessage(Component.literal("No build in sight"));
+			player.sendOverlayMessage(Component.literal("Look at a build first"));
 			return;
 		}
 		if (placement.equals(ClientPlacements.selected())) {

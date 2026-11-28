@@ -2,102 +2,104 @@
 
 A version control system for redstone builds, as a Minecraft Fabric mod.
 
-MCVCS solves the problem of keeping track of your redstone creations and their versions. With MCVCS you can easily find the build you are searching for, checkout the required version, and also commit new changes while you are improving it.
+MCVCS saves versions of your redstone builds. Save a version whenever you like, see what you changed since, and load any older version back.
 
 ## Server and client
 
-The mod has a server-side and client-side parts. The mod can run on the server alone; players without it on their client can still join and use every command except `preview` and `diff`. `place` will work differently without client-side mod: it will not show previews, just place right away.
+The mod works on the server alone: players without it can still join and use every command except `preview` and `changes` highlights. Without the mod on your client, `place` puts the copy down right away instead of showing a preview first.
 
-The client-side mod improves experience a lot. It shows bounding boxes with labels for builds, previews, diffs, and adds overlay to manage your builds easily.
+With the mod on your client you also get outlines and names over your builds, previews, highlighted changes, and the builds screen (press `B`).
 
 ## Requirements
 
 - Minecraft 26.1.2 with Fabric Loader and Fabric API
-- Operator level 2 (cheats) to run the commands
+- Cheats turned on (operator permission) to use the mod
 
 ## Quick start
 
 1. Build something floating in the air.
-2. Run /vcs create mybuild and punch it.
+2. Run `/vcs create mybuild` and hit any block of it.
 3. Change a few blocks.
-4. Run /vcs diff to see the changes.
-5. Run /vcs commit.
-6. Run /vcs checkout 1 to go back.
+4. Run `/vcs changes` to see what you changed.
+5. Run `/vcs save`.
+6. Run `/vcs load 1` to go back to the first version.
+
+Or press `B` and do the same with buttons.
 
 ## Commands
 
-A **build** is your creation with all its saved versions. A **placement** is a copy of a build standing in the world; a build can have several. Most commands act on your **selected** placement.
+A **build** is something you built, with all its saved versions. A **copy** is one of its appearances in the world; a build can have several, and each can be changed, saved and loaded on its own. Most commands work on the build you **selected**.
 
-Builds are shared by all single player worlds of one Minecraft instance: a build created in one world can be placed and committed to from any other. Placements belong to the world they stand in.
+Builds are shared by all single player worlds of one Minecraft instance: a build created in one world can be placed and saved from any other. Copies belong to the world they stand in.
 
 ### Builds
 
-- `/vcs create <buildname> [placementname] [-b]`\
-  Creates a new build and its main placement from a group of blocks you punch. When you punch a block, the selection grows until there is only air around it, and this bounding box becomes your build v1. Keep your build hovering in the air so it doesn't grow into the ground.
-  - `-b`: punch two opposite corners instead; the box between them becomes the build.
+- `/vcs create <buildname> [copyname] [-b]`\
+  Saves something you built as version 1 of a new build. Hit any block of it: everything touching that block is saved, so keep your build surrounded by air.
+  - `-b`: hit two opposite corners instead; everything between them is saved.
 - `/vcs cancelCreate`\
-  Stops waiting for the punch; no build is created.
+  Cancels `/vcs create`; no build is created.
 - `/vcs builds`\
-  Lists all builds and their placements in this world, with buttons to select or teleport to each one.
+  Lists all builds and their copies in this world, with buttons to select or teleport to each one.
 - `/vcs rename <buildname> <newname>`\
-  Renames a build in every world, keeping its versions, tags, placements and selections.
+  Renames a build in all your worlds, keeping its versions, labels and copies.
 - `/vcs delete <buildname> [-c]`\
-  Deletes a build with all its versions and its placements in every world, after you confirm with `/vcs confirmDelete`. Its blocks stay in the world. If the build is placed in other worlds, you are warned; its blocks there always stay.
-  - `-c`: also clears the blocks of all its placements in this world.
+  Deletes a build and all its saved versions, after you confirm with `/vcs confirmDelete`. Its blocks stay in the world. If the build is also used in other worlds, you are warned; its blocks there always stay.
+  - `-c`: also clears its blocks from this world.
 - `/vcs confirmDelete`\
-  Confirms the deletion. This cannot be undone.
+  Confirms the deletion. This can't be undone.
 
 ### Selecting
 
-- `/vcs select [buildname [placementname]]`\
-  Selects the placement other commands will work on. Without arguments, punch a block of the placement you want. You can also look at it and press `V`.
+- `/vcs select [buildname [copyname]]`\
+  Selects the build the other commands work on. Without a name, hit a block of the build. You can also look at it and press `V`.
 - `/vcs deselect`\
   Clears your selection.
-- `/vcs tp [buildname [placementname]]`\
-  Teleports you to a placement, or to your selected one if you don't name any.
+- `/vcs tp [buildname [copyname]]`\
+  Teleports you on top of a build, or of your selected one if you don't name any.
 
 ### Versions
 
-- `/vcs commit [tagname]`\
-  Saves the selected placement as the build's next version. Optionally gives the new version a tag.
-- `/vcs checkout <version|tag|latest> [-f]`\
-  Replaces the selected placement's blocks with that version. Refuses if you have uncommitted changes.
-  - `-f`: overwrites uncommitted changes and any blocks in the way.
-- `/vcs diff [version|tag]`\
-  Highlights what changed compared to that version, or to the one you checked out: green is added, red is removed, yellow is changed.
-- `/vcs diff off`\
-  Removes the highlights.
-- `/vcs preview <version|tag>`\
+- `/vcs save [label]`\
+  Saves the selected build as its next version. Optionally gives the new version a label.
+- `/vcs load <version|label|latest> [-f]`\
+  Replaces the selected build with that version. Refuses if you have unsaved changes.
+  - `-f`: deletes unsaved changes and any blocks in the way.
+- `/vcs changes [version|label]`\
+  Highlights what changed since that version, or since the version you last saved or loaded: green is added, red is removed, yellow is changed.
+- `/vcs changes off`\
+  Hides the highlights.
+- `/vcs preview <version|label>`\
   Shows how that version looks right in place, without changing any blocks.
 - `/vcs preview off`\
   Shows the real blocks again.
-- `/vcs tag <version|tag> <tagname>`\
-  Names a version, e.g. `/vcs tag 2 2.0.0`, so you can use `2.0.0` instead of the version number in any command.
-- `/vcs untag <tagname>`\
-  Removes a tag. The version itself stays.
+- `/vcs label <version|label> <label>`\
+  Names a version, e.g. `/vcs label 2 with-roof`, so you can type `with-roof` instead of the version number in any command.
+- `/vcs unlabel <label>`\
+  Removes a label. The version itself stays.
 
-### Placements
+### Copies
 
-- `/vcs place <buildname> [version|tag|latest] [placementname] [-f]`\
-  Shows a ghost copy of the build below your feet. Move it with the numpad keys or `Left Alt` + mouse wheel, then run `/vcs confirmPlace` (or press numpad `5`) to put it into the world. Each copy can hold its own version, and commits from it become versions of the same build.
+- `/vcs place <buildname> [version|label|latest] [copyname] [-f]`\
+  Shows a copy of the build where you stand. Move it with the numpad keys or `Left Alt` + scroll, then press numpad `5` or run `/vcs confirmPlace` to place it.
   - `-f`: allows placing over existing blocks, overwriting them.
 - `/vcs confirmPlace [-f]`\
-  Puts the ghost copy into the world as a new placement and selects it.
+  Places the copy and selects it.
   - `-f`: allows placing over existing blocks, overwriting them.
 - `/vcs cancelPlace`\
-  Removes the ghost copy.
+  Removes the copy without placing it.
 - `/vcs unplace [-k]`\
-  Removes the selected placement and clears its blocks. The build and its versions stay saved. Asks you to confirm with `/vcs confirmUnplace` if there are uncommitted changes.
+  Removes the selected copy and clears its blocks. Its saved versions stay. Asks you to confirm with `/vcs confirmUnplace` if there are unsaved changes.
   - `-k`: keeps the blocks in the world and only stops tracking them.
 - `/vcs confirmUnplace`\
-  Confirms the removal, discarding uncommitted changes.
+  Confirms the removal, deleting unsaved changes.
 
 ### Resizing
 
 - `/vcs fit`\
-  Resizes the selected placement's box to fit the build inside it and saves it as a new version. Use it after you build past the box's edges or clear part of it.
+  Fits the selected build's box to the build inside it and saves it as a new version. Use it after you build past the box's edges or clear part of it.
 - `/vcs resize`\
-  Resizes the selected placement's box by hand. Hold `Left Alt` and scroll to drag the face you look at, then press numpad `5` or run `/vcs confirmResize` to save it as a new version. The box turns red if it overlaps another placement. Needs the mod on your client.
+  Resizes the selected build's box by hand. Hold `Left Alt` and scroll to move the side you look at, then press numpad `5` or run `/vcs confirmResize` to save it as a new version. The box turns red if it overlaps another copy. Needs the mod on your client.
 - `/vcs cancelResize`\
   Stops resizing and leaves the box as it was.
 
@@ -112,11 +114,11 @@ Builds are shared by all single player worlds of one Minecraft instance: a build
 
 ## Hotkeys
 
-With the mod on your client, pressing `V` **selects** the placement under your crosshair, the same as running `/vcs select` for it.
+With the mod on your client, pressing `V` **selects** the build you are looking at, the same as running `/vcs select` for it.
 
-Pressing `B` opens the **builds overlay**, and pressing it again closes it.
+Pressing `B` opens the **builds screen**, and pressing it again closes it.
 
-Holding left alt and scrolling mouse wheel **moves** the `/vcs place` preview around, or **drags** a face of the `/vcs resize` box. Pressing alt picks the axis the wheel works along, shown with arrows: through the face you look at, or, looking at none, the axis you look along most.
+Holding left alt and scrolling **moves** the `/vcs place` preview around, or **moves** a side of the `/vcs resize` box. Pressing alt picks the direction the wheel works along, shown with arrows: through the side you look at, or, looking at none, the direction you look along most.
 
 Every key can be **rebound** like any other under Options, Controls, Key Binds, in the MCVCS category.
 
@@ -139,8 +141,8 @@ What belongs to neither the key binds screen nor the server lives in `config/mcv
 | `rotationSpeed` | How fast the previews in the builds overlay turn, in degrees per second. 0 to 720, 36 by default, which is one turn every 10 seconds; 0 holds them still. |
 | `cellSize` | Width and height of each preview in the builds overlay, in GUI pixels. 48 to 512, 96 by default. |
 | `autoDownloadLimit` | The biggest build, in blocks of its box, whose preview the builds overlay downloads by itself. Bigger builds wait for a click. 1,000,000 by default; 0 makes every build wait. |
-| `showLabels` | Whether placements near you have their names floating above them. `true` by default. |
-| `showSelectionBox` | Whether the selected placement is outlined. `true` by default. The green outline of a previewed version shows either way. |
+| `showLabels` | Whether builds near you have their names floating above them. `true` by default. |
+| `showSelectionBox` | Whether the selected build is outlined. `true` by default. The green outline of a previewed version shows either way. |
 
 The file is read again every time you join a world or server, so an edit takes hold without restarting the game. A file that cannot be read is logged and ignored, leaving the settings as they were. A file missing some of these settings, or holding ones older versions of the mod wrote, is written out again with exactly these settings, keeping the values it gave.
 
@@ -150,7 +152,8 @@ The file is read again every time you join a world or server, so an edit takes h
 - `build.json` contains information about bounding box for each version, and origin point for placements, grouped by world. A world is identified by its save folder name, so renaming the folder leaves its placements behind.
 - Bottom north-west corner of the version 1 of the build is its bounding box's `[0, 0, 0]` coordinate, that is stored in `build.json`.
 - Origin of the placement is coordinates of a point in the world which corresponds to `[0, 0, 0]` point of the build's version. For example, `main` placement with version 2 from example below will have origin `[100, 64, -30]` in the world. This origin will correspond to `[0, 0, 0]` point of version 2's bounding box.
-- After checkout of any version, we move `head` pointer to that version. So now other commands like `diff` work against this version. Head is also used to warn you before checkouts that you have uncommited changes.
+- After `/vcs load` or `/vcs save`, the placement's `head` points to that version, so commands like `/vcs changes` compare against it. Head is also used to warn you before loading that you have unsaved changes.
+- In code and in `build.json`, a copy is called a placement, saving is a commit, loading is a checkout, and a label is a tag.
 
 Example folder structure:
 
@@ -209,10 +212,12 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
-- Replace "/vcs confirmPlace to place" with "Numpad 5 to place" during placement preview. Maybe also add a button on overlay to confirm
+- Add a button on overlay to confirm placement
 - Add checkbox to fit selection in commit window in overlay
-- Cancel resize button on overlay
+- Resize and cancel resize button on overlay
 - Confirm you want to resize when there are uncommited changes
+- When placing too high, refuse instead of placing half
+- Unplace button in overlay
 
 - Make movement of preview during placement more intuitive, maybe only move in direction you look, not using the plane.
 - /vcs tag latest 1.0.0 should be possible and autocomplete latest. /vcs tag 1.0.0 should tag head by default

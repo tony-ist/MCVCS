@@ -29,12 +29,12 @@ public final class PlacePreviewHint {
 		HudElementRegistry.attachElementBefore(VanillaHudElements.OVERLAY_MESSAGE, MCVCS.id("place_preview_hint"), PlacePreviewHint::extract);
 	}
 
-	/** E.g. {@code Placement preview. Left Alt + Mouse Wheel to move, /vcs confirmPlace to place}, the command in green. */
+	/** E.g. {@code Hold Left Alt and scroll to move · Numpad 5 to place}, the keys in green. */
 	public static Component message() {
-		return Component.literal("Placement preview. ")
-			.append(PlacePreviewKeys.SCROLL.getTranslatedKeyMessage())
-			.append(" + Mouse Wheel to move, ")
-			.append(Component.literal("/vcs confirmPlace").withStyle(ChatFormatting.GREEN))
+		return Component.literal("Hold ")
+			.append(PlacePreviewKeys.keyName(PlacePreviewKeys.SCROLL).copy().withStyle(ChatFormatting.GREEN))
+			.append(" and scroll to move · ")
+			.append(PlacePreviewKeys.keyName(PlacePreviewKeys.CONFIRM).copy().withStyle(ChatFormatting.GREEN))
 			.append(" to place");
 	}
 

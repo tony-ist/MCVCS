@@ -16,6 +16,9 @@ import tony.mcvcs.network.ThumbnailBlocksPayload;
  * the overlay opens without asking the server twice. Only touched from the client thread.
  */
 public final class Thumbnail {
+	/** What a preview that could not be shown says instead. */
+	static final String FAILED = "Couldn't show preview";
+
 	/** Where the preview is on its way to the screen. */
 	public enum State {
 		/** Asked for; the server has not started sending it yet. */
@@ -98,11 +101,11 @@ public final class Thumbnail {
 	/** The server has started sending the blocks of {@code extent}, sampled at {@code scale}, see {@link PreviewGrid}. */
 	void begin(BuildBox extent, int scale) {
 		if (!extent.equals(key.extent())) {
-			fail("Build changed", true);
+			fail(FAILED, true);
 			return;
 		}
 		if (scale < 1) {
-			fail("Malformed preview", true);
+			fail(FAILED, true);
 			return;
 		}
 		this.scale = scale;
@@ -128,7 +131,7 @@ public final class Thumbnail {
 				target[slice.offset() + i] = slice.state(i);
 			}
 		} catch (IndexOutOfBoundsException e) {
-			fail("Malformed preview", true);
+			fail(FAILED, true);
 			return null;
 		}
 		received += slice.indices().length;

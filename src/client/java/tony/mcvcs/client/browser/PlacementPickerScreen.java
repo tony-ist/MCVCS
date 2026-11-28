@@ -32,8 +32,8 @@ import tony.mcvcs.client.build.ClientPlacements;
 public final class PlacementPickerScreen extends Screen {
 	/** What picking a placement does. */
 	public enum Action {
-		SELECT("Select a placement of ", "vcs select"),
-		TP("Teleport to a placement of ", "vcs tp");
+		SELECT("Which copy of %s?", "vcs select"),
+		TP("Go to which copy of %s?", "vcs tp");
 
 		private final String header;
 		private final String command;
@@ -78,7 +78,7 @@ public final class PlacementPickerScreen extends Screen {
 	private double scroll;
 
 	public PlacementPickerScreen(BuildBrowserScreen parent, String build, Action action, List<ClientPlacement> placements) {
-		super(Component.literal(action.header + build));
+		super(Component.literal(action.header.formatted(build)));
 		this.parent = parent;
 		this.build = build;
 		this.action = action;

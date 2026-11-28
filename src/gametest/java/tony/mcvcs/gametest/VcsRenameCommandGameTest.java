@@ -76,7 +76,7 @@ public class VcsRenameCommandGameTest extends VcsGameTest {
 			create(context, singleplayer, OLD_NAME, min, max);
 			read(schematic(OLD_NAME, 1));
 			setBlock(singleplayer, max, Blocks.GOLD_BLOCK.defaultBlockState());
-			runCommand(context, "vcs commit 2.0.0");
+			runCommand(context, "vcs save 2.0.0");
 			read(schematic(OLD_NAME, 2));
 			waitForSelection(context, OLD_NAME);
 
@@ -92,7 +92,7 @@ public class VcsRenameCommandGameTest extends VcsGameTest {
 
 			// Refusals leave everything as it was.
 			assertOnlyMessage(run(context, "vcs rename " + OLD_NAME + "-missing " + NEW_NAME), "No build named " + OLD_NAME + "-missing");
-			assertOnlyMessage(run(context, "vcs rename " + OLD_NAME + " 1" + NEW_NAME), "Build name 1" + NEW_NAME + " must start with a letter");
+			assertOnlyMessage(run(context, "vcs rename " + OLD_NAME + " 1" + NEW_NAME), "Build name 1" + NEW_NAME + " is not allowed: start with a letter");
 			assertOnlyMessage(run(context, "vcs rename " + OLD_NAME + " " + OTHER_NAME.toUpperCase()), "Build " + OTHER_NAME + " already exists");
 			assertOnlyMessage(run(context, "vcs rename " + OLD_NAME + " " + OLD_NAME), "Build " + OLD_NAME + " is already called that");
 			assertBuildOnDisk(OLD_NAME);
@@ -118,7 +118,7 @@ public class VcsRenameCommandGameTest extends VcsGameTest {
 
 			// The renamed build keeps working: a commit saves its v3 under the new name.
 			setBlock(singleplayer, min, Blocks.DIAMOND_BLOCK.defaultBlockState());
-			runCommand(context, "vcs commit");
+			runCommand(context, "vcs save");
 			context.waitFor(client -> Files.isRegularFile(schematic(CASED_NAME, 3)));
 			read(schematic(CASED_NAME, 3));
 		}

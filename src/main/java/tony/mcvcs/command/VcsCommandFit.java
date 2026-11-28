@@ -1,7 +1,6 @@
 package tony.mcvcs.command;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Optional;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -17,7 +16,6 @@ import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
-import tony.mcvcs.build.BuildStorage;
 
 /**
  * {@code /vcs fit}: fits the selected placement's box to the build inside it and saves the fitted box as the build's
@@ -32,8 +30,8 @@ import tony.mcvcs.build.BuildStorage;
  */
 public final class VcsCommandFit {
 	static final VcsHelp HELP = new VcsHelp("fit", "/vcs fit",
-		"grow or shrink the box to fit the build, then commit",
-		"Fits the selected placement's box to the build inside it and saves the fitted box as the build's next version. The box grows until only air surrounds it, so whatever you built out past its edges is inside it again, and shrinks where its sides hold nothing but air. Anything touching the box pulls it out to cover that block, which is why builds should hover in the air. Refuses if the box holds nothing but air, or if the fitted box would overlap another placement or exceed " + BoxExpansion.MAX_VOLUME + " blocks.");
+		"fit the box to the build, then save",
+		"Grows the selected build's box over anything you built past its edges, trims its empty sides, and saves the result as a new version. Anything touching the box is taken in, so keep builds surrounded by air. Refuses if the new box would overlap another copy or be over " + BoxExpansion.MAX_VOLUME + " blocks.");
 
 	private VcsCommandFit() {
 	}
@@ -42,7 +40,7 @@ public final class VcsCommandFit {
 	 * Fits the selected placement's box to the build inside it and saves the result as the build's next version. The
 	 * commit is part of the fit: blocks the box just took in are not in any version yet, and the version the box held
 	 * no longer has its size, so without it the placement would count as modified right away and
-	 * {@code /vcs checkout} would refuse.
+	 * {@code /vcs load} would refuse.
 	 */
 	static int run(CommandSourceStack source) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
@@ -55,32 +53,32 @@ public final class VcsCommandFit {
 		BuildPlacement placement = selected.get();
 		ServerLevel level = source.getServer().getLevel(placement.dimension());
 		if (level == null) {
-			source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is in " + placement.dimension().identifier() + ", which does not exist here"));
+			source.sendFailure(VcsMessages.missingDimension(placement));
 			return 0;
 		}
 
 		BuildBox box = placement.box();
 		BoxExpansion expansion = BoxExpansion.of(box, level);
 		if (!expansion.enclosed()) {
-			source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" touches blocks outside its box, but taking them in would grow it past the limit of "
-				+ BoxExpansion.MAX_VOLUME + " blocks (it has " + box.volume() + " now); nothing was changed"));
+			source.sendFailure(Component.empty().append(VcsMessages.placement(placement)).append(" touches blocks outside its box, but taking them in would grow it past the limit of "
+				+ BoxExpansion.MAX_VOLUME + " blocks; nothing was changed"));
 			return 0;
 		}
 		// The grown box is enclosed by air, so trimming the air off its sides leaves one that is enclosed as well.
 		BuildBox fitted = BoxExpansion.nonAirWithin(expansion.to(), level);
 		if (fitted == null) {
-			source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" holds nothing but air; there is no build to fit"));
+			source.sendFailure(Component.empty().append(VcsMessages.placement(placement)).append(" is empty; there is nothing to fit"));
 			return 0;
 		}
 		if (fitted.equals(box)) {
-			source.sendSuccess(() -> Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" already fits its build; nothing to change"), false);
+			source.sendSuccess(() -> Component.empty().append(VcsMessages.placement(placement)).append(" already fits; nothing changed"), false);
 			return 0;
 		}
 		// Every block belongs to at most one placement, so a box that reaches into another one is refused.
 		Optional<BuildPlacement> overlapping = BuildRegistry.overlapping(source.getServer(), placement.dimension(), fitted, placement);
 		if (overlapping.isPresent()) {
 			source.sendFailure(Component.literal("Fitting ").append(VcsMessages.placement(placement)).append(" to " + VcsMessages.size(fitted))
-				.append(" would overlap ").append(VcsMessages.placement(overlapping.get())).append("; placements may not intersect"));
+				.append(" would overlap ").append(VcsMessages.placement(overlapping.get())).append(VcsMessages.NO_OVERLAP));
 			return 0;
 		}
 
@@ -89,16 +87,16 @@ public final class VcsCommandFit {
 		build = build.withPlacement(placement.name(), placement.placement().withHead(version));
 
 		try {
-			Path file = BuildSaver.save(player, build, version, fitted, level);
+			BuildSaver.save(player, build, version, fitted, level);
 			BuildRegistry.select(player, build, placement.name());
 
 			String verb = fitted.contains(box) ? "Expanded" : box.contains(fitted) ? "Shrank" : "Fitted";
 			source.sendSuccess(() -> Component.literal(verb + " ").append(VcsMessages.placement(placement)).append(" from " + VcsMessages.size(box) + " (" + box.volume() + " blocks) to "
-				+ VcsMessages.size(fitted) + " (" + fitted.volume() + " blocks) and committed it as v" + version + " at " + BuildStorage.root().relativize(file)), false);
+				+ VcsMessages.size(fitted) + " (" + fitted.volume() + " blocks) and saved it as v" + version), false);
 			return 1;
 		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to fit '{}' to v{} for {}", placement.label(), version, player.getGameProfile().name(), e);
-			source.sendFailure(Component.literal("Failed to save schematic: " + e.getMessage()));
+			source.sendFailure(Component.literal("Failed to save: " + e.getMessage()));
 			return 0;
 		}
 	}

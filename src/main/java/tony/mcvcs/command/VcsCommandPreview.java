@@ -30,9 +30,11 @@ import tony.mcvcs.network.PreviewSender;
  * those of another placement, so what shows is the version alone.
  */
 public final class VcsCommandPreview {
-	static final VcsHelp HELP = new VcsHelp("preview", "/vcs preview <version | tag | off>",
-		"show a version in place of the real blocks, on your client only",
-		"Draws that version of the build, given by number or by tag, inside the selected placement's box instead of the real blocks. Nothing in the world changes, and only you see it; the mod has to be installed on your client. `/vcs preview off` shows the real blocks again.");
+	static final VcsHelp HELP = new VcsHelp("preview", "/vcs preview <version | label | off>",
+		"see a version without changing anything",
+		"Shows that version, given by number or label, in place of the selected build, only to you. Nothing in the world changes. Needs MCVCS on your client. `/vcs preview off` goes back to normal.");
+
+	private static final String NO_CLIENT_MOD = "Your client doesn't have MCVCS, so it can't show previews";
 
 	private VcsCommandPreview() {
 	}
@@ -46,7 +48,7 @@ public final class VcsCommandPreview {
 			return 0;
 		}
 		if (!PreviewSender.canSend(player)) {
-			source.sendFailure(Component.literal("Your client does not have MCVCS installed, so it cannot show previews"));
+			source.sendFailure(Component.literal(NO_CLIENT_MOD));
 			return 0;
 		}
 
@@ -69,11 +71,11 @@ public final class VcsCommandPreview {
 				+ " (" + box.volume() + " blocks); run ").append(ChatButtons.command("/vcs preview off")).append(" to stop"), false);
 			return 1;
 		} catch (NoSuchFileException e) {
-			source.sendFailure(Component.literal("No schematic for build ").append(VcsMessages.name(build.name())).append(" v" + version + " at " + e.getFile()));
+			source.sendFailure(VcsMessages.missingVersion(build.name(), version));
 			return 0;
 		} catch (IOException | IllegalArgumentException e) {
 			MCVCS.LOGGER.error("Failed to preview '{}' at v{} for {}", placement.label(), version, player.getGameProfile().name(), e);
-			source.sendFailure(Component.literal("Failed to load schematic: " + e.getMessage()));
+			source.sendFailure(Component.literal("Failed to load v" + version + ": " + e.getMessage()));
 			return 0;
 		}
 	}
@@ -82,7 +84,7 @@ public final class VcsCommandPreview {
 	static int off(CommandSourceStack source) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
 		if (!PreviewSender.canSend(player)) {
-			source.sendFailure(Component.literal("Your client does not have MCVCS installed, so it cannot show previews"));
+			source.sendFailure(Component.literal(NO_CLIENT_MOD));
 			return 0;
 		}
 

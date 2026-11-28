@@ -31,7 +31,7 @@ import net.minecraft.core.Vec3i;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * {@code /vcs commit} saves the box captured at create time as the next version, and warns in yellow, without
+ * {@code /vcs save} saves the box captured at create time as the next version, and warns in yellow, without
  * refusing, when blocks outside the box touch it. A box that has not changed since the version it holds is refused,
  * and no version is written.
  */
@@ -65,7 +65,7 @@ public class VcsCommitCommandGameTest extends VcsGameTest {
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), gold, Blocks.GOLD_BLOCK.defaultBlockState());
 
 			// Nothing to commit before a build has been created.
-			runCommand(context, "vcs commit");
+			runCommand(context, "vcs save");
 			if (Files.exists(schematic(BUILD_NAME, 2))) {
 				throw new AssertionError("Commit without a selected build must not write " + schematic(BUILD_NAME, 2));
 			}
@@ -76,22 +76,22 @@ public class VcsCommitCommandGameTest extends VcsGameTest {
 			// Edit the box itself; commit follows the box captured at create time and sees the edit.
 			setBlock(singleplayer, opposite, Blocks.DIAMOND_BLOCK.defaultBlockState());
 
-			List<Component> committed = run(context, "vcs commit");
+			List<Component> committed = run(context, "vcs save");
 			Schematic v2 = read(schematic(BUILD_NAME, 2));
 			assertOrigin(v2, expectedOrigin);
 			assertSize(v2, new Vec3i(3, 2, 2));
 			assertBlock(v2, originCorner, Blocks.GOLD_BLOCK);
 			assertBlock(v2, opposite, Blocks.DIAMOND_BLOCK);
 			// Nothing touches the box, so the commit message is all there is.
-			assertMessages(committed, List.of("Committed " + BUILD_NAME + "/" + Build.MAIN + " as build " + BUILD_NAME + " v2"));
+			assertMessages(committed, List.of("Saved " + BUILD_NAME + "/" + Build.MAIN + " as v2"));
 
 			// Nothing inside the box has changed since v2, so there is nothing to commit, even with a block now
-			// touching the box only at a corner, which is outside it. With a tag, the refusal points at /vcs tag.
+			// touching the box only at a corner, which is outside it. With a tag, the refusal points at /vcs label.
 			BlockPos outside = max.offset(1, 1, 1);
 			setBlock(singleplayer, outside, Blocks.GOLD_BLOCK.defaultBlockState());
-			assertMessages(run(context, "vcs commit"), List.of("Nothing to commit: " + BUILD_NAME + "/" + Build.MAIN + " is the same as v2"));
-			assertMessages(run(context, "vcs commit 2.0.0"),
-				List.of("Nothing to commit: " + BUILD_NAME + "/" + Build.MAIN + " is the same as v2; run /vcs tag 2 2.0.0 to tag that version"));
+			assertMessages(run(context, "vcs save"), List.of("Nothing to save: " + BUILD_NAME + "/" + Build.MAIN + " has no changes since v2"));
+			assertMessages(run(context, "vcs save 2.0.0"),
+				List.of("Nothing to save: " + BUILD_NAME + "/" + Build.MAIN + " has no changes since v2; run /vcs label 2 2.0.0 to label that version"));
 			if (Files.exists(schematic(BUILD_NAME, 3))) {
 				throw new AssertionError("Commit without changes must not write " + schematic(BUILD_NAME, 3));
 			}
@@ -99,13 +99,13 @@ public class VcsCommitCommandGameTest extends VcsGameTest {
 			// A change inside the box bumps the version. The block touching the box is left out of it, and a yellow
 			// warning says so.
 			setBlock(singleplayer, min, Blocks.DIAMOND_BLOCK.defaultBlockState());
-			List<Component> warned = run(context, "vcs commit");
+			List<Component> warned = run(context, "vcs save");
 			Schematic v3 = read(schematic(BUILD_NAME, 3));
 			assertOrigin(v3, expectedOrigin);
 			assertSize(v3, new Vec3i(3, 2, 2));
 			assertBlock(v3, opposite, Blocks.DIAMOND_BLOCK);
 			assertBlock(v3, min, Blocks.DIAMOND_BLOCK);
-			assertMessages(warned, List.of("Committed " + BUILD_NAME + "/" + Build.MAIN + " as build " + BUILD_NAME + " v3", VcsCommandCommit.notEnclosedWarning().getString()));
+			assertMessages(warned, List.of("Saved " + BUILD_NAME + "/" + Build.MAIN + " as v3", VcsCommandCommit.notEnclosedWarning().getString()));
 			if (!TextColor.fromLegacyFormat(ChatFormatting.YELLOW).equals(warned.get(1).getStyle().getColor())) {
 				throw new AssertionError("Expected the warning to be yellow but its style is " + warned.get(1).getStyle());
 			}

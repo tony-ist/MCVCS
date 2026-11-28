@@ -85,19 +85,19 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 
 			// Nothing is created yet; the player is asked to click.
 			List<Component> armed = run(context, "vcs create " + PUNCHED_NAME);
-			assertOnlyMessage(armed, "Punch a block of the build, or right-click it with an empty hand, to create build " + PUNCHED_NAME);
+			assertOnlyMessage(armed, "Hit any block of your build, or right-click it with an empty hand, to save it as " + PUNCHED_NAME);
 			assertNoBuild(PUNCHED_NAME);
 			// While the click is waited for, the action bar says so, and the block under the crosshair is outlined.
-			assertArmed(context, "Punch a block of the build to create " + PUNCHED_NAME);
+			assertArmed(context, "Hit any block of your build to save it as " + PUNCHED_NAME);
 			lookAt(context, min, max);
 			context.waitTicks(40);
-			assertArmed(context, "Punch a block of the build to create " + PUNCHED_NAME);
+			assertArmed(context, "Hit any block of your build to save it as " + PUNCHED_NAME);
 			screenshotLastFrame(context, "mcvcs-vcs-create-armed");
 
 			// Punching the cube creates the build from the whole 3x3x3 it forms with the gold block, and breaks nothing.
 			List<Component> created = click(context, options -> options.keyAttack);
 			assertDisarmed(context);
-			assertOnlyMessage(created, "Created build " + PUNCHED_NAME + " as placement " + Build.MAIN + " (3x3x3, 27 blocks) at");
+			assertOnlyMessage(created, "Created build " + PUNCHED_NAME + " v1 (3x3x3, 27 blocks)");
 			assertBox(context, singleplayer, PUNCHED_NAME, punched);
 			assertState(singleplayer, min, Blocks.STONE.defaultBlockState());
 			assertState(singleplayer, gold, Blocks.GOLD_BLOCK.defaultBlockState());
@@ -122,7 +122,7 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 			runCommand(context, "vcs create " + USED_NAME);
 			lookAt(context, note, note);
 			List<Component> used = click(context, options -> options.keyUse);
-			assertOnlyMessage(used, "Created build " + USED_NAME + " as placement " + Build.MAIN + " (1x1x1, 1 blocks) at");
+			assertOnlyMessage(used, "Created build " + USED_NAME + " v1 (1x1x1, 1 blocks)");
 			assertBox(context, singleplayer, USED_NAME, new BuildBox(note, note));
 			assertState(singleplayer, note, silent);
 			if (silent.getValue(NoteBlock.NOTE) != 0) {
@@ -142,7 +142,7 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 			runCommand(context, "vcs create " + OVERLAPPING_NAME);
 			lookAt(context, touching, touching);
 			List<Component> refused = click(context, options -> options.keyAttack);
-			assertOnlyMessage(refused, "Build " + OVERLAPPING_NAME + " would overlap " + PUNCHED_NAME + "/" + Build.MAIN + "; placements may not intersect");
+			assertOnlyMessage(refused, "Build " + OVERLAPPING_NAME + " would overlap " + PUNCHED_NAME + "/" + Build.MAIN + "; copies can't overlap");
 			assertNoBuild(OVERLAPPING_NAME);
 			assertState(singleplayer, touching, Blocks.STONE.defaultBlockState());
 			assertNoMessage(click(context, options -> options.keyAttack));
@@ -157,7 +157,7 @@ public class VcsCreateOnClickGameTest extends VcsGameTest {
 			runCommand(context, "vcs create " + SELECTED_NAME);
 			lookAt(context, selectedMin, selectedMax);
 			List<Component> selected = click(context, options -> options.keyAttack);
-			assertOnlyMessage(selected, "Created build " + SELECTED_NAME + " as placement " + Build.MAIN + " (2x2x2, 8 blocks) at");
+			assertOnlyMessage(selected, "Created build " + SELECTED_NAME + " v1 (2x2x2, 8 blocks)");
 			assertNoMessage(click(context, options -> options.keyAttack));
 			assertNoBuild(REPLACED_NAME);
 			assertBox(context, singleplayer, SELECTED_NAME, new BuildBox(selectedMin, selectedMax));

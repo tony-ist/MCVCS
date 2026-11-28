@@ -50,12 +50,12 @@ public final class VcsCommandDelete {
 	}
 
 	static final VcsHelp HELP = new VcsHelp("delete", "/vcs delete <buildname> [" + CLEAR + "]",
-		"delete a build, once you confirm",
-		"Asks you to confirm deleting the build. Nothing is deleted until you run `/vcs confirmDelete`; the request is forgotten if you leave the server first, and a second `/vcs delete` replaces it. The blocks of its placements are left standing in the world. Builds are shared by all worlds, so its placements in other worlds are removed too, but their blocks always stay there.",
-		new VcsHelp.Key(CLEAR, "also empty the boxes of every placement of the build in this world"));
+		"delete a build and all its versions",
+		"Asks you to confirm with `/vcs confirmDelete`, then deletes the build and all its saved versions. Its blocks stay in the world unless you add " + CLEAR + ". Builds are shared by all your worlds, so it is deleted from all of them; blocks in other worlds always stay.",
+		new VcsHelp.Key(CLEAR, "also clear its blocks from this world"));
 	static final VcsHelp CONFIRM_HELP = new VcsHelp("confirmDelete", "/vcs confirmDelete",
-		"delete the build your last `/vcs delete` named",
-		"Deletes the build your last `/vcs delete` named: its folder with every version in it is removed, along with its placements in every world, and anyone who had one of its placements selected loses that selection. This cannot be undone.");
+		"delete the build your `/vcs delete` asked about",
+		"Deletes the build your last `/vcs delete` asked about, with all its saved versions. This can't be undone.");
 
 	private VcsCommandDelete() {
 	}
@@ -79,13 +79,13 @@ public final class VcsCommandDelete {
 		List<String> otherWorlds = List.copyOf(build.get().placementsInOtherWorlds().keySet());
 		PENDING_DELETES.put(player.getUUID(), new Pending(build.get(), clear));
 		MutableComponent question = Component.literal("Delete build ").append(VcsMessages.name(buildName))
-			.append(clear ? ", emptying its " + placements + (placements == 1 ? " placement" : " placements") + (otherWorlds.isEmpty() ? "" : " in this world")
-				: ", leaving its placements standing as blocks")
-			.append("? This cannot be undone, all versions will be lost!");
+			.append(clear ? ", clearing the blocks of its " + placements + (placements == 1 ? " copy" : " copies") + (otherWorlds.isEmpty() ? "" : " in this world")
+				: ", leaving its blocks in the world")
+			.append("? All its versions will be deleted, and this can't be undone!");
 		if (!otherWorlds.isEmpty()) {
 			question.append(" ").append(Component.literal(otherWorldsWarning(otherWorlds)).withStyle(ChatFormatting.GOLD));
 		}
-		question.append(" Run ").append(ChatButtons.command("/vcs confirmDelete")).append(" to proceed.");
+		question.append(" Run ").append(ChatButtons.command("/vcs confirmDelete")).append(" to delete it.");
 		source.sendSuccess(() -> question, false);
 		return 1;
 	}
@@ -96,8 +96,8 @@ public final class VcsCommandDelete {
 	 */
 	public static String otherWorldsWarning(List<String> otherWorlds) {
 		String worlds = otherWorlds.stream().map(world -> "'" + world + "'").collect(Collectors.joining(", "));
-		return "Warning: this build is shared with " + (otherWorlds.size() == 1 ? "another world, " + worlds : otherWorlds.size() + " other worlds: " + worlds)
-			+ ". Its placements there will be removed too, but their blocks will stay in " + (otherWorlds.size() == 1 ? "that world." : "those worlds.");
+		return "It is also used in " + (otherWorlds.size() == 1 ? "world " + worlds : otherWorlds.size() + " other worlds: " + worlds)
+			+ ". It will stop being tracked there, but its blocks stay.";
 	}
 
 	/** {@code /vcs confirmDelete}. */
@@ -124,8 +124,7 @@ public final class VcsCommandDelete {
 			for (BuildPlacement placement : BuildPlacement.allOf(build)) {
 				ServerLevel level = server.getLevel(placement.dimension());
 				if (level == null) {
-					source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is in " + placement.dimension().identifier()
-						+ ", which does not exist here; nothing was deleted"));
+					source.sendFailure(VcsMessages.missingDimension(placement).append("; nothing was deleted"));
 					return 0;
 				}
 				// The way a checkout empties a box: without block updates.

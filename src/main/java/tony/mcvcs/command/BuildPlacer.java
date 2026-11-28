@@ -19,7 +19,7 @@ import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.Schematic;
 
 /**
- * Puts blocks into the world for the commands that change it: {@code /vcs checkout} and {@code /vcs place} lay a
+ * Puts blocks into the world for the commands that change it: {@code /vcs load} and {@code /vcs place} lay a
  * version over the boxes they empty, and {@code /vcs unplace} and {@code /vcs delete -c} only empty a box.
  * <p>
  * The blocks are set with {@link #FLAGS}: clients are told, and nothing else happens. No block is told its

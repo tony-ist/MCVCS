@@ -83,7 +83,7 @@ public class VcsReloadGameTest extends VcsGameTest {
 			create(context, singleplayer, BUILD_NAME, min, max);
 			read(schematic(BUILD_NAME, 1));
 			setBlock(singleplayer, min, Blocks.DIAMOND_BLOCK.defaultBlockState());
-			runCommand(context, "vcs commit");
+			runCommand(context, "vcs save");
 			read(schematic(BUILD_NAME, 2));
 			assertSelected(waitForSelection(context, BUILD_NAME, 2), BUILD_NAME, 2, new BuildBox(min, max));
 
@@ -119,7 +119,7 @@ public class VcsReloadGameTest extends VcsGameTest {
 
 			// Commit picks up where it left off, with the box from create time: the gold block is still in the corner.
 			setBlock(reopened, max, Blocks.DIAMOND_BLOCK.defaultBlockState());
-			runCommand(context, "vcs commit");
+			runCommand(context, "vcs save");
 			Schematic v3 = read(schematic(BUILD_NAME, 3));
 			assertSize(v3, new Vec3i(3, 2, 2));
 			assertBlock(v3, gold, Blocks.GOLD_BLOCK);

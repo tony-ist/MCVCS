@@ -69,7 +69,7 @@ public class VcsSelectCommandGameTest extends VcsGameTest {
 			// Commit follows the selection: with both builds changed, the first gets a v2, the second does not.
 			setBlock(singleplayer, firstMax, Blocks.GOLD_BLOCK.defaultBlockState());
 			setBlock(singleplayer, secondMax, Blocks.GOLD_BLOCK.defaultBlockState());
-			runCommand(context, "vcs commit");
+			runCommand(context, "vcs save");
 			read(schematic(FIRST, 2));
 			if (Files.exists(schematic(SECOND, 2))) {
 				throw new AssertionError("Commit after /vcs select must not write " + schematic(SECOND, 2));

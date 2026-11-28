@@ -58,7 +58,7 @@ public class VcsUnplaceCommandGameTest extends VcsGameTest {
 			singleplayer.getClientLevel().waitForChunksRender();
 
 			// Nothing is selected yet, so there is nothing to unplace and nothing to confirm.
-			assertOnlyMessage(run(context, "vcs unplace"), "Nothing selected in this world");
+			assertOnlyMessage(run(context, "vcs unplace"), "Nothing selected");
 			assertOnlyMessage(run(context, "vcs confirmUnplace"), "Nothing to confirm");
 
 			// A placement lands below the player's feet, where they would otherwise be standing, so the test player
@@ -88,7 +88,7 @@ public class VcsUnplaceCommandGameTest extends VcsGameTest {
 			// A placement holding work no version does is asked about first, since removing it would lose that work,
 			// and nothing happens until it is confirmed: the gold corner of this copy is dug out.
 			setBlock(singleplayer, cleared.max(), Blocks.AIR.defaultBlockState());
-			assertOnlyMessage(run(context, "vcs unplace"), "Placement " + BUILD_NAME + "/" + CLEARED + " is modified: 1 block differs from v1");
+			assertOnlyMessage(run(context, "vcs unplace"), BUILD_NAME + "/" + CLEARED + " has 1 unsaved change since v1");
 			assertPlacements(singleplayer, List.of(CLEARED, KEPT, Build.MAIN));
 			if (blockAt(singleplayer, cleared.min()) != Blocks.STONE.defaultBlockState()) {
 				throw new AssertionError("Asking must leave the blocks alone but " + cleared.min().toShortString() + " holds " + blockAt(singleplayer, cleared.min()));
@@ -96,7 +96,7 @@ public class VcsUnplaceCommandGameTest extends VcsGameTest {
 
 			// Confirming removes it and empties its box, and the build keeps its version on disk.
 			List<Component> removed = run(context, "vcs confirmUnplace");
-			assertOnlyMessage(removed, "Removed placement " + BUILD_NAME + "/" + CLEARED + " and emptied its box");
+			assertOnlyMessage(removed, "Removed " + BUILD_NAME + "/" + CLEARED + " and cleared its blocks");
 			assertPlacements(singleplayer, List.of(KEPT, Build.MAIN));
 			if (blockAt(singleplayer, cleared.min()) != Blocks.AIR.defaultBlockState()
 				|| blockAt(singleplayer, cleared.max()) != Blocks.AIR.defaultBlockState()) {
@@ -114,7 +114,7 @@ public class VcsUnplaceCommandGameTest extends VcsGameTest {
 			lookAt(context, kept.min(), kept.max());
 			screenshotLastFrame(context, "mcvcs-vcs-unplace");
 			List<Component> left = run(context, "vcs unplace " + VcsCommandUnplace.KEEP);
-			assertOnlyMessage(left, "Removed placement " + BUILD_NAME + "/" + KEPT + "; its blocks were left standing");
+			assertOnlyMessage(left, "Removed " + BUILD_NAME + "/" + KEPT + ", leaving its blocks in the world");
 			assertOnlyMessage(run(context, "vcs confirmUnplace"), "Nothing to confirm");
 			assertPlacements(singleplayer, List.of(Build.MAIN));
 			if (blockAt(singleplayer, kept.max()) != Blocks.GOLD_BLOCK.defaultBlockState()) {
@@ -126,7 +126,7 @@ public class VcsUnplaceCommandGameTest extends VcsGameTest {
 			teleport(singleplayer, keptFeet);
 			context.waitTicks(2);
 			assertOnlyMessage(run(context, "vcs place " + BUILD_NAME), "Showing " + BUILD_NAME + "/" + Build.PLACEMENT_PREFIX + "2");
-			assertOnlyMessage(run(context, "vcs confirmPlace"), "Placing build " + BUILD_NAME + " here would overwrite 8 blocks already standing");
+			assertOnlyMessage(run(context, "vcs confirmPlace"), "Placing build " + BUILD_NAME + " here would overwrite 8 blocks in the way");
 			runCommand(context, "vcs cancelPlace");
 
 			// Without -k the box is emptied, so the last placement leaves the ground clear behind it: it holds its
@@ -135,7 +135,7 @@ public class VcsUnplaceCommandGameTest extends VcsGameTest {
 			runCommand(context, "vcs confirmPlace");
 			waitForSelection(context, BUILD_NAME + "/" + EMPTIED);
 			List<Component> emptied = run(context, "vcs unplace");
-			assertOnlyMessage(emptied, "Removed placement " + BUILD_NAME + "/" + EMPTIED + " and emptied its box");
+			assertOnlyMessage(emptied, "Removed " + BUILD_NAME + "/" + EMPTIED + " and cleared its blocks");
 			assertPlacements(singleplayer, List.of(Build.MAIN));
 			if (blockAt(singleplayer, kept.min()) != Blocks.AIR.defaultBlockState()
 				|| blockAt(singleplayer, kept.max()) != Blocks.AIR.defaultBlockState()) {

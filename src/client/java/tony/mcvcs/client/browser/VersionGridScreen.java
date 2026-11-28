@@ -29,7 +29,7 @@ import tony.mcvcs.network.BuildSummary;
  */
 abstract class VersionGridScreen extends Screen {
 	/** Label of the button a hovered version shows while its preview waits to be downloaded. */
-	public static final String DOWNLOAD = "Download";
+	public static final String DOWNLOAD = "Show preview";
 	/** What marks the newest version. */
 	public static final String LATEST = "Latest";
 
@@ -197,18 +197,18 @@ abstract class VersionGridScreen extends Screen {
 		int centerY = y + size / 2;
 		Thumbnail thumbnail = BuildBrowser.thumbnail(build, version);
 		if (thumbnail == null) {
-			wrapped(graphics, "Preview not downloaded (" + String.format("%,d", version.extent().volume()) + " blocks)", x, y, size, GREY);
+			wrapped(graphics, "Large build (" + String.format("%,d", version.extent().volume()) + " blocks)", x, y, size, GREY);
 			return;
 		}
 		switch (thumbnail.state()) {
-			case REQUESTED -> loading(graphics, centerX, centerY, "Downloading");
-			case DOWNLOADING -> loading(graphics, centerX, centerY, "Downloading " + (int) (thumbnail.progress() * 100) + "%");
-			case MESHING -> loading(graphics, centerX, centerY, "Preparing");
+			case REQUESTED -> loading(graphics, centerX, centerY, "Loading");
+			case DOWNLOADING -> loading(graphics, centerX, centerY, "Loading " + (int) (thumbnail.progress() * 100) + "%");
+			case MESHING -> loading(graphics, centerX, centerY, "Loading");
 			case FAILED -> wrapped(graphics, thumbnail.failure(), x, y, size, RED);
 			case READY -> {
 				ThumbnailMesh mesh = thumbnail.mesh();
 				if (mesh == null || mesh.isEmpty()) {
-					graphics.centeredText(font, "Nothing to show", centerX, centerY - font.lineHeight / 2, GREY);
+					graphics.centeredText(font, "Empty", centerX, centerY - font.lineHeight / 2, GREY);
 				} else {
 					graphics.guiRenderState.addPicturesInPictureState(
 						new BuildPreviewRenderState(mesh, yaw, x, y, x + size, y + size, graphics.scissorStack.peek()));

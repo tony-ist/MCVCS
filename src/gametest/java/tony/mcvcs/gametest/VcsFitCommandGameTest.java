@@ -74,7 +74,7 @@ public class VcsFitCommandGameTest extends VcsGameTest {
 
 			// Nothing touches the box and the cube fills it, so there is nothing to fit and no version is written.
 			List<Component> enclosed = run(context, "vcs fit");
-			assertOnlyMessage(enclosed, "Placement " + BUILD_NAME + "/" + Build.MAIN + " already fits its build; nothing to change");
+			assertOnlyMessage(enclosed, BUILD_NAME + "/" + Build.MAIN + " already fits; nothing changed");
 			assertNoSchematic(BUILD_NAME, 2);
 			assertBox(context, singleplayer, BUILD_NAME, 1, box);
 
@@ -89,7 +89,7 @@ public class VcsFitCommandGameTest extends VcsGameTest {
 			BuildBox expanded = new BuildBox(west, beyond);
 
 			List<Component> grown = run(context, "vcs fit");
-			assertOnlyMessage(grown, "Expanded " + BUILD_NAME + "/" + Build.MAIN + " from 2x2x2 (8 blocks) to 5x4x4 (80 blocks) and committed it as v2");
+			assertOnlyMessage(grown, "Expanded " + BUILD_NAME + "/" + Build.MAIN + " from 2x2x2 (8 blocks) to 5x4x4 (80 blocks) and saved it as v2");
 			assertBox(context, singleplayer, BUILD_NAME, 2, expanded);
 
 			// v2 is the grown box as the world has it: the stone cube, the three gold blocks and air around them.
@@ -103,7 +103,7 @@ public class VcsFitCommandGameTest extends VcsGameTest {
 			assertBlock(clipboard, max.offset(1, 0, 0), Blocks.AIR);
 
 			// The box and its latest schematic agree, so a diff against v2 has nothing to show.
-			runCommand(context, "vcs diff");
+			runCommand(context, "vcs changes");
 			context.waitTicks(5);
 			if (context.computeOnClient(client -> DiffManager.active()) != null) {
 				throw new AssertionError("Expected the world to match v2 right after expanding");
@@ -114,7 +114,7 @@ public class VcsFitCommandGameTest extends VcsGameTest {
 
 			// The same again is a no-op: the grown box is enclosed by air and has blocks on every side.
 			List<Component> again = run(context, "vcs fit");
-			assertOnlyMessage(again, "Placement " + BUILD_NAME + "/" + Build.MAIN + " already fits its build; nothing to change");
+			assertOnlyMessage(again, BUILD_NAME + "/" + Build.MAIN + " already fits; nothing changed");
 			assertNoSchematic(BUILD_NAME, 3);
 
 			// A second build two blocks east of the first, filled with stone, and a block in the gap between them. The
@@ -130,7 +130,7 @@ public class VcsFitCommandGameTest extends VcsGameTest {
 			runCommand(context, "vcs select " + BUILD_NAME);
 
 			List<Component> refused = run(context, "vcs fit");
-			assertOnlyMessage(refused, "Fitting " + BUILD_NAME + "/" + Build.MAIN + " to 8x4x4 would overlap " + NEIGHBOUR_NAME + "/" + Build.MAIN + "; placements may not intersect");
+			assertOnlyMessage(refused, "Fitting " + BUILD_NAME + "/" + Build.MAIN + " to 8x4x4 would overlap " + NEIGHBOUR_NAME + "/" + Build.MAIN + "; copies can't overlap");
 			assertNoSchematic(BUILD_NAME, 3);
 			assertBox(context, singleplayer, BUILD_NAME, 2, expanded);
 
@@ -140,7 +140,7 @@ public class VcsFitCommandGameTest extends VcsGameTest {
 				setBlock(singleplayer, gold, Blocks.AIR.defaultBlockState());
 			}
 			List<Component> shrunk = run(context, "vcs fit");
-			assertOnlyMessage(shrunk, "Shrank " + BUILD_NAME + "/" + Build.MAIN + " from 5x4x4 (80 blocks) to 2x2x2 (8 blocks) and committed it as v3");
+			assertOnlyMessage(shrunk, "Shrank " + BUILD_NAME + "/" + Build.MAIN + " from 5x4x4 (80 blocks) to 2x2x2 (8 blocks) and saved it as v3");
 			assertBox(context, singleplayer, BUILD_NAME, 3, box);
 			assertSize(read(schematic(BUILD_NAME, 3)), new Vec3i(2, 2, 2));
 
@@ -148,14 +148,14 @@ public class VcsFitCommandGameTest extends VcsGameTest {
 			// had air, outside the box, stands in for something built next to the placement since.
 			BlockPos outside = max.offset(1, 0, 0);
 			setBlock(singleplayer, outside, Blocks.STONE.defaultBlockState());
-			List<Component> diffed = run(context, "vcs diff 2");
-			assertOnlyMessage(diffed, "4 blocks in " + BUILD_NAME + "/" + Build.MAIN + " differ from v2 (1 added, 3 removed, 0 changed)");
+			List<Component> diffed = run(context, "vcs changes 2");
+			assertOnlyMessage(diffed, BUILD_NAME + "/" + Build.MAIN + " has 4 changed blocks since v2 (1 added, 3 removed, 0 changed)");
 			context.waitFor(client -> DiffManager.active() != null);
 			BuildBox diffBox = context.computeOnClient(client -> DiffManager.active().diff().box());
 			if (!diffBox.equals(expanded)) {
 				throw new AssertionError("Expected the diff against v2 to cover " + expanded + " but got " + diffBox);
 			}
-			runCommand(context, "vcs diff off");
+			runCommand(context, "vcs changes off");
 
 			// The preview of v2 covers the same box: the gold blocks are back and the block next to the placement,
 			// which v2 does not have, is hidden.
@@ -179,7 +179,7 @@ public class VcsFitCommandGameTest extends VcsGameTest {
 			}
 			setBlock(singleplayer, west, Blocks.GOLD_BLOCK.defaultBlockState());
 			List<Component> moved = run(context, "vcs fit");
-			assertOnlyMessage(moved, "Fitted " + BUILD_NAME + "/" + Build.MAIN + " from 2x2x2 (8 blocks) to 2x2x2 (8 blocks) and committed it as v4");
+			assertOnlyMessage(moved, "Fitted " + BUILD_NAME + "/" + Build.MAIN + " from 2x2x2 (8 blocks) to 2x2x2 (8 blocks) and saved it as v4");
 			assertBox(context, singleplayer, BUILD_NAME, 4, new BuildBox(west, max.offset(-1, 0, 0)));
 
 			// Without the world: the limit holds the box where it is and says so.

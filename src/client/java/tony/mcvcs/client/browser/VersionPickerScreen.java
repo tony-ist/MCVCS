@@ -19,7 +19,7 @@ public final class VersionPickerScreen extends VersionGridScreen {
 	private static final int FOOTER = 32;
 
 	public VersionPickerScreen(BuildBrowserScreen parent, BuildSummary build) {
-		super(Component.literal("Place a version of " + build.name()), parent, build);
+		super(Component.literal("Which version of " + build.name() + " to place?"), parent, build);
 	}
 
 	/** The command that places {@code version} of {@code build}, without the slash. */
@@ -51,7 +51,7 @@ public final class VersionPickerScreen extends VersionGridScreen {
 
 	@Override
 	protected Component tooltip(BuildSummary.Version version) {
-		return Component.literal("Place a copy of " + version.label() + " where you stand");
+		return Component.literal("Put " + version.label() + " where you stand");
 	}
 
 	/** Closes the window and the overlay and runs {@code /vcs place} for {@code version}, as if typed. */

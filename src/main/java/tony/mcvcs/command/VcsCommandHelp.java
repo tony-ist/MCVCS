@@ -14,8 +14,8 @@ import tony.mcvcs.network.ChatButtons;
  */
 public final class VcsCommandHelp {
 	static final VcsHelp HELP = new VcsHelp("help", "/vcs help [command]",
-		"this listing, or everything about one command",
-		"Without a command: how to start a build and one line per command. With one: the same as running that command with " + VcsHelp.FLAG + " after it, e.g. `/vcs commit " + VcsHelp.FLAG + "`.");
+		"this list, or help on one command",
+		"Without a command: how to get started and one line per command. With one: everything about that command, the same as `/vcs save " + VcsHelp.FLAG + "` does for save.");
 
 	/** Every subcommand's help, in the order {@code /vcs help} lists them. */
 	static final List<VcsHelp> ALL = List.of(
@@ -52,9 +52,9 @@ public final class VcsCommandHelp {
 	/** The overview: a bordered {@code Help} box with how to get going, then the listing. */
 	static int run(CommandSourceStack source) {
 		source.sendSuccess(() -> VcsMessages.header("MCVCS Help"), false);
-		source.sendSuccess(() -> Component.literal("MCVCS keeps versions of your builds. To start one, run ").append(ChatButtons.template("/vcs create <buildname>"))
-			.append(", then punch a block of the build with your hand: the build grows over everything connected to that block and is saved as version 1. Keep building and run ")
-			.append(ChatButtons.command("/vcs commit")).append(" to save the next version. Click ? to the left of command for details.").withStyle(ChatFormatting.WHITE), false);
+		source.sendSuccess(() -> Component.literal("MCVCS saves versions of your builds. Run ").append(ChatButtons.template("/vcs create <buildname>"))
+			.append(" and hit any block of your build to save it as version 1. Keep building and run ")
+			.append(ChatButtons.command("/vcs save")).append(" to save the next version. Press B to see all your builds. Click ? next to a command for details.").withStyle(ChatFormatting.WHITE), false);
 		for (VcsHelp help : ALL) {
 			source.sendSuccess(help::listingLine, false);
 		}
@@ -65,7 +65,7 @@ public final class VcsCommandHelp {
 	static int run(CommandSourceStack source, String name) {
 		Optional<VcsHelp> help = ALL.stream().filter(candidate -> candidate.name().equals(name)).findFirst();
 		if (help.isEmpty()) {
-			source.sendFailure(Component.literal("No such command: /vcs " + name + "; run ").append(ChatButtons.command("/vcs help")).append(" to list them"));
+			source.sendFailure(Component.literal("No command /vcs " + name + "; run ").append(ChatButtons.command("/vcs help")).append(" to list them"));
 			return 0;
 		}
 		help.get().send(source);

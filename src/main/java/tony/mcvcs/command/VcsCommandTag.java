@@ -16,18 +16,18 @@ import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.BuildStorage;
 
 /**
- * {@code /vcs tag <version> <tagname>}: gives a version of the selected placement's build a tag, such as {@code 2.0.0},
+ * {@code /vcs label <version> <tagname>}: gives a version of the selected placement's build a tag, such as {@code 2.0.0},
  * recorded in {@code build.json}. A version may carry several tags, but a tag names one version only, so a tag that
- * already names another version is refused rather than moved. {@code /vcs commit <tagname>} tags the version it saves
- * the same way, see {@link #refusal}. {@code /vcs untag <tagname>} removes a tag again, leaving the version it named.
+ * already names another version is refused rather than moved. {@code /vcs save <tagname>} tags the version it saves
+ * the same way, see {@link #refusal}. {@code /vcs unlabel <tagname>} removes a tag again, leaving the version it named.
  */
 public final class VcsCommandTag {
-	static final VcsHelp HELP = new VcsHelp("tag", "/vcs tag <version | tag> <tagname>",
-		"tag a version of the selected placement's build, e.g. 2.0.0",
-		"Gives that version of the selected placement's build a tag, e.g. `/vcs tag 2 2.0.0`. A tag may contain letters, digits, -, _, + and dots, but may not be digits alone. A version can have several tags, but each tag names one version of a build, so a tag already in use is refused. Wherever a command takes a version number, such as `/vcs checkout`, `/vcs diff` or `/vcs preview`, it takes a tag too. `/vcs commit <tagname>` tags the version it saves in the same way. `/vcs untag <tagname>` removes a tag.");
-	static final VcsHelp UNTAG_HELP = new VcsHelp("untag", "/vcs untag <tagname>",
-		"remove a tag from the selected placement's build",
-		"Removes the tag from the selected placement's build, e.g. `/vcs untag 2.0.0`. The version it named stays, with any other tags it has, and the tag is free to be given to another version.");
+	static final VcsHelp HELP = new VcsHelp("label", "/vcs label <version | label> <label>",
+		"name a version of the selected build, e.g. with-roof",
+		"Gives that version of the selected build a label, e.g. `/vcs label 2 with-roof`. Use letters, digits, - _ + and dots, but not only digits. A version can have several labels, but each label belongs to one version. Commands that take a version number, such as `/vcs load`, take a label too. `/vcs save <label>` labels the version it saves. `/vcs unlabel <label>` removes a label.");
+	static final VcsHelp UNTAG_HELP = new VcsHelp("unlabel", "/vcs unlabel <label>",
+		"remove a label from the selected build",
+		"Removes the label from the selected build, e.g. `/vcs unlabel with-roof`. The version itself stays.");
 
 	private VcsCommandTag() {
 	}
@@ -49,7 +49,7 @@ public final class VcsCommandTag {
 		}
 		int version = resolved.get();
 		if (build.taggedVersion(tag).filter(tagged -> tagged == version).isPresent()) {
-			source.sendFailure(Component.literal("v" + version + " of build ").append(VcsMessages.name(build.name())).append(" is already tagged " + tag));
+			source.sendFailure(Component.literal("v" + version + " of build ").append(VcsMessages.name(build.name())).append(" is already labeled " + tag));
 			return 0;
 		}
 		Optional<MutableComponent> refusal = refusal(build, tag);
@@ -63,16 +63,16 @@ public final class VcsCommandTag {
 			BuildStorage.update(tagged);
 		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to tag '{}' v{} as '{}' for {}", build.name(), version, tag, player.getGameProfile().name(), e);
-			source.sendFailure(Component.literal("Failed to save tag: " + e.getMessage()));
+			source.sendFailure(Component.literal("Failed to save label: " + e.getMessage()));
 			return 0;
 		}
 		MCVCS.LOGGER.info("{} tagged build '{}' v{} as '{}'", player.getGameProfile().name(), build.name(), version, tag);
 
-		source.sendSuccess(() -> Component.literal("Tagged build ").append(VcsMessages.name(build.name())).append(" " + tagged.versionLabel(version)), false);
+		source.sendSuccess(() -> Component.literal("Labeled build ").append(VcsMessages.name(build.name())).append(" " + tagged.versionLabel(version)), false);
 		return 1;
 	}
 
-	/** {@code /vcs untag <tagname>}. */
+	/** {@code /vcs unlabel <tagname>}. */
 	static int untag(CommandSourceStack source, String tag) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
 		Optional<BuildPlacement> selected = BuildRegistry.selected(player);
@@ -84,7 +84,7 @@ public final class VcsCommandTag {
 		Build build = selected.get().build();
 		Optional<Integer> tagged = build.taggedVersion(tag);
 		if (tagged.isEmpty()) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(build.name())).append(" has no tag " + tag));
+			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(build.name())).append(" has no label " + tag));
 			return 0;
 		}
 		int version = tagged.get();
@@ -94,12 +94,12 @@ public final class VcsCommandTag {
 			BuildStorage.update(untagged);
 		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to remove tag '{}' from '{}' v{} for {}", tag, build.name(), version, player.getGameProfile().name(), e);
-			source.sendFailure(Component.literal("Failed to remove tag: " + e.getMessage()));
+			source.sendFailure(Component.literal("Failed to remove label: " + e.getMessage()));
 			return 0;
 		}
 		MCVCS.LOGGER.info("{} removed tag '{}' from build '{}' v{}", player.getGameProfile().name(), tag, build.name(), version);
 
-		source.sendSuccess(() -> Component.literal("Removed tag " + tag + " from build ").append(VcsMessages.name(build.name())).append(" " + untagged.versionLabel(version)), false);
+		source.sendSuccess(() -> Component.literal("Removed label " + tag + " from build ").append(VcsMessages.name(build.name())).append(" " + untagged.versionLabel(version)), false);
 		return 1;
 	}
 
@@ -109,9 +109,9 @@ public final class VcsCommandTag {
 	 */
 	static Optional<MutableComponent> refusal(Build build, String tag) {
 		if (!Build.isValidTag(tag)) {
-			return Optional.of(Component.literal("Invalid tag '" + tag + "': a tag may only contain letters, digits, -, _, + and dots, and may not be digits alone, which would read as a version number"));
+			return Optional.of(Component.literal("Label '" + tag + "' is not allowed: use letters, digits, - _ + and dots, but not only digits"));
 		}
-		return build.taggedVersion(tag).map(tagged -> Component.literal("Tag " + tag + " already names v" + tagged + " of build ")
+		return build.taggedVersion(tag).map(tagged -> Component.literal("Label " + tag + " is already on v" + tagged + " of build ")
 			.append(VcsMessages.name(build.name())));
 	}
 }

@@ -49,8 +49,8 @@ import tony.mcvcs.network.PlacementStatusPayload;
  * {@link CreateBuildScreen}; while that build waits for its punch, it reads {@code Cancel creation} and cancels it.
  * {@code Checkout} left of it checks out a version into the selected placement, see {@link CheckoutScreen}, and
  * {@code Commit} left of that previews and commits it, see {@link CommitScreen}. {@code Diff} left of that shows how
- * many blocks of the selected placement changed since the version it holds and runs {@code /vcs diff} to highlight
- * them in the world; while they are highlighted it reads {@code Hide diff} and runs {@code /vcs diff off}. While a
+ * many blocks of the selected placement changed since the version it holds and runs {@code /vcs changes} to highlight
+ * them in the world; while they are highlighted it reads {@code Hide diff} and runs {@code /vcs changes off}. While a
  * {@code /vcs place} copy is being lined up, a {@code Cancel place} button left of those runs {@code /vcs cancelPlace}.
  * <p>
  * The list is asked for when the overlay opens, and not otherwise, see
@@ -81,24 +81,26 @@ public final class BuildBrowserScreen extends Screen {
 	 * Labels of the header's buttons: the first asks for a new build's name, see {@link CreateBuildScreen}, or cancels
 	 * the {@code /vcs create} waiting for its punch.
 	 */
-	public static final String CREATE = "Create";
-	public static final String CANCEL_CREATION = "Cancel creation";
+	public static final String CREATE = "New build";
+	public static final String CANCEL_CREATION = "Cancel new build";
 	/** Label of the header button left of {@link #CREATE}, which checks out a version into the selected placement, see {@link CheckoutScreen}. */
-	public static final String CHECKOUT = "Checkout";
+	public static final String CHECKOUT = "Load";
 	/** Label of the header button left of {@link #CHECKOUT}, which previews and commits the selected placement, see {@link CommitScreen}. */
-	public static final String COMMIT = "Commit";
+	public static final String COMMIT = "Save";
 	/**
 	 * Label of the header button left of {@link #COMMIT}, followed by how many blocks of the selected placement changed,
-	 * which runs {@code /vcs diff}; while a diff is highlighted it reads {@link #HIDE_DIFF} and runs {@code /vcs diff off}.
+	 * which runs {@code /vcs changes}; while a diff is highlighted it reads {@link #HIDE_DIFF} and runs {@code /vcs changes off}.
 	 */
-	public static final String DIFF = "Diff";
-	public static final String HIDE_DIFF = "Hide diff";
+	public static final String DIFF = "Changes";
+	public static final String HIDE_DIFF = "Hide changes";
 	/** Label of the header button, left of {@link #DIFF}, shown only while a {@code /vcs place} copy is being lined up. */
-	public static final String CANCEL_PLACE = "Cancel place";
+	public static final String CANCEL_PLACE = "Cancel placing";
 	/** Labels of the buttons a hovered cell shows. */
 	public static final String SELECT = "Select";
-	public static final String TP = "TP";
+	public static final String TP = "Go to";
 	public static final String PLACE = "Place";
+	/** Tooltip of the header buttons that need a selected placement while there is none. */
+	private static final String SELECT_FIRST = "Select a build first: hover it here and click " + SELECT;
 	/** Height of those buttons, unless the cell is too small for three of them stacked. */
 	private static final int BUTTON_HEIGHT = 20;
 	/** Space between the buttons, and between them and the edges of the preview. */
@@ -151,7 +153,7 @@ public final class BuildBrowserScreen extends Screen {
 	private final Button delete = Button.builder(Component.literal(DELETE), button -> confirmDelete()).build();
 
 	public BuildBrowserScreen() {
-		super(Component.literal("MCVCS Builds"));
+		super(Component.literal("Builds"));
 	}
 
 	/** Whether the list has been asked for since this overlay opened; coming back to it from the picker keeps it. */
@@ -196,7 +198,7 @@ public final class BuildBrowserScreen extends Screen {
 		int cancelPlaceWidth = font.width(CANCEL_PLACE) + BUTTON_PADDING;
 		cancelPlace = addRenderableWidget(Button.builder(Component.literal(CANCEL_PLACE), button -> sendCommand("vcs cancelPlace"))
 			.bounds(commitLeft, 6, cancelPlaceWidth, 20)
-			.tooltip(Tooltip.create(Component.literal("Drop the copy being placed")))
+			.tooltip(Tooltip.create(Component.literal("Remove the preview you are placing")))
 			.build());
 		updateDiff();
 		updateCancelPlace();
@@ -250,13 +252,13 @@ public final class BuildBrowserScreen extends Screen {
 		checkoutFor = selected;
 		checkout.active = selected != null;
 		checkout.setTooltip(Tooltip.create(Component.literal(selected == null
-			? "Select a placement first to check out a version into it"
-			: "Check out a version of " + selected.build() + " into its placement " + selected.placement())));
+			? SELECT_FIRST
+			: "Replace " + selected.label() + " with another saved version")));
 		if (commit != null) {
 			commit.active = selected != null;
 			commit.setTooltip(Tooltip.create(Component.literal(selected == null
-				? "Select a placement first to commit it"
-				: "See what committing " + selected.label() + " would save, and commit it")));
+				? SELECT_FIRST
+				: "Save your changes to " + selected.label() + " as a new version")));
 		}
 	}
 
@@ -297,31 +299,31 @@ public final class BuildBrowserScreen extends Screen {
 		String tooltip;
 		if (DiffManager.active() != null) {
 			label = HIDE_DIFF;
-			tooltip = "Stop highlighting the changed blocks";
+			tooltip = "Stop showing changes";
 			diff.active = true;
 		} else if (selected == null) {
 			label = DIFF;
-			tooltip = "Select a placement first to see what changed in it";
+			tooltip = SELECT_FIRST;
 			diff.active = false;
 		} else {
 			PlacementStatusPayload status = BuildBrowser.status();
 			int modified = status != null && status.placement().equals(selected.label()) ? status.modified() : PlacementStatusPayload.UNKNOWN;
 			if (status == null) {
 				label = DIFF + " (...)";
-				tooltip = "Counting the changed blocks";
+				tooltip = "Counting changes...";
 				diff.active = false;
 			} else if (modified == PlacementStatusPayload.UNKNOWN) {
 				label = DIFF + " (?)";
-				tooltip = "Highlight the blocks changed in " + selected.label() + " since v" + selected.head();
+				tooltip = "Show the blocks you changed since v" + selected.head();
 				diff.active = true;
 			} else if (modified == 0) {
 				label = DIFF + " (0)";
-				tooltip = "Nothing changed in " + selected.label() + " since v" + selected.head();
+				tooltip = "No changes since v" + selected.head();
 				diff.active = false;
 			} else {
 				label = DIFF + " (" + String.format("%,d", modified) + ")";
-				tooltip = "Highlight the " + String.format("%,d", modified) + (modified == 1 ? " block" : " blocks")
-					+ " changed in " + selected.label() + " since v" + selected.head();
+				tooltip = "Show the " + String.format("%,d", modified) + (modified == 1 ? " block" : " blocks")
+					+ " you changed since v" + selected.head();
 				diff.active = true;
 			}
 		}
@@ -339,9 +341,9 @@ public final class BuildBrowserScreen extends Screen {
 		}
 	}
 
-	/** Runs {@code /vcs diff} against the version the selected placement holds, or {@code /vcs diff off} while one is highlighted. */
+	/** Runs {@code /vcs changes} against the version the selected placement holds, or {@code /vcs changes off} while one is highlighted. */
 	private void toggleDiff() {
-		sendCommand(DiffManager.active() != null ? "vcs diff off" : "vcs diff");
+		sendCommand(DiffManager.active() != null ? "vcs changes off" : "vcs changes");
 	}
 
 	/** Shows the cancel place button only while a {@code /vcs place} copy is being lined up. */
@@ -371,8 +373,8 @@ public final class BuildBrowserScreen extends Screen {
 		if (!create.getMessage().getString().equals(label)) {
 			create.setMessage(Component.literal(label));
 			create.setTooltip(Tooltip.create(Component.literal(creating == null
-				? "Start a new build"
-				: "Stop waiting for the punch that creates " + creating)));
+				? "Save something you built as a new build"
+				: "Stop creating " + creating)));
 		}
 	}
 
@@ -396,10 +398,10 @@ public final class BuildBrowserScreen extends Screen {
 
 		switch (BuildBrowser.listState()) {
 			case NONE, LOADING -> loading(graphics, width / 2, height / 2, "Loading builds");
-			case DENIED -> graphics.centeredText(font, "You need operator permission (cheats) to browse builds", width / 2, height / 2, RED);
+			case DENIED -> graphics.centeredText(font, "Builds need cheats turned on (operator permission)", width / 2, height / 2, RED);
 			case LOADED -> {
 				if (BuildBrowser.builds().isEmpty()) {
-					graphics.centeredText(font, "No builds yet; run /vcs create <buildname> to start one", width / 2, height / 2, GREY);
+					graphics.centeredText(font, "No builds yet. Click " + CREATE + " to save your first one", width / 2, height / 2, GREY);
 				} else {
 					grid(graphics, mouseX, mouseY, partialTick);
 				}
@@ -516,20 +518,20 @@ public final class BuildBrowserScreen extends Screen {
 		Thumbnail thumbnail = BuildBrowser.thumbnail(build);
 		if (thumbnail == null) {
 			if (BuildBrowser.downloadsByItself(build)) {
-				loading(graphics, centerX, centerY, "Downloading");
+				loading(graphics, centerX, centerY, "Loading");
 			} else {
 				placeholder(graphics, build, x, y, size);
 			}
 		} else {
 			switch (thumbnail.state()) {
-				case REQUESTED -> loading(graphics, centerX, centerY, "Downloading");
-				case DOWNLOADING -> loading(graphics, centerX, centerY, "Downloading " + (int) (thumbnail.progress() * 100) + "%");
-				case MESHING -> loading(graphics, centerX, centerY, "Preparing");
-				case FAILED -> wrapped(graphics, thumbnail.failure() + (thumbnail.retryable() ? "; reopen to try again" : ""), x, y, size, RED);
+				case REQUESTED -> loading(graphics, centerX, centerY, "Loading");
+				case DOWNLOADING -> loading(graphics, centerX, centerY, "Loading " + (int) (thumbnail.progress() * 100) + "%");
+				case MESHING -> loading(graphics, centerX, centerY, "Loading");
+				case FAILED -> wrapped(graphics, thumbnail.failure() + (thumbnail.retryable() ? ". Reopen to try again" : ""), x, y, size, RED);
 				case READY -> {
 					ThumbnailMesh mesh = thumbnail.mesh();
 					if (mesh == null || mesh.isEmpty()) {
-						graphics.centeredText(font, "Nothing to show", centerX, centerY - font.lineHeight / 2, GREY);
+						graphics.centeredText(font, "Empty", centerX, centerY - font.lineHeight / 2, GREY);
 					} else {
 						graphics.guiRenderState.addPicturesInPictureState(
 							new BuildPreviewRenderState(mesh, yaw, x, y, x + size, y + size, graphics.scissorStack.peek()));
@@ -541,7 +543,7 @@ public final class BuildBrowserScreen extends Screen {
 
 	/** A build too big to download by itself: says so, and how big it is. */
 	private void placeholder(GuiGraphicsExtractor graphics, BuildSummary build, int x, int y, int size) {
-		wrapped(graphics, "Click to download the preview (" + String.format("%,d", build.extent().volume()) + " blocks)", x, y, size, GREY);
+		wrapped(graphics, "Large build (" + String.format("%,d", build.extent().volume()) + " blocks). Click to show preview", x, y, size, GREY);
 	}
 
 	/** {@code text} wrapped to the cell's width and centred in its preview area. */
@@ -571,14 +573,14 @@ public final class BuildBrowserScreen extends Screen {
 		String size = build.extent().sizeX() + "x" + build.extent().sizeY() + "x" + build.extent().sizeZ()
 			+ " (" + String.format("%,d", build.extent().volume()) + " blocks)";
 		String placements = switch (build.placements()) {
-			case 0 -> "Not placed anywhere";
-			case 1 -> "1 placement";
-			default -> build.placements() + " placements";
+			case 0 -> "Not in this world";
+			case 1 -> "In the world once";
+			default -> "In the world " + build.placements() + " times";
 		};
 		List<Component> lines = new ArrayList<>(List.of(
 			Component.literal(build.name() + " " + build.versionLabel()), Component.literal(size), Component.literal(placements)));
 		if (waitsForClick(build)) {
-			lines.add(Component.literal("Click to download the preview"));
+			lines.add(Component.literal("Click to show preview"));
 		}
 		return lines;
 	}
@@ -707,18 +709,18 @@ public final class BuildBrowserScreen extends Screen {
 		if (!build.equals(buttonsFor)) {
 			buttonsFor = build;
 			boolean placed = build.placements() > 0;
-			Tooltip notPlaced = Tooltip.create(Component.literal("Not placed anywhere; place it first"));
+			Tooltip notPlaced = Tooltip.create(Component.literal("Not in this world. Click " + PLACE + " first"));
 			select.active = placed;
 			select.setTooltip(!placed ? notPlaced : Tooltip.create(Component.literal(build.placements() == 1
-				? "Select its placement"
-				: "Choose which of its " + build.placements() + " placements to select")));
+				? "Pick it for " + COMMIT + ", " + CHECKOUT + " and " + DIFF
+				: "It is in the world " + build.placements() + " times. Choose which one to pick")));
 			tp.active = placed;
 			tp.setTooltip(!placed ? notPlaced : Tooltip.create(Component.literal(build.placements() == 1
-				? "Teleport on top of its placement"
-				: "Choose which of its " + build.placements() + " placements to teleport onto")));
+				? "Teleport to it"
+				: "It is in the world " + build.placements() + " times. Choose which one to go to")));
 			place.setTooltip(Tooltip.create(Component.literal(build.versions().size() == 1
-				? "Place a copy of v" + build.version() + " where you stand"
-				: "Choose which of its " + build.versions().size() + " versions to place where you stand")));
+				? "Put a copy where you stand"
+				: "Choose a version to put where you stand")));
 		}
 		for (Button button : buttons()) {
 			button.visible = true;

@@ -39,7 +39,7 @@ public final class VersionCheck {
 	 */
 	public static MutableComponent mismatch(String serverVersion, String clientVersion) {
 		String server = serverVersion == null ? "an older version" : serverVersion;
-		return Component.literal("This server runs MCVCS " + server + " but you have " + clientVersion
-			+ "; some features may not work as expected.").withStyle(ChatFormatting.YELLOW);
+		return Component.literal("This server has MCVCS " + server + " but you have " + clientVersion
+			+ "; some things may not work.").withStyle(ChatFormatting.YELLOW);
 	}
 }

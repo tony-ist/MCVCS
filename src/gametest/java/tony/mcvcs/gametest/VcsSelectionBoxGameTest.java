@@ -54,7 +54,7 @@ public class VcsSelectionBoxGameTest extends VcsGameTest {
 
 			// Committing a change keeps the box and bumps the version the client shows.
 			setBlock(singleplayer, max, Blocks.GOLD_BLOCK.defaultBlockState());
-			runCommand(context, "vcs commit");
+			runCommand(context, "vcs save");
 			read(schematic(BUILD_NAME, 2));
 			assertSelected(waitForSelection(context, 2), BUILD_NAME, 2, box);
 		}

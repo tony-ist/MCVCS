@@ -129,7 +129,7 @@ public final class BuildRegistry {
 	/**
 	 * The placement whose box shares a block with {@code box} in {@code dimension}, if there is one; no two
 	 * placements may ever overlap, so this is what {@code /vcs create}, {@code /vcs place}, {@code /vcs fit} and
-	 * {@code /vcs checkout} refuse on.
+	 * {@code /vcs load} refuse on.
 	 *
 	 * @param exclude the placement being moved or grown, which does not count as overlapping itself
 	 */

@@ -31,17 +31,17 @@ import tony.mcvcs.network.CommitPreviewPayload;
  * The builds overlay's {@code Commit} window, for the selected placement: its header names the placement and the
  * version committing it would make, and says how many blocks were added, removed and changed since the version it
  * holds; below that, the blocks in its box turn as the new version would look, the added ones tinted green, the changed
- * ones yellow, and red boxes where blocks were removed, the way {@code /vcs diff} colours them. Dragging the preview
- * turns it by hand. {@code Commit} closes the window and the overlay and runs {@code /vcs commit}, with the tag typed
+ * ones yellow, and red boxes where blocks were removed, the way {@code /vcs changes} colours them. Dragging the preview
+ * turns it by hand. {@code Commit} closes the window and the overlay and runs {@code /vcs save}, with the tag typed
  * if any, as if typed; it is greyed out while nothing changed. {@code Show modified blocks} closes both and runs
- * {@code /vcs diff}, which highlights the changes in the world. {@code Cancel}, Escape or a click outside the window
+ * {@code /vcs changes}, which highlights the changes in the world. {@code Cancel}, Escape or a click outside the window
  * goes back to the overlay.
  * <p>
  * What the preview shows is asked for when the window opens and dropped when it closes, see {@link CommitPreview}.
  */
 public final class CommitScreen extends Screen {
 	/** Labels of the window's buttons. */
-	public static final String COMMIT = "Commit";
+	public static final String COMMIT = "Save";
 	public static final String CANCEL = "Cancel";
 	public static final String SHOW_MODIFIED = CheckoutScreen.SHOW_MODIFIED;
 
@@ -73,7 +73,7 @@ public final class CommitScreen extends Screen {
 	private boolean dragging;
 
 	public CommitScreen(BuildBrowserScreen parent, BuildSummary build, ClientPlacement placement) {
-		super(Component.literal("Commit placement " + placement.label() + " as v" + (build.version() + 1)));
+		super(Component.literal("Save " + placement.label() + " as v" + (build.version() + 1)));
 		this.parent = parent;
 		this.build = build;
 		this.placement = placement;
@@ -94,9 +94,9 @@ public final class CommitScreen extends Screen {
 		parent.resize(width, height);
 		Layout layout = layout();
 		String tag = tagField == null ? "" : tagField.getValue();
-		EditBox field = new EditBox(font, layout.left() + PADDING, layout.tagTop(), layout.width() - 2 * PADDING, ROW, Component.literal("Tag"));
+		EditBox field = new EditBox(font, layout.left() + PADDING, layout.tagTop(), layout.width() - 2 * PADDING, ROW, Component.literal("Label"));
 		field.setMaxLength(64);
-		field.setHint(Component.literal("Tag (optional)").withStyle(ChatFormatting.DARK_GRAY));
+		field.setHint(Component.literal("Label, e.g. with-roof (optional)").withStyle(ChatFormatting.DARK_GRAY));
 		field.setValue(tag);
 		field.setResponder(value -> updateCommit());
 		addRenderableWidget(field);
@@ -109,9 +109,9 @@ public final class CommitScreen extends Screen {
 		commit = addRenderableWidget(Button.builder(Component.literal(COMMIT + " v" + (build.version() + 1)), button -> commit())
 			.bounds(left, layout.buttonsTop(), commitWidth, ROW)
 			.build());
-		showModified = addRenderableWidget(Button.builder(Component.literal(SHOW_MODIFIED), button -> closeAndRun("vcs diff"))
+		showModified = addRenderableWidget(Button.builder(Component.literal(SHOW_MODIFIED), button -> closeAndRun("vcs changes"))
 			.bounds(left + commitWidth + PADDING, layout.buttonsTop(), showWidth, ROW)
-			.tooltip(Tooltip.create(Component.literal("Close the overlay and highlight the blocks changed since " + placement.label() + " last held a version")))
+			.tooltip(Tooltip.create(Component.literal("Close this screen and highlight your changes in the world")))
 			.build());
 		addRenderableWidget(Button.builder(Component.literal(CANCEL), button -> onClose())
 			.bounds(left + commitWidth + PADDING + showWidth + PADDING, layout.buttonsTop(), cancelWidth, ROW)
@@ -136,10 +136,10 @@ public final class CommitScreen extends Screen {
 			return null;
 		}
 		if (!Build.isValidTag(tag)) {
-			return "A tag may only contain letters, digits, -, _, + and dots, and may not be digits alone";
+			return "Use only letters, digits, and - _ + . (not just digits)";
 		}
 		return build.versions().stream().filter(version -> version.tags().contains(tag)).findFirst()
-			.map(version -> "Tag " + tag + " already names v" + version.version())
+			.map(version -> "v" + version.version() + " already has the label " + tag)
 			.orElse(null);
 	}
 
@@ -155,10 +155,10 @@ public final class CommitScreen extends Screen {
 			showModified.active = summary != null && !nothing;
 		}
 		commit.active = summary != null && !nothing && refusal == null;
-		String tooltip = summary == null ? "Checking what changed"
-			: nothing ? "Nothing to commit: " + placement.label() + " is the same as " + held()
+		String tooltip = summary == null ? "Checking..."
+			: nothing ? "No changes since " + held()
 			: refusal != null ? refusal
-			: "Save " + placement.label() + " as v" + (build.version() + 1) + (tag().isEmpty() ? "" : ", tagged " + tag());
+			: "Save as v" + (build.version() + 1) + (tag().isEmpty() ? "" : ", labeled " + tag());
 		commit.setTooltip(Tooltip.create(Component.literal(tooltip)));
 	}
 
@@ -214,7 +214,7 @@ public final class CommitScreen extends Screen {
 
 	/** "Commit placement <placement> as v<next>", with the names in yellow. */
 	private Component heading() {
-		return Component.literal("Commit placement ")
+		return Component.literal("Save ")
 			.append(Component.literal(placement.label()).withStyle(ChatFormatting.YELLOW))
 			.append(" as ")
 			.append(Component.literal("v" + (build.version() + 1)).withStyle(ChatFormatting.YELLOW));
@@ -225,13 +225,13 @@ public final class CommitScreen extends Screen {
 		CommitPreviewPayload summary = summary();
 		MutableComponent text = Component.literal("Since " + held() + ": ").withStyle(ChatFormatting.GRAY);
 		if (summary == null) {
-			return text.append("checking what changed...");
+			return text.append("checking...");
 		}
 		if (!summary.known()) {
-			return text.append(Component.literal("could not compare").withStyle(ChatFormatting.RED));
+			return text.append(Component.literal("couldn't check changes").withStyle(ChatFormatting.RED));
 		}
 		if (summary.total() == 0) {
-			return text.append(Component.literal("nothing changed, so there is nothing to commit").withStyle(ChatFormatting.GOLD));
+			return text.append(Component.literal("no changes to save").withStyle(ChatFormatting.GOLD));
 		}
 		return text.append(count(summary.added(), "added", ChatFormatting.GREEN)).append(", ")
 			.append(count(summary.removed(), "removed", ChatFormatting.RED)).append(", ")
@@ -252,14 +252,14 @@ public final class CommitScreen extends Screen {
 			return;
 		}
 		switch (thumbnail.state()) {
-			case REQUESTED -> loading(graphics, centerX, centerY, "Reading the placement");
-			case DOWNLOADING -> loading(graphics, centerX, centerY, "Downloading " + (int) (thumbnail.progress() * 100) + "%");
-			case MESHING -> loading(graphics, centerX, centerY, "Preparing");
+			case REQUESTED -> loading(graphics, centerX, centerY, "Loading");
+			case DOWNLOADING -> loading(graphics, centerX, centerY, "Loading " + (int) (thumbnail.progress() * 100) + "%");
+			case MESHING -> loading(graphics, centerX, centerY, "Loading");
 			case FAILED -> graphics.centeredText(font, String.valueOf(thumbnail.failure()), centerX, centerY - font.lineHeight / 2, RED);
 			case READY -> {
 				ThumbnailMesh mesh = thumbnail.mesh();
 				if (mesh == null || mesh.isEmpty()) {
-					graphics.centeredText(font, "Nothing to show", centerX, centerY - font.lineHeight / 2, GREY);
+					graphics.centeredText(font, "Empty", centerX, centerY - font.lineHeight / 2, GREY);
 				} else {
 					graphics.guiRenderState.addPicturesInPictureState(new BuildPreviewRenderState(mesh, yaw(),
 						square.left(), square.top(), square.right(), square.bottom(), graphics.scissorStack.peek()));
@@ -296,13 +296,13 @@ public final class CommitScreen extends Screen {
 		graphics.centeredText(font, text, x, y + 2, GREY);
 	}
 
-	/** Closes the window and the overlay and runs {@code /vcs commit}, with the tag if one was typed, as if typed. */
+	/** Closes the window and the overlay and runs {@code /vcs save}, with the tag if one was typed, as if typed. */
 	private void commit() {
 		if (commit == null || !commit.active || minecraft == null) {
 			return;
 		}
 		String tag = tag();
-		closeAndRun("vcs commit" + (tag.isEmpty() ? "" : " " + tag));
+		closeAndRun("vcs save" + (tag.isEmpty() ? "" : " " + tag));
 	}
 
 	/** Closes the window and the overlay and runs {@code command} as if typed. */

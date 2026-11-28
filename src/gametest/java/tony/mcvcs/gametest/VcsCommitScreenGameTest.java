@@ -35,7 +35,7 @@ import tony.mcvcs.network.CommitPreviewPayload;
  * The builds overlay's Commit button, left of Checkout, opens a window previewing the selected placement as it would
  * be committed: with nothing changed it says so and greys out Commit and Show modified blocks; with a block added,
  * one removed and one changed it counts each and marks them in the preview; Show modified blocks runs
- * {@code /vcs diff}; the overlay's Diff button, left of Commit, counts the changes and toggles their highlighting; Commit with a tag typed commits the placement as the next version with that tag.
+ * {@code /vcs changes}; the overlay's Diff button, left of Commit, counts the changes and toggles their highlighting; Commit with a tag typed commits the placement as the next version with that tag.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsCommitScreenGameTest extends VcsGameTest {
@@ -125,7 +125,7 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 			// The tag typed goes with the commit.
 			openCommit(context);
 			waitForSummary(context);
-			clickWidget(context, "Tag");
+			clickWidget(context, "Label");
 			context.getInput().typeChars("2.0");
 			context.waitTicks(2);
 			if (!context.computeOnClient(client -> screen(client).widgetOf(CommitScreen.COMMIT).active)) {

@@ -1,7 +1,6 @@
 package tony.mcvcs.command;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
 
@@ -18,7 +17,6 @@ import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildBox;
 import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
-import tony.mcvcs.build.BuildStorage;
 import tony.mcvcs.build.Placement;
 import tony.mcvcs.network.ChatButtons;
 
@@ -36,14 +34,17 @@ import tony.mcvcs.network.ChatButtons;
 public final class VcsCommandCreate {
 	/** Flag that makes the build the box between two punched corners instead of what is connected to one block. */
 	public static final String BOX = "-b";
-	static final VcsHelp HELP = new VcsHelp("create", "/vcs create <buildname> [placementname] [-b]",
-		"start a build from the block you punch",
-		"Starts a build called <buildname> and saves it as version 1. Punch any block of the build: the selection grows over everything connected to that block, so it should hover in the air, touching nothing that is not part of it.",
-		new VcsHelp.Key(BOX, "punch two opposite corners instead; the box between them becomes the build"));
+	static final VcsHelp HELP = new VcsHelp("create", "/vcs create <buildname> [copyname] [-b]",
+		"save something you built as a new build",
+		"Saves your build as version 1 of a new build called <buildname>. After running it, hit any block of your build: everything touching that block is saved, so keep the build surrounded by air.",
+		new VcsHelp.Key(BOX, "hit two opposite corners instead; everything between them is saved"));
 
 	static final VcsHelp CANCEL_HELP = new VcsHelp("cancelCreate", "/vcs cancelCreate",
-		"stop waiting for the punch your `/vcs create` asked for",
-		"Stops waiting for the block or corners your `/vcs create` asked you to punch; no build is created.");
+		"cancel `/vcs create`",
+		"Stops waiting for you to hit a block; no build is created.");
+
+	/** What a build or copy name has to look like, see {@link Build#isValidNewName}. */
+	public static final String NAME_RULE = "start with a letter, and use only letters, digits, and _ + - .";
 
 	private VcsCommandCreate() {
 	}
@@ -53,7 +54,7 @@ public final class VcsCommandCreate {
 		ServerPlayer player = source.getPlayerOrException();
 		String buildName = PendingClick.creating(player);
 		if (buildName == null) {
-			source.sendFailure(Component.literal("Nothing to cancel; no /vcs create is waiting for a punch"));
+			source.sendFailure(Component.literal("Nothing to cancel; you are not creating a build"));
 			return 0;
 		}
 		PendingClick.disarm(player);
@@ -68,10 +69,10 @@ public final class VcsCommandCreate {
 		if (!isNameFree(source, buildName) || !isPlacementNameValid(source, placementName)) {
 			return 0;
 		}
-		PendingClick.arm(player, Component.literal("Punch a block of the build to create ").append(VcsMessages.name(buildName)), null, buildName,
+		PendingClick.arm(player, Component.literal("Hit any block of your build to save it as ").append(VcsMessages.name(buildName)), null, buildName,
 			(clicker, level, pos) -> createFromBlock(clicker, level, buildName, placementName, pos));
-		source.sendSuccess(() -> Component.literal("Punch a block of the build, or right-click it with an empty hand, to create build ")
-			.append(VcsMessages.name(buildName)).append(" from it and everything connected to it"), false);
+		source.sendSuccess(() -> Component.literal("Hit any block of your build, or right-click it with an empty hand, to save it as ")
+			.append(VcsMessages.name(buildName)).append("; everything touching that block is saved"), false);
 		return 1;
 	}
 
@@ -85,16 +86,16 @@ public final class VcsCommandCreate {
 		if (!isNameFree(source, buildName) || !isPlacementNameValid(source, placementName)) {
 			return 0;
 		}
-		PendingClick.arm(player, Component.literal("Punch the first corner of ").append(VcsMessages.name(buildName)), null, buildName,
+		PendingClick.arm(player, Component.literal("Hit one corner of ").append(VcsMessages.name(buildName)), null, buildName,
 			(clicker, level, first) -> armSecondCorner(clicker, level, buildName, placementName, first));
-		source.sendSuccess(() -> Component.literal("Punch two opposite corners, or right-click them with an empty hand, to create build ")
-			.append(VcsMessages.name(buildName)).append(" from the box between them"), false);
+		source.sendSuccess(() -> Component.literal("Hit two opposite corners, or right-click them with an empty hand, to save everything between them as ")
+			.append(VcsMessages.name(buildName)), false);
 		return 1;
 	}
 
 	/** Waits for the second corner of the box whose first corner the player clicked at {@code first} in {@code firstLevel}. */
 	private static void armSecondCorner(ServerPlayer player, ServerLevel firstLevel, String buildName, String placementName, BlockPos first) {
-		PendingClick.arm(player, Component.literal("Punch the second corner of ").append(VcsMessages.name(buildName)), first, buildName, (clicker, level, second) -> {
+		PendingClick.arm(player, Component.literal("Now hit the opposite corner of ").append(VcsMessages.name(buildName)), first, buildName, (clicker, level, second) -> {
 			CommandSourceStack source = clicker.createCommandSourceStack();
 			if (level != firstLevel) {
 				source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" was not created: its corners are in different dimensions"));
@@ -142,8 +143,8 @@ public final class VcsCommandCreate {
 		}
 		BoxExpansion expansion = BoxExpansion.of(new BuildBox(pos, pos), level);
 		if (!expansion.enclosed()) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" was not created: the blocks connected to " + pos.toShortString()
-				+ " reach past the limit of " + BoxExpansion.MAX_VOLUME + " blocks; make sure the build hovers in the air, touching nothing that is not part of it"));
+			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" was not created: the blocks touching " + pos.toShortString()
+				+ " go past the limit of " + BoxExpansion.MAX_VOLUME + " blocks; surround your build with air so it touches nothing else"));
 			return;
 		}
 		create(source, player, buildName, placementName, level, expansion.to());
@@ -164,7 +165,7 @@ public final class VcsCommandCreate {
 		if (taken.isPresent()) {
 			Build existing = taken.get();
 			if (existing.placements().isEmpty()) {
-				source.sendFailure(Component.literal("Build ").append(VcsMessages.name(existing.name())).append(" already exists; place it in this world with ").append(ChatButtons.command("/vcs place " + existing.name())).append(", or choose another name"));
+				source.sendFailure(Component.literal("Build ").append(VcsMessages.name(existing.name())).append(" already exists; put it in this world with ").append(ChatButtons.command("/vcs place " + existing.name())).append(", or choose another name"));
 			} else {
 				source.sendFailure(Component.literal("Build ").append(VcsMessages.name(existing.name())).append(" already exists; select it with ").append(ChatButtons.command("/vcs select " + existing.name())).append(", or choose another name"));
 			}
@@ -177,7 +178,7 @@ public final class VcsCommandCreate {
 	static boolean isNameValid(CommandSourceStack source, String buildName) {
 		// The name becomes a folder on disk, so it has to be checked before anything is written under it.
 		if (!Build.isValidNewName(buildName)) {
-			source.sendFailure(Component.literal("Build name ").append(VcsMessages.name(buildName)).append(" must start with a letter from a to z and may only contain letters, digits, _ + - and dots between them"));
+			source.sendFailure(Component.literal("Build name ").append(VcsMessages.name(buildName)).append(" is not allowed: " + NAME_RULE));
 			return false;
 		}
 		return true;
@@ -186,7 +187,7 @@ public final class VcsCommandCreate {
 	/** Whether {@code placementName} is well-formed; the source is told why otherwise. */
 	static boolean isPlacementNameValid(CommandSourceStack source, String placementName) {
 		if (!Build.isValidNewName(placementName)) {
-			source.sendFailure(Component.literal("Placement name ").append(VcsMessages.name(placementName)).append(" must start with a letter from a to z and may only contain letters, digits, _ + - and dots between them"));
+			source.sendFailure(Component.literal("Copy name ").append(VcsMessages.name(placementName)).append(" is not allowed: " + NAME_RULE));
 			return false;
 		}
 		return true;
@@ -204,21 +205,21 @@ public final class VcsCommandCreate {
 		// Every block belongs to at most one placement, so a box that overlaps one in this dimension is refused.
 		Optional<BuildPlacement> overlapping = BuildRegistry.overlapping(source.getServer(), placement.dimension(), box, null);
 		if (overlapping.isPresent()) {
-			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" would overlap ").append(VcsMessages.placement(overlapping.get())).append("; placements may not intersect"));
+			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" would overlap ").append(VcsMessages.placement(overlapping.get())).append(VcsMessages.NO_OVERLAP));
 			return 0;
 		}
 		Build build = placement.applied();
 
 		try {
-			Path file = BuildSaver.save(player, build, 1, box, level);
+			BuildSaver.save(player, build, 1, box, level);
 			BuildRegistry.select(player, build, placementName);
 
-			source.sendSuccess(() -> Component.literal("Created build ").append(VcsMessages.name(buildName)).append(" as placement ").append(VcsMessages.name(placementName))
-				.append(" (" + VcsMessages.size(box) + ", " + box.volume() + " blocks) at " + BuildStorage.root().relativize(file)), false);
+			source.sendSuccess(() -> Component.literal("Created build ").append(VcsMessages.name(buildName))
+				.append(" v1 (" + VcsMessages.size(box) + ", " + box.volume() + " blocks)"), false);
 			return 1;
 		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to create build '{}' from {} for {}", buildName, box, player.getGameProfile().name(), e);
-			source.sendFailure(Component.literal("Failed to save schematic: " + e.getMessage()));
+			source.sendFailure(Component.literal("Failed to save: " + e.getMessage()));
 			return 0;
 		}
 	}

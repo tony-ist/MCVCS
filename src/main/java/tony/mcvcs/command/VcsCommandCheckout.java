@@ -29,7 +29,7 @@ import tony.mcvcs.network.DiffSender;
 import tony.mcvcs.network.PreviewSender;
 
 /**
- * {@code /vcs checkout <version | tag | latest> [-f]}: puts a version of the build into the selected placement, exactly
+ * {@code /vcs load <version | tag | latest> [-f]}: puts a version of the build into the selected placement, exactly
  * where that placement holds it, without a single block update, see {@link BuildPlacer}.
  * <p>
  * Versions may differ in size, so the placement's box changes with the version it holds: it is the version's extent
@@ -45,10 +45,10 @@ import tony.mcvcs.network.PreviewSender;
  * box as it was before.
  */
 public final class VcsCommandCheckout {
-	static final VcsHelp HELP = new VcsHelp("checkout", "/vcs checkout <version | tag | latest> [" + VcsCommand.FORCE + "]",
-		"put a version back into the selected placement",
-		"Empties the selected placement's box and puts the provided version, given by number or by tag, into it, without block updates. The box becomes that version's size around the same origin. Refuses if the box has uncommitted changes, or if anything stands where a bigger version would reach: commit first. A placement in the way is always refused. `/vcs diff` starts to compare versions against this checked out version.",
-		new VcsHelp.Key(VcsCommand.FORCE, "overwrite uncommitted changes and whatever stands where a bigger version would reach"));
+	static final VcsHelp HELP = new VcsHelp("load", "/vcs load <version | label | latest> [" + VcsCommand.FORCE + "]",
+		"replace the selected build with a saved version",
+		"Replaces the selected build with that version, given by number or label. The box changes to that version's size. Refuses if you have unsaved changes, or if blocks stand where a bigger version would go. Refuses if another copy is in the way.",
+		new VcsHelp.Key(VcsCommand.FORCE, "delete unsaved changes and the blocks in the way"));
 
 	private VcsCommandCheckout() {
 	}
@@ -74,7 +74,7 @@ public final class VcsCommandCheckout {
 		int checkedOut = resolved.get();
 		ServerLevel level = source.getServer().getLevel(placement.dimension());
 		if (level == null) {
-			source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is in " + placement.dimension().identifier() + ", which does not exist here"));
+			source.sendFailure(VcsMessages.missingDimension(placement));
 			return 0;
 		}
 
@@ -83,9 +83,9 @@ public final class VcsCommandCheckout {
 		// The new box may reach past the old one; those blocks belong to nobody yet, so nothing else may be there.
 		Optional<BuildPlacement> overlapping = BuildRegistry.overlapping(source.getServer(), placement.dimension(), to, placement);
 		if (overlapping.isPresent()) {
-			source.sendFailure(Component.literal("Checking out v" + checkedOut + " would grow ").append(VcsMessages.placement(placement))
+			source.sendFailure(Component.literal("Loading v" + checkedOut + " would grow ").append(VcsMessages.placement(placement))
 				.append(" to " + VcsMessages.size(to) + ", overlapping ").append(VcsMessages.placement(overlapping.get()))
-				.append("; placements may not intersect, so move one of them out of the way first"));
+				.append(VcsMessages.NO_OVERLAP + ", so move one of them first"));
 			return 0;
 		}
 
@@ -102,24 +102,23 @@ public final class VcsCommandCheckout {
 			uncommitted = changes.size();
 			inTheWay = nonAirOutside(to, from, level);
 			if (uncommitted > 0 && !force) {
-				source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is modified: " + uncommitted
-					+ (uncommitted == 1 ? " block differs" : " blocks differ") + " from v" + placement.head() + "; run ").append(ChatButtons.command("/vcs commit"))
-					.append(" before checking out, ").append(ChatButtons.command("/vcs diff")).append(" to see the changes, or add " + VcsCommand.FORCE + " to discard them"));
+				source.sendFailure(Component.empty().append(VcsMessages.placement(placement)).append(" has " + VcsMessages.unsavedChanges(uncommitted) + " since v" + placement.head() + "; run ")
+					.append(ChatButtons.command("/vcs save")).append(" first, ").append(ChatButtons.command("/vcs changes")).append(" to see them, or add " + VcsCommand.FORCE + " to delete them"));
 				return 0;
 			}
 			if (inTheWay > 0 && !force) {
-				source.sendFailure(Component.literal("Checking out v" + checkedOut + " would grow ").append(VcsMessages.placement(placement))
+				source.sendFailure(Component.literal("Loading v" + checkedOut + " would grow ").append(VcsMessages.placement(placement))
 					.append(" from " + VcsMessages.size(from) + " to " + VcsMessages.size(to) + ", overwriting " + inTheWay
-						+ (inTheWay == 1 ? " block" : " blocks") + " standing in the way; clear them or add " + VcsCommand.FORCE + " to overwrite them"));
+						+ (inTheWay == 1 ? " block" : " blocks") + " in the way; clear them or add " + VcsCommand.FORCE + " to overwrite them"));
 				return 0;
 			}
 			schematic = BuildStorage.readSchematic(build.name(), checkedOut);
 		} catch (NoSuchFileException e) {
-			source.sendFailure(Component.literal("No schematic for build ").append(VcsMessages.name(build.name())).append(" at " + e.getFile()));
+			source.sendFailure(VcsMessages.missingVersion(build.name(), checkedOut));
 			return 0;
 		} catch (IOException | IllegalArgumentException e) {
 			MCVCS.LOGGER.error("Failed to check out '{}' v{} for {}", placement.label(), checkedOut, player.getGameProfile().name(), e);
-			source.sendFailure(Component.literal("Failed to load schematic: " + e.getMessage()));
+			source.sendFailure(Component.literal("Failed to load: " + e.getMessage()));
 			return 0;
 		}
 
@@ -133,7 +132,7 @@ public final class VcsCommandCheckout {
 			BuildPlacer.place(level, clear, schematic, to);
 		} catch (IllegalArgumentException e) {
 			MCVCS.LOGGER.error("Failed to check out '{}' v{} for {}", placement.label(), checkedOut, player.getGameProfile().name(), e);
-			source.sendFailure(Component.literal("Failed to place schematic: " + e.getMessage()));
+			source.sendFailure(Component.literal("Failed to load: " + e.getMessage()));
 			return 0;
 		}
 		MCVCS.LOGGER.info("{} checked out '{}' v{} into {} in {}, overwriting {} uncommitted and {} foreign blocks",
@@ -147,20 +146,20 @@ public final class VcsCommandCheckout {
 			DiffSender.clear(player);
 		}
 
-		// The placement holds this version now; the next checkout, and /vcs diff without a version, measure against it.
+		// The placement holds this version now; the next checkout, and /vcs changes without a version, measure against it.
 		try {
 			BuildStorage.update(build.withPlacement(placement.name(), placement.placement().withHead(checkedOut)));
 			// The box has changed size with the version, so every client's picture of it has to change too.
 			BuildSync.broadcast(source.getServer());
 		} catch (IOException e) {
 			MCVCS.LOGGER.error("Failed to record v{} as checked out for '{}' for {}", checkedOut, placement.label(), player.getGameProfile().name(), e);
-			source.sendFailure(Component.literal("Checked out ").append(VcsMessages.placement(placement)).append(" v" + checkedOut + " but failed to record it: " + e.getMessage()));
+			source.sendFailure(Component.literal("Loaded ").append(VcsMessages.placement(placement)).append(" v" + checkedOut + " but failed to remember it: " + e.getMessage()));
 			return 0;
 		}
 
 		source.sendSuccess(() -> {
-			MutableComponent message = Component.literal("Checked out ").append(VcsMessages.placement(placement))
-				.append(" " + build.versionLabel(checkedOut) + " (" + VcsMessages.size(to) + ", " + to.volume() + " blocks) without block updates");
+			MutableComponent message = Component.literal("Loaded ").append(VcsMessages.placement(placement))
+				.append(" " + build.versionLabel(checkedOut) + " (" + VcsMessages.size(to) + ", " + to.volume() + " blocks)");
 			if (uncommitted > 0 || inTheWay > 0) {
 				// Only a forced checkout gets here; those blocks are gone for good.
 				message.append(", overwriting " + (uncommitted + inTheWay) + " " + (uncommitted + inTheWay == 1 ? "block" : "blocks"));
@@ -168,8 +167,8 @@ public final class VcsCommandCheckout {
 			if (checkedOut == build.version()) {
 				return message;
 			}
-			return message.append("; it now holds v" + checkedOut + " rather than the latest v" + build.version() + ", run ")
-				.append(ChatButtons.command("/vcs checkout latest")).append(" to go back to it");
+			return message.append("; the latest is v" + build.version() + ", run ")
+				.append(ChatButtons.command("/vcs load latest")).append(" to go back to it");
 		}, false);
 		return 1;
 	}

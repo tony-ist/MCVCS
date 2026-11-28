@@ -26,9 +26,9 @@ import tony.mcvcs.network.ChatButtons;
 import tony.mcvcs.network.DiffSender;
 
 /**
- * {@code /vcs diff [version | tag]}: compares the blocks currently inside the selected placement's box with that version,
+ * {@code /vcs changes [version | tag]}: compares the blocks currently inside the selected placement's box with that version,
  * or the one the placement holds if no version is given, see {@link Placement#head}, reports how many were added,
- * removed or changed since, and has the player's client highlight them in place. {@code /vcs diff off} stops the
+ * removed or changed since, and has the player's client highlight them in place. {@code /vcs changes off} stops the
  * highlighting.
  * <p>
  * A version smaller than the box is laid inside it where the placement holds it and the rest of the box counts as
@@ -38,9 +38,9 @@ import tony.mcvcs.network.DiffSender;
  * stands there now, whether or not that belongs to another placement.
  */
 public final class VcsCommandDiff {
-	static final VcsHelp HELP = new VcsHelp("diff", "/vcs diff [version | tag | off]",
-		"highlight what changed in the placement since a version",
-		"Compares the provided version, given by number or by tag (or the one the selected placement holds by default), with what is in its box now. With the mod on your client blocks are highlighted in place: green for added, red for removed, yellow for changed. `/vcs diff off` removes the highlights.");
+	static final VcsHelp HELP = new VcsHelp("changes", "/vcs changes [version | label | off]",
+		"highlight what changed in the selected build",
+		"Highlights the blocks that differ from that version, given by number or label, or from the version you last saved or loaded: green for added, red for removed, yellow for changed. Highlights need MCVCS on your client. `/vcs changes off` hides them.");
 
 	private VcsCommandDiff() {
 	}
@@ -69,7 +69,7 @@ public final class VcsCommandDiff {
 		int against = resolved.get();
 		ServerLevel level = source.getServer().getLevel(placement.dimension());
 		if (level == null) {
-			source.sendFailure(Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" is in " + placement.dimension().identifier() + ", which does not exist here"));
+			source.sendFailure(VcsMessages.missingDimension(placement));
 			return 0;
 		}
 
@@ -81,11 +81,11 @@ public final class VcsCommandDiff {
 			// The version is the old side and the world the new one, so "added" reads as "built since that version".
 			diff = BuildDiff.between(BoxSnapshot.ofSchematic(box, BuildStorage.readSchematic(build.name(), against), covered), BoxSnapshot.ofLevel(box, level));
 		} catch (NoSuchFileException e) {
-			source.sendFailure(Component.literal("No schematic for build ").append(VcsMessages.name(build.name())).append(" v" + against + " at " + e.getFile()));
+			source.sendFailure(VcsMessages.missingVersion(build.name(), against));
 			return 0;
 		} catch (IOException | IllegalArgumentException e) {
 			MCVCS.LOGGER.error("Failed to diff '{}' against v{} for {}", placement.label(), against, player.getGameProfile().name(), e);
-			source.sendFailure(Component.literal("Failed to load schematic: " + e.getMessage()));
+			source.sendFailure(Component.literal("Failed to load v" + against + ": " + e.getMessage()));
 			return 0;
 		}
 
@@ -95,7 +95,7 @@ public final class VcsCommandDiff {
 			if (highlight) {
 				DiffSender.clear(player);
 			}
-			source.sendSuccess(() -> Component.literal("Placement ").append(VcsMessages.placement(placement)).append(" matches v" + against + "; nothing to highlight"), false);
+			source.sendSuccess(() -> Component.empty().append(VcsMessages.placement(placement)).append(" has no changes since v" + against), false);
 			return 0;
 		}
 
@@ -105,30 +105,30 @@ public final class VcsCommandDiff {
 		source.sendSuccess(() -> {
 			MutableComponent summary = diffSummary(placement, against, diff);
 			return highlight
-				? summary.append("; run ").append(ChatButtons.command("/vcs diff off")).append(" to stop highlighting")
+				? summary.append("; run ").append(ChatButtons.command("/vcs changes off")).append(" to hide them")
 				: summary.append("; install MCVCS on your client to see them highlighted");
 		}, false);
 		return diff.size();
 	}
 
-	/** E.g. {@code 5 blocks in tower/main differ from v2 (2 added, 1 removed, 2 changed)}. */
+	/** E.g. {@code tower/main has 5 changed blocks since v2 (2 added, 1 removed, 2 changed)}. */
 	private static MutableComponent diffSummary(BuildPlacement placement, int version, BuildDiff diff) {
 		Map<ChangeKind, Integer> counts = diff.counts();
-		return Component.literal(diff.size() + (diff.size() == 1 ? " block in " : " blocks in ")).append(VcsMessages.placement(placement)).append(" "
-			+ (diff.size() == 1 ? "differs" : "differ") + " from v" + version
+		return Component.empty().append(VcsMessages.placement(placement)).append(" has " + diff.size() + (diff.size() == 1 ? " changed block" : " changed blocks")
+			+ " since v" + version
 			+ " (" + counts.get(ChangeKind.ADDED) + " added, " + counts.get(ChangeKind.REMOVED) + " removed, " + counts.get(ChangeKind.CHANGED) + " changed)");
 	}
 
-	/** {@code /vcs diff off}. */
+	/** {@code /vcs changes off}. */
 	static int off(CommandSourceStack source) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
 		if (!DiffSender.canSend(player)) {
-			source.sendFailure(Component.literal("Your client does not have MCVCS installed, so it cannot highlight diffs"));
+			source.sendFailure(Component.literal("Your client doesn't have MCVCS, so it can't highlight changes"));
 			return 0;
 		}
 
 		DiffSender.clear(player);
-		source.sendSuccess(() -> Component.literal("Diff off"), false);
+		source.sendSuccess(() -> Component.literal("Changes hidden"), false);
 		return 1;
 	}
 }

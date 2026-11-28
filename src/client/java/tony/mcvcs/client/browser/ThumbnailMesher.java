@@ -117,7 +117,7 @@ final class ThumbnailMesher {
 	/**
 	 * Meshes {@code blocks}, which fill {@code extent} in {@link BuildBox} order, with a translucent box over every
 	 * block {@code marks} marks: by the same index, 0 for none, otherwise one more than the {@link ChangeKind} ordinal,
-	 * coloured as {@code /vcs diff} colours it. Faces between two boxes of the same kind are left out, so a whole wall
+	 * coloured as {@code /vcs changes} colours it. Faces between two boxes of the same kind are left out, so a whole wall
 	 * that changed is one tinted wall.
 	 *
 	 * @throws TooDetailedException if the mesh would have more than {@link #MAX_VERTICES} vertices

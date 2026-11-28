@@ -27,10 +27,10 @@ import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildRegistry;
 
 /**
- * {@code /vcs tag <version> <tagname>} tags a version of the selected placement's build, and {@code /vcs commit
+ * {@code /vcs label <version> <tagname>} tags a version of the selected placement's build, and {@code /vcs save
  * <tagname>} tags the version it saves; tags are written to {@code build.json}, shown by {@code /vcs builds}, and a tag
  * already in use or with characters a tag may not have is refused. Every command taking a version number completes
- * and takes a tag in its place. {@code /vcs untag <tagname>} removes a tag, which can then name another version.
+ * and takes a tag in its place. {@code /vcs unlabel <tagname>} removes a tag, which can then name another version.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class VcsTagCommandGameTest extends VcsGameTest {
@@ -54,94 +54,94 @@ public class VcsTagCommandGameTest extends VcsGameTest {
 			fillBox(singleplayer, min, max, Blocks.STONE.defaultBlockState(), min, Blocks.GOLD_BLOCK.defaultBlockState());
 
 			// Nothing to tag before a placement is selected.
-			assertMessages(run(context, "vcs tag 1 1.0.0"), List.of("No placement selected"), false);
+			assertMessages(run(context, "vcs label 1 1.0.0"), List.of("No placement selected"), false);
 
 			create(context, singleplayer, BUILD_NAME, min, max);
 			assertTags(singleplayer, Map.of());
 
 			// Tag v1; the version is suggested.
-			if (!suggestions(singleplayer, "vcs tag ").contains("1")) {
-				throw new AssertionError("Expected /vcs tag to suggest v1 but got " + suggestions(singleplayer, "vcs tag "));
+			if (!suggestions(singleplayer, "vcs label ").contains("1")) {
+				throw new AssertionError("Expected /vcs label to suggest v1 but got " + suggestions(singleplayer, "vcs label "));
 			}
-			assertMessages(run(context, "vcs tag 1 1.0.0"), List.of("Tagged build " + BUILD_NAME + " v1 (1.0.0)"), true);
+			assertMessages(run(context, "vcs label 1 1.0.0"), List.of("Labeled build " + BUILD_NAME + " v1 (1.0.0)"), true);
 			assertTags(singleplayer, Map.of("1.0.0", 1));
 
 			// A second tag on the same version is fine; tags are listed in order.
-			assertMessages(run(context, "vcs tag 1 first_Release+x"), List.of("Tagged build " + BUILD_NAME + " v1 (1.0.0, first_Release+x)"), true);
+			assertMessages(run(context, "vcs label 1 first_Release+x"), List.of("Labeled build " + BUILD_NAME + " v1 (1.0.0, first_Release+x)"), true);
 
 			// Commit with a tag: the new version carries it.
 			setBlock(singleplayer, max, Blocks.DIAMOND_BLOCK.defaultBlockState());
-			assertMessages(run(context, "vcs commit 2.0.0-rc.1"), List.of("Committed " + BUILD_NAME + "/" + Build.MAIN + " as build " + BUILD_NAME + " v2 (2.0.0-rc.1)"), true);
+			assertMessages(run(context, "vcs save 2.0.0-rc.1"), List.of("Saved " + BUILD_NAME + "/" + Build.MAIN + " as v2 (2.0.0-rc.1)"), true);
 			assertTags(singleplayer, Map.of("1.0.0", 1, "first_Release+x", 1, "2.0.0-rc.1", 2));
 
 			// A tag already naming a version is refused, by tag and by commit, and the commit saves nothing.
-			assertMessages(run(context, "vcs tag 2 1.0.0"), List.of("Tag 1.0.0 already names v1 of build " + BUILD_NAME), true);
-			assertMessages(run(context, "vcs commit 1.0.0"), List.of("Tag 1.0.0 already names v1 of build " + BUILD_NAME + "; nothing was committed"), true);
+			assertMessages(run(context, "vcs label 2 1.0.0"), List.of("Label 1.0.0 is already on v1 of build " + BUILD_NAME), true);
+			assertMessages(run(context, "vcs save 1.0.0"), List.of("Label 1.0.0 is already on v1 of build " + BUILD_NAME + "; nothing was saved"), true);
 			if (Files.exists(schematic(BUILD_NAME, 3))) {
 				throw new AssertionError("A commit refused for its tag must not write " + schematic(BUILD_NAME, 3));
 			}
-			assertMessages(run(context, "vcs tag 1 1.0.0"), List.of("v1 of build " + BUILD_NAME + " is already tagged 1.0.0"), true);
+			assertMessages(run(context, "vcs label 1 1.0.0"), List.of("v1 of build " + BUILD_NAME + " is already labeled 1.0.0"), true);
 
 			// Characters a tag may not have do not even parse as one, and versions the build does not have are refused.
-			run(context, "vcs tag 2 bad@tag");
-			run(context, "vcs commit bad@tag");
+			run(context, "vcs label 2 bad@tag");
+			run(context, "vcs save bad@tag");
 			if (Files.exists(schematic(BUILD_NAME, 3))) {
 				throw new AssertionError("A commit with an invalid tag must not write " + schematic(BUILD_NAME, 3));
 			}
-			assertMessages(run(context, "vcs tag 5 5.0.0"), List.of("Build " + BUILD_NAME + " only has versions 1 to 2"), true);
+			assertMessages(run(context, "vcs label 5 5.0.0"), List.of("Build " + BUILD_NAME + " only has versions 1 to 2"), true);
 			assertTags(singleplayer, Map.of("1.0.0", 1, "first_Release+x", 1, "2.0.0-rc.1", 2));
 
 			// A plain commit still works and has no tag.
 			setBlock(singleplayer, max, Blocks.GOLD_BLOCK.defaultBlockState());
-			assertMessages(run(context, "vcs commit"), List.of("Committed " + BUILD_NAME + "/" + Build.MAIN + " as build " + BUILD_NAME + " v3 ("), true);
+			assertMessages(run(context, "vcs save"), List.of("Saved " + BUILD_NAME + "/" + Build.MAIN + " as v3 ("), true);
 
 			// Digits alone would read as a version number, so they are no tag.
-			assertMessages(run(context, "vcs tag 3 42"), List.of("Invalid tag '42'"), true);
+			assertMessages(run(context, "vcs label 3 42"), List.of("Label '42' is not allowed"), true);
 
 			// Every command taking a version completes tags alongside the numbers...
 			List<String> all = List.of("1", "2", "3", "1.0.0", "2.0.0-rc.1", "first_Release+x");
-			for (String command : List.of("vcs checkout ", "vcs diff ", "vcs preview ", "vcs tag ", "vcs place " + BUILD_NAME + " ")) {
+			for (String command : List.of("vcs load ", "vcs changes ", "vcs preview ", "vcs label ", "vcs place " + BUILD_NAME + " ")) {
 				List<String> offered = suggestions(singleplayer, command);
 				if (!offered.containsAll(all)) {
 					throw new AssertionError("Expected '/" + command + "' to suggest " + all + " but got " + offered);
 				}
 			}
 			// ...narrowed down by what has been typed.
-			List<String> narrowed = suggestions(singleplayer, "vcs checkout 2.");
+			List<String> narrowed = suggestions(singleplayer, "vcs load 2.");
 			if (!narrowed.equals(List.of("2.0.0-rc.1"))) {
-				throw new AssertionError("Expected '/vcs checkout 2.' to suggest only 2.0.0-rc.1 but got " + narrowed);
+				throw new AssertionError("Expected '/vcs load 2.' to suggest only 2.0.0-rc.1 but got " + narrowed);
 			}
 
 			// ...and takes a tag wherever it takes a number.
-			assertMessages(run(context, "vcs checkout 1.0.0"), List.of("Checked out " + BUILD_NAME + "/" + Build.MAIN + " v1 (1.0.0, first_Release+x) ("), true);
-			assertMessages(run(context, "vcs diff 2.0.0-rc.1"), List.of("1 block in " + BUILD_NAME + "/" + Build.MAIN + " differs from v2"), true);
-			run(context, "vcs diff off");
-			assertMessages(run(context, "vcs tag 2.0.0-rc.1 stable"), List.of("Tagged build " + BUILD_NAME + " v2 (2.0.0-rc.1, stable)"), true);
-			assertMessages(run(context, "vcs checkout nope"), List.of("Build " + BUILD_NAME + " has no version tagged nope"), true);
-			assertMessages(run(context, "vcs diff nope"), List.of("Build " + BUILD_NAME + " has no version tagged nope"), true);
-			assertMessages(run(context, "vcs place " + BUILD_NAME + " nope"), List.of("Build " + BUILD_NAME + " has no version tagged nope"), true);
+			assertMessages(run(context, "vcs load 1.0.0"), List.of("Loaded " + BUILD_NAME + "/" + Build.MAIN + " v1 (1.0.0, first_Release+x) ("), true);
+			assertMessages(run(context, "vcs changes 2.0.0-rc.1"), List.of(BUILD_NAME + "/" + Build.MAIN + " has 1 changed block since v2"), true);
+			run(context, "vcs changes off");
+			assertMessages(run(context, "vcs label 2.0.0-rc.1 stable"), List.of("Labeled build " + BUILD_NAME + " v2 (2.0.0-rc.1, stable)"), true);
+			assertMessages(run(context, "vcs load nope"), List.of("Build " + BUILD_NAME + " has no version labeled nope"), true);
+			assertMessages(run(context, "vcs changes nope"), List.of("Build " + BUILD_NAME + " has no version labeled nope"), true);
+			assertMessages(run(context, "vcs place " + BUILD_NAME + " nope"), List.of("Build " + BUILD_NAME + " has no version labeled nope"), true);
 
 			// /vcs builds shows the tags of the version each placement holds.
-			run(context, "vcs checkout stable");
+			run(context, "vcs load stable");
 			List<Component> builds = run(context, "vcs builds");
 			List<String> texts = builds.stream().map(Component::getString).toList();
-			if (texts.stream().noneMatch(line -> line.startsWith("    Placement " + Build.MAIN + " v2 (2.0.0-rc.1, stable) ("))) {
+			if (texts.stream().noneMatch(line -> line.startsWith("    Copy " + Build.MAIN + " v2 (2.0.0-rc.1, stable) ("))) {
 				throw new AssertionError("Expected /vcs builds to show v2's tag but got " + texts);
 			}
 
-			// /vcs untag completes the build's tags and removes one, leaving the version and its other tags.
-			List<String> tags = suggestions(singleplayer, "vcs untag ");
+			// /vcs unlabel completes the build's tags and removes one, leaving the version and its other tags.
+			List<String> tags = suggestions(singleplayer, "vcs unlabel ");
 			if (!tags.containsAll(List.of("1.0.0", "2.0.0-rc.1", "first_Release+x", "stable")) || tags.contains("1")) {
-				throw new AssertionError("Expected /vcs untag to suggest the build's tags only but got " + tags);
+				throw new AssertionError("Expected /vcs unlabel to suggest the build's tags only but got " + tags);
 			}
-			assertMessages(run(context, "vcs untag stable"), List.of("Removed tag stable from build " + BUILD_NAME + " v2 (2.0.0-rc.1)"), true);
+			assertMessages(run(context, "vcs unlabel stable"), List.of("Removed label stable from build " + BUILD_NAME + " v2 (2.0.0-rc.1)"), true);
 			assertTags(singleplayer, Map.of("1.0.0", 1, "first_Release+x", 1, "2.0.0-rc.1", 2));
 			if (readBuildFile().contains("\"stable\"")) {
 				throw new AssertionError("Expected stable to be gone from build.json but got " + readBuildFile());
 			}
 			// A tag the build does not have is refused; a removed one is free to name another version.
-			assertMessages(run(context, "vcs untag stable"), List.of("Build " + BUILD_NAME + " has no tag stable"), true);
-			assertMessages(run(context, "vcs tag 1 stable"), List.of("Tagged build " + BUILD_NAME + " v1 (1.0.0, first_Release+x, stable)"), true);
+			assertMessages(run(context, "vcs unlabel stable"), List.of("Build " + BUILD_NAME + " has no label stable"), true);
+			assertMessages(run(context, "vcs label 1 stable"), List.of("Labeled build " + BUILD_NAME + " v1 (1.0.0, first_Release+x, stable)"), true);
 
 			String json = readBuildFile();
 			if (!json.contains("\"tags\"") || !json.contains("\"2.0.0-rc.1\"")) {
