@@ -1,6 +1,7 @@
 package tony.mcvcs.client.browser;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -30,6 +31,7 @@ import tony.mcvcs.client.config.ClientConfig;
 import tony.mcvcs.client.diff.DiffManager;
 import tony.mcvcs.client.place.PlacePreviewKeys;
 import tony.mcvcs.client.preview.PreviewManager;
+import tony.mcvcs.client.resize.ClientResize;
 import tony.mcvcs.client.selection.PendingClickHighlight;
 import tony.mcvcs.network.BuildSummary;
 import tony.mcvcs.network.PlacementStatusPayload;
@@ -48,8 +50,10 @@ import tony.mcvcs.network.PlacementStatusPayload;
  * the build, see {@link DeleteBuildScreen}. A build bigger than
  * {@link ClientConfig.Settings#autoDownloadLimit} shows a placeholder instead of its preview until the cell is clicked
  * outside its buttons, which downloads the preview. Three dots in the top right corner open the header's menu, whose
- * {@code Deselect} runs {@code /vcs deselect} and whose {@code Unplace} asks whether to remove the selected placement
- * from the world, see {@link UnplaceScreen}. The
+ * {@code Deselect} runs {@code /vcs deselect}, whose {@code Resize} closes the overlay and runs {@code /vcs resize},
+ * and whose {@code Unplace} asks whether to remove the selected placement from the world, see {@link UnplaceScreen};
+ * while a resize goes on, a {@code Confirm resizing} button in the top left corner, right of {@code Cancel placing},
+ * runs {@code /vcs confirmResize}, and a {@code Cancel resizing} button right of it runs {@code /vcs cancelResize}. The
  * {@code Create} button left of them starts a new build, see
  * {@link CreateBuildScreen}; while that build waits for its punch, a {@code Cancel new build} button in the top left
  * corner cancels it.
@@ -130,6 +134,11 @@ public final class BuildBrowserScreen extends Screen {
 	public static final String HEADER_MORE = "More options";
 	public static final String DESELECT = "Deselect";
 	public static final String UNPLACE = "Unplace";
+	public static final String RESIZE = "Resize";
+	/** Label of the header button right of {@link #CANCEL_PLACE}, shown only while a {@code /vcs resize} is going on. */
+	public static final String CANCEL_RESIZE = "✖ Cancel resizing";
+	/** Label of the header button left of {@link #CANCEL_RESIZE}, shown with it, which saves the box as {@code /vcs confirmResize} does. */
+	public static final String CONFIRM_RESIZE = "✔ Confirm resizing";
 	private static final int HEADER_MORE_WIDTH = 20;
 	/** Space between the menu's edges and its items. */
 	private static final int MENU_PADDING = 2;
@@ -177,6 +186,13 @@ public final class BuildBrowserScreen extends Screen {
 	private boolean headerMenuOpen;
 	private final Button deselect = Button.builder(Component.literal(DESELECT), button -> deselect()).build();
 	private final Button unplace = Button.builder(Component.literal(UNPLACE), button -> openUnplace()).build();
+	private final Button resize = Button.builder(Component.literal(RESIZE), button -> startResize()).build();
+	/** The header's cancel resize button, right of the cancel place button, visible only while a {@code /vcs resize} is going on. */
+	private @Nullable Button cancelResize;
+	/** The header's confirm resize button, left of the cancel resize button and shown with it. */
+	private @Nullable Button confirmResize;
+	/** The reason the confirm resize button's tooltip was last made for, or "" for none; null to make it again. */
+	private @Nullable String confirmResizeTooltipFor;
 	/** The placement the header menu items' tooltips were last made for. */
 	private @Nullable ClientPlacement unplaceFor;
 	private boolean unplaceTooltipSet;
@@ -243,6 +259,15 @@ public final class BuildBrowserScreen extends Screen {
 		cancelPlace = addRenderableWidget(Button.builder(iconLabel(CANCEL_PLACE, ChatFormatting.RED), button -> sendCommand("vcs cancelPlace"))
 			.bounds(GAP, 6, cancelPlaceWidth, 20)
 			.tooltip(Tooltip.create(Component.literal("Remove the preview you are placing")))
+			.build());
+		// Placed by updateCancelButtons: top left, right of the cancel place button while that shows.
+		confirmResize = addRenderableWidget(Button.builder(iconLabel(CONFIRM_RESIZE, ChatFormatting.GREEN), button -> sendCommand("vcs confirmResize"))
+			.bounds(GAP, 6, font.width(CONFIRM_RESIZE) + BUTTON_PADDING, 20)
+			.build());
+		confirmResizeTooltipFor = null;
+		cancelResize = addRenderableWidget(Button.builder(iconLabel(CANCEL_RESIZE, ChatFormatting.RED), button -> sendCommand("vcs cancelResize"))
+			.bounds(GAP, 6, font.width(CANCEL_RESIZE) + BUTTON_PADDING, 20)
+			.tooltip(Tooltip.create(Component.literal("Stop resizing and keep the build as it was")))
 			.build());
 		updateDiff();
 		updateCancelButtons();
@@ -383,14 +408,29 @@ public final class BuildBrowserScreen extends Screen {
 	 * stands where it cannot be placed.
 	 */
 	private void updateCancelButtons() {
-		if (confirmPlace == null || cancelPlace == null || cancelCreate == null) {
+		if (confirmPlace == null || cancelPlace == null || cancelResize == null || cancelCreate == null) {
 			return;
 		}
 		String creating = PendingClickHighlight.creating();
 		boolean placing = PreviewManager.place() != null;
 		confirmPlace.visible = placing;
 		cancelPlace.visible = placing;
+		ClientResize.Resize resizing = ClientResize.active();
+		cancelResize.visible = resizing != null;
 		cancelCreate.visible = creating != null;
+		if (confirmResize != null) {
+			confirmResize.visible = resizing != null;
+			String resizeRefusal = resizing == null ? null : resizeRefusal(resizing);
+			confirmResize.active = resizeRefusal == null;
+			String resizeKey = resizeRefusal == null ? "" : resizeRefusal;
+			if (!resizeKey.equals(confirmResizeTooltipFor)) {
+				confirmResizeTooltipFor = resizeKey;
+				confirmResize.setMessage(resizeRefusal == null ? iconLabel(CONFIRM_RESIZE, ChatFormatting.GREEN) : Component.literal(CONFIRM_RESIZE));
+				confirmResize.setTooltip(Tooltip.create(resizeRefusal == null
+					? Component.literal("Save the build at its new size as a new version")
+					: Component.literal(ClientResize.REFUSED + resizeRefusal).withStyle(ChatFormatting.RED)));
+			}
+		}
 		String refusal = placing ? PlacePreviewKeys.refusal() : null;
 		confirmPlace.active = refusal == null;
 		String refusalKey = refusal == null ? "" : refusal;
@@ -402,36 +442,48 @@ public final class BuildBrowserScreen extends Screen {
 				? Component.literal("Place the copy where it is shown")
 				: Component.literal(PlacePreviewKeys.REFUSED + refusal).withStyle(ChatFormatting.RED)));
 		}
-		// Each as wide as its label, unless the buttons on the right leave less room; then shrunk alike to share it.
-		int confirmWidth = placing ? font.width(CONFIRM_PLACE) + BUTTON_PADDING : 0;
-		int placeWidth = placing ? font.width(CANCEL_PLACE) + BUTTON_PADDING : 0;
-		int createWidth = cancelCreate.visible ? font.width(CANCEL_CREATION) + BUTTON_PADDING : 0;
-		int gaps = (placing ? 4 : 0) + (placing && cancelCreate.visible ? 4 : 0);
-		int room = (diff != null ? diff.getX() : width) - GAP - GAP - gaps;
-		int total = confirmWidth + placeWidth + createWidth;
+		if (creating != null && !creating.equals(cancelCreateTooltipFor)) {
+			cancelCreateTooltipFor = creating;
+			cancelCreate.setTooltip(Tooltip.create(Component.literal("Stop creating " + creating)));
+		}
+		// Left to right, each as wide as its label, unless the buttons on the right leave less room; then shrunk alike to share it.
+		List<Button> shown = topLeftButtons().stream().filter(button -> button.visible).toList();
+		if (shown.isEmpty()) {
+			return;
+		}
+		int[] widths = shown.stream().mapToInt(button -> font.width(button.getMessage()) + BUTTON_PADDING).toArray();
+		int room = (diff != null ? diff.getX() : width) - GAP - GAP - 4 * (shown.size() - 1);
+		int total = Arrays.stream(widths).sum();
 		if (total > room && room > 0) {
-			double scale = (double) room / total;
-			confirmWidth = (int) (confirmWidth * scale);
-			placeWidth = (int) (placeWidth * scale);
-			createWidth = room - confirmWidth - placeWidth;
+			int left = room;
+			for (int i = 0; i < widths.length - 1; i++) {
+				widths[i] = (int) ((long) widths[i] * room / total);
+				left -= widths[i];
+			}
+			widths[widths.length - 1] = left;
 		}
 		int left = GAP;
-		if (placing) {
-			confirmPlace.setX(left);
-			confirmPlace.setWidth(confirmWidth);
-			left += confirmWidth + 4;
-			cancelPlace.setX(left);
-			cancelPlace.setWidth(placeWidth);
-			left += placeWidth + (cancelCreate.visible ? 4 : 0);
+		for (int i = 0; i < shown.size(); i++) {
+			shown.get(i).setX(left);
+			shown.get(i).setWidth(widths[i]);
+			left += widths[i] + 4;
 		}
-		if (cancelCreate.visible) {
-			cancelCreate.setX(left);
-			cancelCreate.setWidth(createWidth);
-			if (creating != null && !creating.equals(cancelCreateTooltipFor)) {
-				cancelCreateTooltipFor = creating;
-				cancelCreate.setTooltip(Tooltip.create(Component.literal("Stop creating " + creating)));
-			}
+	}
+
+	/** The buttons of the top left corner, left to right, shown or not. */
+	private List<Button> topLeftButtons() {
+		return Stream.of(confirmPlace, cancelPlace, confirmResize, cancelResize, cancelCreate).filter(Objects::nonNull).toList();
+	}
+
+	/** Why the box of {@code resizing} cannot be saved as it stands, or null when it can. */
+	private static @Nullable String resizeRefusal(ClientResize.Resize resizing) {
+		String reason = ClientResize.reason();
+		if (reason != null) {
+			return reason;
 		}
+		boolean unchanged = ClientPlacements.all().stream()
+			.anyMatch(placement -> placement.label().equals(resizing.label()) && placement.box().equals(resizing.box()));
+		return unchanged ? "the size is unchanged. Hold " + PlacePreviewKeys.SCROLL.getTranslatedKeyMessage().getString() + " and scroll first" : null;
 	}
 
 	/** {@code label}, whose first character is an icon, with that icon drawn in {@code color}. */
@@ -441,13 +493,7 @@ public final class BuildBrowserScreen extends Screen {
 
 	/** The right edge of the visible cancel buttons in the top left corner, or the screen's left edge if none show. */
 	private int cancelButtonsRight() {
-		if (cancelCreate != null && cancelCreate.visible) {
-			return cancelCreate.getRight();
-		}
-		if (cancelPlace != null && cancelPlace.visible) {
-			return cancelPlace.getRight();
-		}
-		return 0;
+		return topLeftButtons().stream().filter(button -> button.visible).mapToInt(Button::getRight).max().orElse(0);
 	}
 
 	/**
@@ -474,6 +520,15 @@ public final class BuildBrowserScreen extends Screen {
 		}
 	}
 
+	/** Closes the overlay, so the player can drag the box in the world, and runs {@code /vcs resize}. */
+	private void startResize() {
+		closeHeaderMenu();
+		if (selectedBuild() != null && ClientPlacements.selected() != null) {
+			onClose();
+			sendCommand("vcs resize");
+		}
+	}
+
 	/** Runs {@code /vcs deselect}, keeping the overlay open. */
 	private void deselect() {
 		closeHeaderMenu();
@@ -494,6 +549,10 @@ public final class BuildBrowserScreen extends Screen {
 		unplace.setTooltip(Tooltip.create(Component.literal(selected == null
 			? SELECT_FIRST
 			: "Remove " + selected.label() + " from the world")));
+		resize.active = selected != null;
+		resize.setTooltip(Tooltip.create(Component.literal(selected == null
+			? SELECT_FIRST
+			: "Make the box of " + selected.label() + " bigger or smaller")));
 		deselect.active = selected != null;
 		deselect.setTooltip(Tooltip.create(Component.literal(selected == null
 			? "No build is selected"
@@ -501,7 +560,7 @@ public final class BuildBrowserScreen extends Screen {
 	}
 
 	private List<Button> headerMenuItems() {
-		return List.of(deselect, unplace);
+		return List.of(deselect, resize, unplace);
 	}
 
 	private void closeHeaderMenu() {

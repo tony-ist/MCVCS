@@ -212,9 +212,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
-- Add checkbox to fit selection in commit window in overlay
-- Resize and cancel resize button on overlay
-- Confirm you want to resize when there are uncommited changes
 - When placing too high, refuse instead of placing half
 
 - Make movement of preview during placement more intuitive, maybe only move in direction you look, not using the plane.
@@ -225,7 +222,7 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Big diffs lag client too much (see it on mcinmc/p2)
 - Make diffs more visible. Right now they intersect into clutter. 
 - Ability to rotate during placement preview
-
+- Confirm you want to resize when there are uncommited changes
 
 ### Assemblies
 

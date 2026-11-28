@@ -51,6 +51,7 @@ import tony.mcvcs.client.diff.DiffManager;
 import tony.mcvcs.client.preview.PlacePreview;
 import tony.mcvcs.client.selection.PendingClickHighlight;
 import tony.mcvcs.client.preview.PreviewManager;
+import tony.mcvcs.client.resize.ClientResize;
 import tony.mcvcs.network.BuildSummary;
 
 /**
@@ -882,6 +883,33 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 		}
 		runCommand(context, "vcs select " + BIG);
 		context.waitFor(client -> ClientPlacements.selected() != null && ClientPlacements.selected().build().equals(BIG));
+
+		// Resize closes the overlay and starts resizing; reopened, the overlay shows Confirm resizing in its top left
+		// corner and Cancel resizing right of it, which stops it and hides both.
+		if (context.computeOnClient(client -> visibleHeaderButton(client, BuildBrowserScreen.CANCEL_RESIZE)) != null) {
+			throw new AssertionError("Expected no Cancel resizing button while nothing is being resized");
+		}
+		clickHeader(context, BuildBrowserScreen.HEADER_MORE);
+		context.waitFor(client -> client.screen instanceof BuildBrowserScreen screen && screen.headerMenuItemOf(BuildBrowserScreen.RESIZE) != null);
+		ScreenRectangle resize = hoverHeaderItem(context, BuildBrowserScreen.RESIZE);
+		clickAt(context, resize.left() + resize.width() / 2.0, resize.top() + resize.height() / 2.0);
+		context.waitFor(client -> client.screen == null);
+		context.waitFor(client -> ClientResize.active() != null && ClientResize.active().label().equals(ClientPlacements.selected().label()));
+		open(context);
+		context.waitFor(client -> visibleHeaderButton(client, BuildBrowserScreen.CANCEL_RESIZE) != null);
+		assertTopLeft(context, BuildBrowserScreen.CONFIRM_RESIZE);
+		assertLeftOf(context, BuildBrowserScreen.CONFIRM_RESIZE, BuildBrowserScreen.CANCEL_RESIZE);
+		// Nothing dragged yet, so there is nothing to save.
+		if (context.computeOnClient(client -> visibleHeaderButton(client, BuildBrowserScreen.CONFIRM_RESIZE).active)) {
+			throw new AssertionError("Expected Confirm resizing to be greyed out while the size is unchanged");
+		}
+		moveAway(context);
+		context.waitTicks(2);
+		context.takeScreenshot("mcvcs-builds-overlay-cancel-resize");
+		clickHeader(context, BuildBrowserScreen.CANCEL_RESIZE);
+		context.waitFor(client -> ClientResize.active() == null && visibleHeaderButton(client, BuildBrowserScreen.CANCEL_RESIZE) == null
+			&& visibleHeaderButton(client, BuildBrowserScreen.CONFIRM_RESIZE) == null);
+		context.waitForScreen(BuildBrowserScreen.class);
 
 		openUnplace(context);
 		context.waitFor(client -> {
