@@ -212,8 +212,6 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
-- When placing too high, refuse instead of placing half
-
 - Make movement of preview during placement more intuitive, maybe only move in direction you look, not using the plane.
 - /vcs tag latest 1.0.0 should be possible and autocomplete latest. /vcs tag 1.0.0 should tag head by default
 - Aliases for commands to type them faster

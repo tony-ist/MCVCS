@@ -78,7 +78,7 @@ public final class VcsCommandPlace {
 		new VcsHelp.Key(VcsCommand.FORCE, "overwrite the blocks where the copy goes"));
 	static final VcsHelp CONFIRM_HELP = new VcsHelp("confirmPlace", "/vcs confirmPlace [" + VcsCommand.FORCE + "]",
 		"place the copy from `/vcs place`",
-		"Places the copy from `/vcs place` where you moved it, and selects it. Refuses if it overlaps another copy or blocks are in the way.",
+		"Places the copy from `/vcs place` where you moved it, and selects it. Refuses if it is too high or too low, overlaps another copy, or blocks are in the way.",
 		new VcsHelp.Key(VcsCommand.FORCE, "overwrite the blocks in the way"));
 	static final VcsHelp CANCEL_HELP = new VcsHelp("cancelPlace", "/vcs cancelPlace",
 		"drop the copy from `/vcs place`",
@@ -252,6 +252,15 @@ public final class VcsCommandPlace {
 		BuildBox extent = build.extent(placed);
 		BuildPlacement placement = new BuildPlacement(build, name, new Placement(level.dimension(), box.min().subtract(extent.min()), placed));
 
+		// Blocks outside the build height cannot be set, so the copy would be cut off.
+		if (box.max().getY() > level.getMaxY()) {
+			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" is too high here; move it down"));
+			return 0;
+		}
+		if (box.min().getY() < level.getMinY()) {
+			source.sendFailure(Component.literal("Build ").append(VcsMessages.name(buildName)).append(" is too low here; move it up"));
+			return 0;
+		}
 		// Every block belongs to at most one placement, whatever is standing there.
 		Optional<BuildPlacement> overlapping = BuildRegistry.overlapping(source.getServer(), level.dimension(), box, null);
 		if (overlapping.isPresent()) {

@@ -19,8 +19,9 @@ import org.jspecify.annotations.Nullable;
  * player sees it while they are still moving it: the box is drawn green while {@code /vcs confirmPlace} would
  * succeed and red while it would be refused.
  * <p>
- * Both reasons the server refuses are checked here, against what the client already knows: the placements it was
- * sent, which may never be overlapped, and the blocks around it, which are only overwritten with {@code -f}. The
+ * Every reason the server refuses is checked here, against what the client already knows: the world's build height,
+ * which the copy may not stick out of, the placements it was sent, which may never be overlapped, and the blocks
+ * around it, which are only overwritten with {@code -f}. The
  * server checks again when the placement is confirmed and has the last word; this is only a light ahead of the
  * command.
  * <p>
@@ -46,15 +47,22 @@ public final class PlacePreviewStatus {
 	 * @param overlapping the label of the placement it overlaps, or null if it overlaps none
 	 * @param inTheWay    how many blocks stand inside the box, or 0 when the box was too big to count
 	 * @param force       whether the {@code /vcs place} was given {@code -f}, which overwrites those blocks
+	 * @param height      whether the box sticks out above ({@link Height#TOO_HIGH}) or below the world's build height
 	 */
-	public record Status(BuildBox box, @Nullable String overlapping, int inTheWay, boolean force) {
+	public record Status(BuildBox box, @Nullable String overlapping, int inTheWay, boolean force, Height height) {
 		/** Whether {@code /vcs confirmPlace} would put the copy down as things stand. */
 		public boolean placeable() {
-			return overlapping == null && (force || inTheWay == 0);
+			return height == Height.OK && overlapping == null && (force || inTheWay == 0);
 		}
 
 		/** Why it would be refused, in a few words for the action bar, or null when it would not be. */
 		public @Nullable String reason() {
+			if (height == Height.TOO_HIGH) {
+				return TOO_HIGH;
+			}
+			if (height == Height.TOO_LOW) {
+				return TOO_LOW;
+			}
 			if (overlapping != null) {
 				return "overlaps " + overlapping;
 			}
@@ -64,6 +72,23 @@ public final class PlacePreviewStatus {
 			return null;
 		}
 	}
+
+	/** Where the box stands against the world's build height. */
+	public enum Height {
+		OK, TOO_HIGH, TOO_LOW;
+
+		static Height of(BuildBox box, ClientLevel level) {
+			if (box.max().getY() > level.getMaxY()) {
+				return TOO_HIGH;
+			}
+			return box.min().getY() < level.getMinY() ? TOO_LOW : OK;
+		}
+	}
+
+	/** The reason given while the copy sticks out above the world. */
+	public static final String TOO_HIGH = "build is too high, move it down";
+	/** The reason given while the copy sticks out below the world. */
+	public static final String TOO_LOW = "build is too low, move it up";
 
 	private PlacePreviewStatus() {
 	}
@@ -100,7 +125,7 @@ public final class PlacePreviewStatus {
 			inTheWay = inTheWay(level, box);
 			sinceCount = 0;
 		}
-		status = new Status(box, overlapping(box, level.dimension()), inTheWay, preview.force());
+		status = new Status(box, overlapping(box, level.dimension()), inTheWay, preview.force(), Height.of(box, level));
 	}
 
 	/** The label of the placement {@code box} intersects in {@code dimension}, or null if it intersects none. */

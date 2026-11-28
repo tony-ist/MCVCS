@@ -299,8 +299,50 @@ public class VcsPlacePreviewGameTest extends VcsGameTest {
 				throw new AssertionError("Expected no copy to be shown after cancelling");
 			}
 
+			checkTooHigh(context, singleplayer, start);
 			checkLayeredCopy(context, singleplayer, start);
 		}
+	}
+
+	/**
+	 * A copy sticking out above the world's build height cannot be placed: the box turns red, says the build is too
+	 * high, and Numpad 5 refuses. Shown with its top on the highest layer, it is fine until raised one block.
+	 */
+	private static void checkTooHigh(ClientGameTestContext context, TestSingleplayerContext singleplayer, BlockPos start) {
+		int maxY = context.computeOnClient(client -> client.level.getMaxY());
+		BlockPos feet = hover(singleplayer, context, new BlockPos(start.getX(), maxY + 1, start.getZ() + 100));
+		BuildBox box = below(feet);
+		if (box.max().getY() != maxY) {
+			throw new AssertionError("Expected the copy's top at y " + maxY + " but it is " + box);
+		}
+		runCommand(context, "vcs place " + BUILD_NAME);
+		assertShowing(context, box);
+		assertPlaceable(context, true);
+
+		watchFrom(singleplayer, context, new BlockPos(box.min().getX() + 1, box.min().getY(), box.min().getZ() - 6));
+		box = press(context, PlacePreviewKeys.UP, box, 0, 1, 0);
+		assertPlaceable(context, false);
+		assertOverlay(context, PlacePreviewStatus.TOO_HIGH);
+
+		context.getInput().pressKey(PlacePreviewKeys.CONFIRM);
+		context.waitTicks(5);
+		assertOverlay(context, PlacePreviewKeys.REFUSED + PlacePreviewStatus.TOO_HIGH);
+		assertShowing(context, box);
+		assertPlacements(singleplayer, List.of(Build.MAIN, MOVED));
+		context.runOnClient(client -> client.gui.getChat().clearMessages(false));
+		context.waitTicks(2);
+		screenshotLastFrame(context, "mcvcs-vcs-place-preview-too-high");
+
+		// The server refuses it too, should the command be typed.
+		runCommand(context, "vcs confirmPlace");
+		context.waitTicks(5);
+		assertShowing(context, box);
+		assertPlacements(singleplayer, List.of(Build.MAIN, MOVED));
+
+		box = press(context, PlacePreviewKeys.DOWN, box, 0, -1, 0);
+		assertPlaceable(context, true);
+		runCommand(context, "vcs cancelPlace");
+		context.waitFor(client -> PreviewManager.place() == null);
 	}
 
 	/**
