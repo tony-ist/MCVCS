@@ -33,7 +33,7 @@ import tony.mcvcs.build.Placement;
  * <li>{@code /vcs builds}: {@link VcsCommandBuilds}</li>
  * <li>{@code /vcs deselect}: {@link VcsCommandDeselect}</li>
  * <li>{@code /vcs save [label]}: {@link VcsCommandCommit}</li>
- * <li>{@code /vcs label <version | label> <label>} and {@code /vcs unlabel <label>}: {@link VcsCommandTag}</li>
+ * <li>{@code /vcs label <version | label> <label> [buildname]} and {@code /vcs unlabel <label>}: {@link VcsCommandTag}</li>
  * <li>{@code /vcs preview <version | label | off>}: {@link VcsCommandPreview}</li>
  * <li>{@code /vcs changes [version | label | off]}: {@link VcsCommandDiff}</li>
  * <li>{@code /vcs fit [label]}: {@link VcsCommandFit}</li>
@@ -136,7 +136,9 @@ public final class VcsCommand {
 				.then(sub(VcsCommandTag.HELP)
 					.then(VersionRef.argument(VcsCommand::selectedBuild)
 						.then(Commands.argument("label", StringArgumentType.word())
-							.executes(context -> VcsCommandTag.run(context.getSource(), VersionRef.of(context), StringArgumentType.getString(context, "label"))))))
+							.executes(context -> VcsCommandTag.run(context.getSource(), VersionRef.of(context), StringArgumentType.getString(context, "label"), null))
+							.then(Commands.argument("buildname", StringArgumentType.word())
+								.executes(context -> VcsCommandTag.run(context.getSource(), VersionRef.of(context), StringArgumentType.getString(context, "label"), StringArgumentType.getString(context, "buildname")))))))
 				.then(sub(VcsCommandTag.UNTAG_HELP)
 					.then(Commands.argument("label", StringArgumentType.word())
 						.suggests((context, builder) -> SharedSuggestionProvider.suggest(selectedBuild(context).map(build -> build.tags().keySet()).orElse(Set.of()), builder))

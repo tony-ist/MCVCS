@@ -40,6 +40,7 @@ import tony.mcvcs.client.browser.CheckoutScreen;
 import tony.mcvcs.client.browser.CommitPreview;
 import tony.mcvcs.client.browser.CreateBuildScreen;
 import tony.mcvcs.client.browser.DeleteBuildScreen;
+import tony.mcvcs.client.browser.LabelScreen;
 import tony.mcvcs.client.browser.PlacementPickerScreen;
 import tony.mcvcs.client.browser.RenameBuildScreen;
 import tony.mcvcs.client.browser.Thumbnail;
@@ -297,6 +298,7 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 			context.waitFor(client -> client.player.blockPosition().equals(onTower));
 
 			checkCheckout(context, singleplayer, towerMin, towerMax);
+			checkLabel(context);
 
 			// TP closes the overlay and puts the player on top of the bridge, at its centre.
 			open(context);
@@ -595,6 +597,87 @@ public class VcsBuildBrowserGameTest extends VcsGameTest {
 		clickButton(context, name, BuildBrowserScreen.MORE);
 		clickButton(context, name, BuildBrowserScreen.DELETE);
 		context.waitForScreen(DeleteBuildScreen.class);
+	}
+
+	/**
+	 * The Label item of a cell's menu shows every version of the build: Save label is greyed out until a version is
+	 * picked and the field holds a label the build does not have; B typed into the field is just a letter; Enter saves it
+	 * and the overlay comes back showing it. A build with one version has it picked already, and need not be selected.
+	 */
+	private static void checkLabel(ClientGameTestContext context) {
+		openLabel(context, SMALL);
+		context.waitFor(client -> {
+			BuildSummary tower = summary(SMALL);
+			return tower.versions().stream().allMatch(version -> {
+				Thumbnail thumbnail = BuildBrowser.thumbnail(tower, version);
+				return thumbnail != null && thumbnail.state() == Thumbnail.State.READY;
+			});
+		});
+		setLabelField(context, "first");
+		assertCanSaveLabel(context, false);
+		clickLabelVersion(context, 1);
+		assertCanSaveLabel(context, true);
+		// Already on v2.
+		setLabelField(context, "2.0.0");
+		assertCanSaveLabel(context, false);
+		setLabelField(context, "first");
+		context.getInput().pressKey(GLFW.GLFW_KEY_B);
+		context.waitTicks(2);
+		if (context.computeOnClient(client -> !(client.screen instanceof LabelScreen))) {
+			throw new AssertionError("Expected B typed into the label field to leave the window open");
+		}
+		setLabelField(context, "first");
+		moveAway(context);
+		context.waitTicks(2);
+		context.takeScreenshot("mcvcs-builds-overlay-label");
+		context.getInput().pressKey(GLFW.GLFW_KEY_ENTER);
+		context.waitForScreen(BuildBrowserScreen.class);
+		context.waitFor(client -> BuildBrowser.listState() == BuildBrowser.ListState.LOADED
+			&& summary(SMALL).versions().stream().anyMatch(version -> version.version() == 1 && version.tags().contains("first")));
+
+		// The bridge is not selected and has one version, so Save label works as soon as a label is typed.
+		openLabel(context, LONG);
+		setLabelField(context, "span");
+		assertCanSaveLabel(context, true);
+		clickLabelWidget(context, LabelScreen.SAVE);
+		context.waitForScreen(BuildBrowserScreen.class);
+		context.waitFor(client -> BuildBrowser.listState() == BuildBrowser.ListState.LOADED
+			&& summary(LONG).versions().getFirst().tags().contains("span"));
+		context.getInput().pressKey(BuildBrowserKey.KEY);
+		context.waitFor(client -> client.screen == null);
+	}
+
+	/** Opens the overlay, then the menu of {@code name}'s cell, and clicks its Label, which opens the label window. */
+	private static void openLabel(ClientGameTestContext context, String name) {
+		if (context.computeOnClient(client -> !(client.screen instanceof BuildBrowserScreen))) {
+			open(context);
+		}
+		clickButton(context, name, BuildBrowserScreen.MORE);
+		clickButton(context, name, BuildBrowserScreen.LABEL_VERSION);
+		context.waitForScreen(LabelScreen.class);
+	}
+
+	private static void setLabelField(ClientGameTestContext context, String value) {
+		context.runOnClient(client -> client.screen.children().stream().filter(EditBox.class::isInstance).map(EditBox.class::cast).findFirst().orElseThrow().setValue(value));
+	}
+
+	private static void assertCanSaveLabel(ClientGameTestContext context, boolean expected) {
+		boolean actual = context.computeOnClient(client -> ((LabelScreen) client.screen).canPressSave());
+		if (actual != expected) {
+			throw new AssertionError("Expected " + LabelScreen.SAVE + " to be " + (expected ? "pressable" : "greyed out"));
+		}
+	}
+
+	/** Clicks the cell of version {@code version} in the label window. */
+	private static void clickLabelVersion(ClientGameTestContext context, int version) {
+		ScreenRectangle cell = context.computeOnClient(client -> ((LabelScreen) client.screen).cellOf(version));
+		clickAt(context, cell.left() + cell.width() / 2.0, cell.top() + cell.height() / 2.0);
+	}
+
+	/** Clicks the button labelled {@code label} in the label window. */
+	private static void clickLabelWidget(ClientGameTestContext context, String label) {
+		ScreenRectangle widget = context.computeOnClient(client -> ((LabelScreen) client.screen).widgetOf(label));
+		clickAt(context, widget.left() + widget.width() / 2.0, widget.top() + widget.height() / 2.0);
 	}
 
 	/** Opens the menu of {@code name}'s cell and clicks its Rename, which opens the rename window. */

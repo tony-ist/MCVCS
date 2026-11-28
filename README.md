@@ -223,6 +223,7 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 - Make diffs more visible. Right now they intersect into clutter. 
 - Ability to rotate during placement preview
 - Confirm you want to resize when there are uncommited changes
+- Removing/editing labels through overlay
 
 ### Assemblies
 

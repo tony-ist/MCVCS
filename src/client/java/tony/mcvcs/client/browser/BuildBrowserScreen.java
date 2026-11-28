@@ -46,7 +46,8 @@ import tony.mcvcs.network.PlacementStatusPayload;
  * {@code /vcs place} for one of its versions, so the copy shows up where the player stands, ready to be lined up; a
  * build with several versions first asks which, see {@link VersionPickerScreen}. A build with no placements has the first two greyed out; for one with several, they first ask which placement
  * is meant, see {@link PlacementPickerScreen}. Three dots in the hovered cell's top right corner open a menu whose
- * {@code Rename} asks for a new name, see {@link RenameBuildScreen}, and whose {@code Delete} asks whether to delete
+ * {@code Rename} asks for a new name, see {@link RenameBuildScreen}, whose {@code Label} labels one of its versions, see
+ * {@link LabelScreen}, and whose {@code Delete} asks whether to delete
  * the build, see {@link DeleteBuildScreen}. A build bigger than
  * {@link ClientConfig.Settings#autoDownloadLimit} shows a placeholder instead of its preview until the cell is clicked
  * outside its buttons, which downloads the preview. Three dots in the top right corner open the header's menu, whose
@@ -123,6 +124,7 @@ public final class BuildBrowserScreen extends Screen {
 	/** Label of the three dots in a hovered cell's top right corner, which open its menu, and of that menu's items. */
 	public static final String MORE = "More";
 	public static final String RENAME = "Rename";
+	public static final String LABEL_VERSION = "Label";
 	public static final String DELETE = "Delete";
 	/** Size of the three dots' button, and the space between it and the corner of the cell. */
 	private static final int MORE_WIDTH = 14;
@@ -180,6 +182,9 @@ public final class BuildBrowserScreen extends Screen {
 	private final Button more = new DotsButton(button -> menuFor = buttonsFor);
 	/** The menu's items, top to bottom; clicked by {@link #mouseClicked} itself, since they lie over the cell's other buttons. */
 	private final Button rename = Button.builder(Component.literal(RENAME), button -> openRename()).build();
+	private final Button label = Button.builder(Component.literal(LABEL_VERSION), button -> openLabel())
+		.tooltip(Tooltip.create(Component.literal("Give a version a name, e.g. with-roof")))
+		.build();
 	private final Button delete = Button.builder(Component.literal(DELETE), button -> confirmDelete()).build();
 	/** The header's three dots, and whether their menu is open; its items are clicked by {@link #mouseClicked} itself. */
 	private final Button headerMore = new DotsButton(HEADER_MORE, HEADER_MORE_WIDTH, 20, button -> headerMenuOpen = true);
@@ -664,7 +669,7 @@ public final class BuildBrowserScreen extends Screen {
 	}
 
 	private List<Button> menuItems() {
-		return List.of(rename, delete);
+		return List.of(rename, label, delete);
 	}
 
 	private void closeMenu() {
@@ -680,6 +685,15 @@ public final class BuildBrowserScreen extends Screen {
 		closeMenu();
 		if (build != null && minecraft != null) {
 			minecraft.setScreen(new RenameBuildScreen(this, build));
+		}
+	}
+
+	/** Opens the window that labels a version of the build whose menu is open, see {@link LabelScreen}. */
+	private void openLabel() {
+		BuildSummary build = menuFor;
+		closeMenu();
+		if (build != null && minecraft != null) {
+			minecraft.setScreen(new LabelScreen(this, build));
 		}
 	}
 

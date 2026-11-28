@@ -8,17 +8,21 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
+import org.jspecify.annotations.Nullable;
 
 import tony.mcvcs.MCVCS;
 import tony.mcvcs.build.Build;
 import tony.mcvcs.build.BuildPlacement;
 import tony.mcvcs.build.BuildRegistry;
 import tony.mcvcs.build.BuildStorage;
+import tony.mcvcs.network.BuildSync;
+import tony.mcvcs.network.ChatButtons;
 
 /**
  * {@code /vcs label <version> <tagname>}: gives a version of the selected placement's build a tag, such as {@code 2.0.0},
  * recorded in {@code build.json}. A version may carry several tags, but a tag names one version only, so a tag that
- * already names another version is refused rather than moved. {@code /vcs save <tagname>} tags the version it saves
+ * already names another version is refused rather than moved. The builds overlay adds the build's name at the end,
+ * {@code /vcs label <version> <tagname> <buildname>}, to label a build that need not be selected. {@code /vcs save <tagname>} tags the version it saves
  * the same way, see {@link #refusal}. {@code /vcs unlabel <tagname>} removes a tag again, leaving the version it named.
  */
 public final class VcsCommandTag {
@@ -32,16 +36,28 @@ public final class VcsCommandTag {
 	private VcsCommandTag() {
 	}
 
-	/** @param typed the version to tag, by number or by a tag it already has */
-	static int run(CommandSourceStack source, VersionRef typed, String tag) throws CommandSyntaxException {
+	/**
+	 * @param typed     the version to tag, by number or by a tag it already has
+	 * @param buildName the build to tag, as the builds overlay names it, or null for the selected placement's build
+	 */
+	static int run(CommandSourceStack source, VersionRef typed, String tag, @Nullable String buildName) throws CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
-		Optional<BuildPlacement> selected = BuildRegistry.selected(player);
-		if (selected.isEmpty()) {
-			source.sendFailure(VcsMessages.noPlacementSelected());
-			return 0;
+		Build build;
+		if (buildName != null) {
+			Optional<Build> named = BuildRegistry.find(source.getServer(), buildName);
+			if (named.isEmpty()) {
+				source.sendFailure(Component.literal("No build named ").append(VcsMessages.name(buildName)).append("; see ").append(ChatButtons.command("/vcs builds")));
+				return 0;
+			}
+			build = named.get();
+		} else {
+			Optional<BuildPlacement> selected = BuildRegistry.selected(player);
+			if (selected.isEmpty()) {
+				source.sendFailure(VcsMessages.noPlacementSelected());
+				return 0;
+			}
+			build = selected.get().build();
 		}
-
-		Build build = selected.get().build();
 		// The command always names a version, so the fallback is never used.
 		Optional<Integer> resolved = typed.resolve(source, build, build.version());
 		if (resolved.isEmpty()) {
@@ -67,6 +83,8 @@ public final class VcsCommandTag {
 			return 0;
 		}
 		MCVCS.LOGGER.info("{} tagged build '{}' v{} as '{}'", player.getGameProfile().name(), build.name(), version, tag);
+		// The builds overlay waits for this to ask for its list again.
+		BuildSync.broadcast(source.getServer());
 
 		source.sendSuccess(() -> Component.literal("Labeled build ").append(VcsMessages.name(build.name())).append(" " + tagged.versionLabel(version)), false);
 		return 1;
@@ -98,6 +116,7 @@ public final class VcsCommandTag {
 			return 0;
 		}
 		MCVCS.LOGGER.info("{} removed tag '{}' from build '{}' v{}", player.getGameProfile().name(), tag, build.name(), version);
+		BuildSync.broadcast(source.getServer());
 
 		source.sendSuccess(() -> Component.literal("Removed label " + tag + " from build ").append(VcsMessages.name(build.name())).append(" " + untagged.versionLabel(version)), false);
 		return 1;
