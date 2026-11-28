@@ -97,8 +97,14 @@ public class VcsCommitScreenGameTest extends VcsGameTest {
 					throw new AssertionError("Expected Diff (3) pressable and left of Commit");
 				}
 			});
+			// Showing the changes closes the overlay, so they can be seen in the world.
 			clickHeader(context, BuildBrowserScreen.DIFF + " (3)");
-			context.waitFor(client -> DiffManager.active() != null && headerButton(client, BuildBrowserScreen.HIDE_DIFF) != null);
+			context.waitFor(client -> client.screen == null && DiffManager.active() != null);
+			context.waitTicks(2);
+			context.takeScreenshot("mcvcs-browser-diff-shown");
+			context.getInput().pressKey(BuildBrowserKey.KEY);
+			context.waitForScreen(BuildBrowserScreen.class);
+			context.waitFor(client -> headerButton(client, BuildBrowserScreen.HIDE_DIFF) != null);
 			context.waitTicks(2);
 			context.takeScreenshot("mcvcs-browser-hide-diff");
 			clickHeader(context, BuildBrowserScreen.HIDE_DIFF);

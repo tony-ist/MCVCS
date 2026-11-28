@@ -403,7 +403,13 @@ public final class BuildBrowserScreen extends Screen {
 
 	/** Runs {@code /vcs changes} against the version the selected placement holds, or {@code /vcs changes off} while one is highlighted. */
 	private void toggleDiff() {
-		sendCommand(DiffManager.active() != null ? "vcs changes off" : "vcs changes");
+		if (DiffManager.active() != null) {
+			sendCommand("vcs changes off");
+		} else {
+			// Closed so the player sees the highlighted changes in the world.
+			onClose();
+			sendCommand("vcs changes");
+		}
 	}
 
 	/**
