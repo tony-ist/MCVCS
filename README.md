@@ -209,6 +209,7 @@ CC0 1.0 Universal, see [LICENSE](LICENSE).
 
 ### Roadmap
 
+- Replace "/vcs confirmPlace to place" with "Numpad 5 to place" during placement preview. Maybe also add a button on overlay to confirm
 - Add checkbox to fit selection in commit window in overlay
 - Cancel resize button on overlay
 - Confirm you want to resize when there are uncommited changes
